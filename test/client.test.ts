@@ -134,7 +134,7 @@ test("query() parses rows: trims gen2/name, drops join + <field>v columns", asyn
   assert.equal(nds.typ, 1);
   assert.equal(nds.level, "land");
   assert.equal(nds.year, 2020);
-  assert.deepEqual(nds.values, { ai0201: 167.8, ai0202: 12.3 }); // ai0201v flag dropped
+  assert.deepEqual({ ...nds.values }, { ai0201: 167.8, ai0202: 12.3 }); // ai0201v flag dropped
   assert.equal("ags" in nds.values, false);
 });
 
@@ -156,7 +156,27 @@ test("region filter: a text input is a case-insensitive substring of the name", 
 test("field projection keeps only named value fields and ignores unknown names", () => {
   const rows = [fx.landData.features[0]!].map((f) => parseRow(f.attributes, 1, "land", 2020));
   const projected = projectFields(rows, ["ai0201", "does_not_exist"]);
-  assert.deepEqual(projected[0]!.values, { ai0201: 167.8 });
+  assert.deepEqual({ ...projected[0]!.values }, { ai0201: 167.8 });
+});
+
+test("a __proto__/constructor field in the response cannot pollute Object.prototype", () => {
+  // JSON.parse creates "__proto__" as an OWN property (this is the real transport
+  // path), unlike an object literal which would invoke the prototype setter.
+  const attrs = JSON.parse(
+    '{"ags":"03","gen":"Test","ai0201":5,"__proto__":{"polluted":"yes"},"constructor":{"polluted":"yes"}}',
+  );
+  const row = parseRow(attrs, 1, "land", 2020);
+  // Object.prototype is untouched and the value map has a null prototype.
+  assert.equal((({}) as Record<string, unknown>)["polluted"], undefined);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(Object.prototype, "polluted"),
+    false,
+  );
+  assert.equal(Object.getPrototypeOf(row.values), null);
+  // The legitimate data is still parsed.
+  assert.equal(row.ags, "03");
+  assert.equal(row.name, "Test");
+  assert.equal(row.values.ai0201, 5);
 });
 
 test("query() applies --region and --fields client-side without changing the request", async () => {
@@ -170,7 +190,7 @@ test("query() applies --region and --fields client-side without changing the req
   });
   assert.equal(rows.length, 1);
   assert.equal(rows[0]!.name, "Bremen");
-  assert.deepEqual(rows[0]!.values, { ai0201: 1620.8 });
+  assert.deepEqual({ ...rows[0]!.values }, { ai0201: 1620.8 });
   // The request still asked for all fields, all regions.
   assert.equal(queryOf(dataRequest(mt.calls)).get("outFields"), "*");
 });

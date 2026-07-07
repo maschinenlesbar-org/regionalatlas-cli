@@ -197,7 +197,10 @@ export function parseRow(
   const rawName = typeof attrs.gen === "string" ? attrs.gen : attrs.gen2;
   const name = typeof rawName === "string" ? rawName.trim() : "";
 
-  const values: Record<string, number | null> = {};
+  // Null-prototype map: the keys are attacker-controllable ArcGIS field names, so a
+  // `__proto__`/`constructor` field in a hostile/MITM'd body must land as a plain data
+  // key, never reparenting the object or touching Object.prototype (defence-in-depth).
+  const values: Record<string, number | null> = Object.create(null);
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
     // Drop the precision-flag variants: `<field>v` when `<field>` is also present.
@@ -235,7 +238,8 @@ export function projectFields(rows: RegionRow[], fields: string[]): RegionRow[] 
   const wanted = new Set(fields.map((f) => f.trim().toLowerCase()).filter((f) => f !== ""));
   if (wanted.size === 0) return rows;
   return rows.map((r) => {
-    const values: Record<string, number | null> = {};
+    // Null-prototype map, same rationale as parseRow: keys are response-derived.
+    const values: Record<string, number | null> = Object.create(null);
     for (const [key, value] of Object.entries(r.values)) {
       if (wanted.has(key.toLowerCase())) values[key] = value;
     }
