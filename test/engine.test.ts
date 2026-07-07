@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine } from "../src/client/engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError } from "../src/client/errors.js";
+import {
+  RegionalatlasApiError,
+  RegionalatlasNetworkError,
+  RegionalatlasParseError,
+} from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse, queryOf } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
@@ -103,4 +107,20 @@ test("a 503 is retried up to maxRetries then surfaces as a RegionalatlasApiError
   const e = new RequestEngine({ transport: mt.transport, maxRetries: 2, sleep: async () => {} });
   await assert.rejects(() => e.getJson("/x"), (err) => err instanceof RegionalatlasApiError && err.status === 503);
   assert.equal(calls, 3);
+});
+
+test("requestUrl rejects a non-http(s) scheme at the engine level, before the transport", async () => {
+  const mt = makeMockTransport(() => jsonResponse(fx.landData));
+  // Data host with a file: base URL — a library consumer injecting a custom
+  // transport would otherwise never hit a scheme check.
+  const e1 = new RequestEngine({ transport: mt.transport, baseUrl: "file:///etc/passwd" });
+  await assert.rejects(() => e1.getJson("/x/query"), RegionalatlasNetworkError);
+  // Absolute (catalogue) URL with an ftp: scheme.
+  const e2 = new RequestEngine({ transport: mt.transport });
+  await assert.rejects(
+    () => e2.getJsonAbsolute("ftp://cat.test/services.json"),
+    RegionalatlasNetworkError,
+  );
+  // The transport was never invoked in either case.
+  assert.equal(mt.calls.length, 0);
 });

@@ -11,7 +11,11 @@
 
 import { nodeHttpTransport, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
-import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
+import {
+  RegionalatlasApiError,
+  RegionalatlasNetworkError,
+  RegionalatlasParseError,
+} from "./errors.js";
 
 /** The ArcGIS MapServer host that answers the dynamicLayer data queries. */
 export const DEFAULT_BASE_URL = "https://www.gis-idmz.nrw.de";
@@ -79,6 +83,25 @@ export function sanitizeServerText(text: string): string {
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Reject a request URL whose scheme is not http/https, before it reaches the
+ * transport. Defence-in-depth for library consumers who inject a custom Transport
+ * (the CLI and the default transport already reject non-http(s) URLs).
+ */
+function assertHttpScheme(url: string): void {
+  let protocol: string;
+  try {
+    protocol = new URL(url).protocol;
+  } catch {
+    throw new RegionalatlasNetworkError(`Invalid request URL: ${url}`);
+  }
+  if (protocol !== "http:" && protocol !== "https:") {
+    throw new RegionalatlasNetworkError(
+      `Unsupported URL scheme "${protocol}" — only http and https are allowed.`,
+    );
+  }
+}
+
 export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
@@ -122,6 +145,11 @@ export class RequestEngine {
    * an error.
    */
   private async requestUrl(url: string, accept: string): Promise<RawResponse> {
+    // Enforce http(s) at the engine boundary too. The CLI validates
+    // --base-url/--catalog-url at parse time and the default transport re-checks,
+    // but a library consumer injecting a custom Transport would otherwise inherit no
+    // scheme guard. This covers both the data host and the absolute catalogue URL.
+    assertHttpScheme(url);
     const headers: Record<string, string> = {
       ...this.defaultHeaders,
       Accept: accept,
