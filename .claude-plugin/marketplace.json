@@ -1,0 +1,37 @@
+{
+  "name": "regionalatlas-skills",
+  "owner": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "metadata": {
+    "description": "German regional-statistics skills powered by the regionalatlas-cli (Regionalatlas Deutschland of the Statistische Ämter des Bundes und der Länder)"
+  },
+  "plugins": [
+    {
+      "name": "regionalatlas",
+      "source": "./",
+      "description": "Browse, map and compare regional-statistics indicators for Germany — by Bundesland, Regierungsbezirk, Kreis or Gemeinde — from the Regionalatlas Deutschland of the Statistische Ämter des Bundes und der Länder, via the regionalatlas-cli.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Sebastian Schürmann",
+        "email": "sebs@2xs.org"
+      },
+      "license": "AGPL-3.0-or-later",
+      "repository": "https://github.com/maschinenlesbar-org/regionalatlas-cli",
+      "homepage": "https://github.com/maschinenlesbar-org/regionalatlas-cli#readme",
+      "category": "government",
+      "keywords": [
+        "regionalatlas",
+        "regionaldatenbank",
+        "regionalstatistik",
+        "statistische-aemter",
+        "destatis",
+        "indikatoren",
+        "arcgis",
+        "germany",
+        "bund.dev"
+      ]
+    }
+  ]
+}

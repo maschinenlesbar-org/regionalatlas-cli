@@ -1,0 +1,23 @@
+{
+  "name": "regionalatlas",
+  "version": "0.1.0",
+  "description": "German regional-statistics skills powered by the regionalatlas-cli (Regionalatlas Deutschland of the Statistische Ämter des Bundes und der Länder).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/regionalatlas-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/regionalatlas-cli#readme",
+  "keywords": [
+    "regionalatlas",
+    "regionaldatenbank",
+    "regionalstatistik",
+    "statistische-aemter",
+    "destatis",
+    "indikatoren",
+    "arcgis",
+    "germany",
+    "bund.dev"
+  ]
+}
