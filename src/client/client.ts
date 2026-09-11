@@ -125,6 +125,14 @@ export class RegionalatlasClient {
       spatialRel: "esriSpatialRelIntersects",
     });
 
+    // `?? []` only catches a missing field; a truthy non-array (e.g. an upstream
+    // or cache serving an unexpected shape) would otherwise reach `.map` below as
+    // a raw TypeError.
+    if (res.features !== undefined && !Array.isArray(res.features)) {
+      throw new RegionalatlasParseError(
+        `Expected "features" to be an array in the data query response, got ${typeof res.features}.`,
+      );
+    }
     const rows = (res.features ?? []).map((f) =>
       parseRow(f.attributes, level.typ, level.name, year),
     );

@@ -243,3 +243,11 @@ test("an empty 200 data body surfaces as a typed RegionalatlasParseError", async
     (err) => err instanceof RegionalatlasParseError && /Expected a JSON object/.test(err.message),
   );
 });
+
+test("a non-array features field surfaces as a typed RegionalatlasParseError, not a raw TypeError", async () => {
+  const { client } = clientRouting({ features: { message: "unexpected shape" } });
+  await assert.rejects(
+    () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
+    (err) => err instanceof RegionalatlasParseError && /"features".*array/.test(err.message),
+  );
+});
