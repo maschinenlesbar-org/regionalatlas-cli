@@ -1,5 +1,7 @@
 # regionalatlas-cli
 
+**Website:** [English](https://maschinenlesbar-org.github.io/regionalatlas-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/regionalatlas-cli/de/) — command reference, guides and API docs
+
 A dependency-light **TypeScript client + CLI** for the **Regionalatlas Deutschland** —
 the regional-statistics indicators of the **Statistische Ämter des Bundes und der
 Länder** (Destatis and the 16 Länder offices), broken down per **Bundesland /
