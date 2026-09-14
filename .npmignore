@@ -14,7 +14,7 @@ tsconfig.json
 .gitignore
 .npmignore
 
-# Skills & plugin marketplace (developer/Claude tooling, not part of the library)
+# Skills & Claude Code plugin (developer/Claude tooling, not part of the library)
 skills/
 .claude-plugin/
 SKILLS.md
