@@ -1,6 +1,6 @@
 // Command group for the Regionalatlas CLI:
 //   - `themes`      list the 21 subject areas (title + indicator count)
-//   - `indicators`  list indicators (code, short title, years), with filters
+//   - `indicators`  list indicators (code, short + long title, years), with filters
 //   - `query`       fetch data rows for an indicator at a chosen geo level
 
 import type { Command } from "commander";
@@ -36,7 +36,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
 
   program
     .command("indicators")
-    .description("List indicators (Indikatoren): code, short title, available years")
+    .description("List indicators (Indikatoren): code, short and long title, available years")
     .option("--theme <substr>", "filter by theme title (case-insensitive substring)", parseNonEmpty)
     .option("--year <yyyy>", "only indicators offering this year", parseYear)
     .option("--search <substr>", "filter over code + short + long title (case-insensitive)", parseNonEmpty)
@@ -55,6 +55,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
             table: ind.table,
             theme: ind.theme,
             titleShort: ind.titleShort,
+            titleLong: ind.titleLong,
             years: yearRange(ind.years),
           })),
         );

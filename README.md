@@ -42,7 +42,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
 ```
 
 - **`themes`** lists the subject areas (Themenbereiche) and their indicator counts.
-- **`indicators`** lists the indicators — `code`, short title, year range — with
+- **`indicators`** lists the indicators — `code`, short and long title, year range — with
   `--theme` / `--year` / `--search` filters.
 - **`query <code>`** fetches the data rows for an indicator at a geo level (`--level`,
   default `land`), for a year (`--year`, default the indicator's latest). `--region`

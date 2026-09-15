@@ -36,8 +36,9 @@ regionalatlas [global options] <command> [command options]
 | `--year <yyyy>` | only indicators offering this year |
 | `--search <substr>` | filter over code + short + long title (case-insensitive) |
 
-`regionalatlas indicators` → `[{ code, table, theme, titleShort, years }, …]`, where
-`years` is a compact range (e.g. `2000–2024`).
+`regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years }, …]`,
+where `years` is a compact range (e.g. `2000–2024`). `titleLong` is the catalogue's long
+title, which `--search` also matches (it contains the theme name).
 
 ### `query <indicator-code>` — fetch data rows
 

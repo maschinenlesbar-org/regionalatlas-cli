@@ -202,3 +202,19 @@ test("--compact prints single-line JSON", async () => {
   await run(["themes", "--compact"], cli.deps);
   assert.equal(cli.out.length, 1);
 });
+
+test("indicators includes the long title that --search also matches", async () => {
+  const cli = makeRoutingCli();
+  assert.equal(await run(["indicators", "--search", "altersgruppen"], cli.deps), 0);
+  const parsed = JSON.parse(cli.out.join("\n")) as { code: string; titleLong: string }[];
+  assert.deepEqual(parsed, [
+    {
+      code: "AI002-2-5",
+      table: "ai002_2_5",
+      theme: "Bevölkerung",
+      titleShort: "Bevölkerung nach Altersgruppen",
+      titleLong: "Themenbereich Bevölkerung — Altersgruppen",
+      years: "2019–2020",
+    },
+  ]);
+});
