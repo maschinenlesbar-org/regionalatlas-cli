@@ -40,7 +40,7 @@ This skill drives the `regionalatlas` command. **Before anything else, validate 
 | `ags` | Amtlicher Gemeindeschlüssel (region key, a string; leading zeros matter) |
 | `name` | Gebietsname (region name) |
 | `year` | reporting year |
-| `values` | `{ <valueField>: number\|null }` — the indicator's value columns |
+| `values` | `{ <valueField>: number\|null }` — the indicator's value columns, keyed by bare codes (`ai0201`), with no label or unit |
 
 ## Recipes
 
@@ -48,7 +48,7 @@ This skill drives the `regionalatlas` command. **Before anything else, validate 
 # One indicator for all 16 Bundesländer, a specific year
 regionalatlas query AI002-1-5 --level land --year 2020 --compact | jq '.[] | {name, values}'
 
-# The same by Kreis (latest year by default), one value field only
+# The same by Kreis (newest catalogue year by default), one value field only
 regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   | jq -r '.[] | "\(.ags)\t\(.name)\t\(.values.ai0201)"'
 
@@ -62,11 +62,23 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
 - **Find the code first** (the **regionalatlas-catalog** skill): pass `code`
   (`AI002-1-5`) or `table` (`ai002_1_5`). An unknown code is a usage error (exit 2) — it
   is validated against the catalogue before any query runs.
-- **`--year` must be one the indicator offers** (else exit 2); omit it for the latest.
-  Confirm the range with `regionalatlas indicators`.
+- **`--year` must be one the indicator offers** (else exit 2, and the error lists the
+  `Available:` years). The `years` range from `regionalatlas indicators` shows only
+  first–last and hides gaps (`AI005` `1998–2025` has only election years).
+- **Leaving out `--year` uses the newest catalogue year, which may not be loaded yet.**
+  The CLI then prints `[]`, exits 0 and writes a `Note:` on stderr naming the previous
+  year (on 2026-09-15 `AI013-1` gave `[]` for 2026 and all 400 Kreise with `--year 2025`).
+  On an empty result, rerun with the year the note names and tell the user which year the
+  map shows.
 - **`--fields` are the value columns** (e.g. `ai0201`) — inspect one row's `values` keys
   first; unknown names are ignored. `--region` filters client-side (a name substring or
   an AGS).
+- **Value columns are unlabelled.** `values` keys are bare column codes (`ai0501`…`ai0507`
+  for `AI005`, `ai0306`/`ai0307` for `AI003-3`), and nothing the CLI prints says what a
+  column measures or its unit. Don't infer a column's meaning from its code order or the
+  size of its numbers. With one column, use it; with several, name the code you used and
+  tell the user the CLI can't confirm the label (the interactive Regionalatlas at
+  regionalatlas.statistikportal.de names each column) instead of guessing.
 - **`--level gemeinde` returns many thousands of rows** — project with `--fields`, pipe
   to `jq`, and consider a coarser level unless you truly need Gemeinden.
 - **`null` values** mean the indicator has no figure for that region/year.
