@@ -29,7 +29,7 @@ This skill drives the `regionalatlas` command. **Before anything else, validate 
 | Command | Output |
 |---|---|
 | `regionalatlas themes` | `[{ title, indicatorCount }, …]` — the 21 subject areas |
-| `regionalatlas indicators` | `[{ code, table, theme, titleShort, years }, …]` — the indicators |
+| `regionalatlas indicators` | `[{ code, table, theme, titleShort, titleLong, years }, …]` — the indicators |
 
 Indicator fields:
 
@@ -39,7 +39,8 @@ Indicator fields:
 | `table` | SQL table form, e.g. `ai002_1_5` — also accepted by `query` |
 | `theme` | the Themenbereich (subject area) |
 | `titleShort` | short title of the indicator |
-| `years` | available-year range, e.g. `2000–2024` |
+| `titleLong` | long title, e.g. `Regionalatlas Deutschland Themenbereich "Wahlen" Indikatoren zu "Bundestagswahl"`; `--search` matches it too |
+| `years` | **first–last** catalogue year only, e.g. `1998–2025` — it hides gaps (see Traps) |
 
 ## Recipes
 
@@ -53,16 +54,38 @@ regionalatlas indicators --search bevölkerung --compact | jq '.[] | {code, titl
 # Everything under a theme, offering a given year
 regionalatlas indicators --theme Umwelt --year 2020 --compact | jq '.[].code'
 
-# Resolve a topic to a code, then hand it to the map/compare skills
-regionalatlas indicators --search wahlbeteiligung --compact | jq -r '.[0].code'
+# Resolve a topic to a code, then hand it to the map/compare skills.
+# Search the broad topic: turnout ("Wahlbeteiligung") is a column inside AI005/AI006,
+# not an indicator title, so --search wahlbeteiligung finds nothing.
+regionalatlas indicators --search wahl --compact | jq -r '.[] | "\(.code)\t\(.titleShort)"'
+
+# Does an indicator offer one specific year? (empty array = no)
+regionalatlas indicators --search AI005 --year 2024 --compact
 ```
 
 ## Traps
 
 - **`--search` matches code + short + long title**; `--theme` matches only the theme
-  title. Both are case-insensitive substrings — try a stem (`bevölk`, `wahl`).
-- **Not every indicator offers every year** — the `years` range is per-indicator; use
-  `--year` here to keep only those that cover a given year.
+  title. Both are case-insensitive substrings — try a stem (`bevölk`, `wahl`). The long
+  title contains the theme name, so a theme word (`wahlen`, `umwelt`) matches every
+  indicator of that theme.
+- **`--search` does not see the value columns.** An indicator has several columns (`AI005`
+  Bundestagswahl has seven: party shares and turnout), and the CLI prints no column names,
+  so a column topic such as `wahlbeteiligung` returns `[]`. Search the indicator's topic.
+- **The `years` range hides gaps.** It shows only the first and last year: `AI005` says
+  `1998–2025` but offers only the election years (1998, 2002, 2005, 2009, 2013, 2017, 2021,
+  2025), and `AI002-1-5` says `2000–2024` but skips 2001–2004. Check a year with
+  `--year` here (an empty result means not offered), or read the `Available:` list that
+  `regionalatlas query <code> --year <y>` prints when it rejects a year (exit 2).
+- **The newest catalogue year may not be loaded yet.** `AI013-1` listed `2000–2026` on
+  2026-09-15, but `query` returned `[]` for 2026 (with a `Note:` on stderr naming 2025).
+  A year listed here is not a guarantee of data.
+- **Value columns are unlabelled.** `values` keys are bare column codes (`ai0501`…`ai0507`
+  for `AI005`, `ai0306`/`ai0307` for `AI003-3`), and nothing the CLI prints says what a
+  column measures or its unit. Don't infer a column's meaning from its code order or the
+  size of its numbers. With one column, use it; with several, name the code you used and
+  tell the user the CLI can't confirm the label (the interactive Regionalatlas at
+  regionalatlas.statistikportal.de names each column) instead of guessing.
 - **The code is the handle** — pass `code` (`AI002-1-5`) or `table` (`ai002_1_5`) to
   `regionalatlas query`. To then pull the numbers → the **regionalatlas-map** or
   **regionalatlas-compare** skill.
