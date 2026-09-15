@@ -1,5 +1,9 @@
 # regionalatlas-cli
 
+[![CI](https://github.com/maschinenlesbar-org/regionalatlas-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/maschinenlesbar-org/regionalatlas-cli/actions/workflows/ci.yml)
+[![Release](https://github.com/maschinenlesbar-org/regionalatlas-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/regionalatlas-cli/actions/workflows/release.yml)
+[![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/regionalatlas-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/regionalatlas-cli)
+
 **Website:** [English](https://maschinenlesbar-org.github.io/regionalatlas-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/regionalatlas-cli/de/) — command reference, guides and API docs
 
 A dependency-light **TypeScript client + CLI** for the **Regionalatlas Deutschland** —
