@@ -107,7 +107,9 @@ no raw user text is ever interpolated:
 2. **Level → typ** (`levels.ts › resolveLevel`). A friendly name/alias maps to one of
    the fixed integers `{1,2,3,5}`; an unknown level → typed usage error. Only the
    integer `typ` enters SQL.
-3. **Year** (`catalog.ts › resolveYear`). Omitted → the indicator's **latest** year.
+3. **Year** (`catalog.ts › resolveYear`). Omitted → the indicator's **latest** catalogue
+   year (which the data host may not have loaded yet; the CLI then notes the empty result
+   on stderr and names the previous year).
    Provided → must be an integer AND present in the indicator's catalogue years, else a
    typed error. Only the validated integer enters SQL.
 4. **`--region` / `--fields` never touch the request.** The client always requests

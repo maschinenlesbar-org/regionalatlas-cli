@@ -5,8 +5,8 @@
 
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
-import type { IndicatorFilter } from "../../client/catalog.js";
-import type { QueryOptions } from "../../client/types.js";
+import { resolveIndicator, resolveYear, type IndicatorFilter } from "../../client/catalog.js";
+import type { Indicator, QueryOptions } from "../../client/types.js";
 import {
   action,
   parseFieldList,
@@ -72,7 +72,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
       parseLevel,
       "land",
     )
-    .option("--year <yyyy>", "reporting year (defaults to the indicator's latest)", parseYear)
+    .option("--year <yyyy>", "reporting year (defaults to the newest year in the catalogue)", parseYear)
     .option("--region <name|ags>", "keep only rows matching this name (substring) or AGS", parseNonEmpty)
     .option("--fields <a,b,c>", "keep only these value fields (comma-separated)", parseFieldList)
     .action(
@@ -84,7 +84,37 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         if (typeof opts["year"] === "number") query.year = opts["year"];
         if (typeof opts["region"] === "string") query.region = opts["region"];
         if (Array.isArray(opts["fields"])) query.fields = opts["fields"] as string[];
-        renderJson(deps, global, await client.query(query));
+        const rows = await client.query(query);
+        renderJson(deps, global, rows);
+        if (rows.length === 0) {
+          // An empty result exits 0 like any other; say why on stderr so it isn't read
+          // as "this indicator has no data". The catalogue is cached, so no new request.
+          const resolved = resolveIndicator(await client.indicators(), query.indicator);
+          deps.io.err(emptyResultNote(resolved, query));
+        }
       }),
     );
+}
+
+/**
+ * The stderr note for a query that returned no rows. The catalogue can list a year
+ * (typically the newest) that the data host has not loaded yet, which yields `[]`;
+ * when the year was defaulted, point at the previous catalogue year.
+ */
+function emptyResultNote(indicator: Indicator, query: QueryOptions): string {
+  const year = resolveYear(indicator, query.year);
+  const where = `${indicator.code} at level ${query.level} in ${year}`;
+  let note =
+    query.region !== undefined
+      ? `Note: no rows for ${where} match --region ${JSON.stringify(query.region)}.`
+      : `Note: the data host returned no rows for ${where}.`;
+  if (query.year === undefined) {
+    const earlier = indicator.years.map(Number).filter((y) => y < year);
+    if (earlier.length > 0) {
+      note +=
+        ` ${year} is the newest year in the catalogue, but its data may not be loaded yet;` +
+        ` try --year ${Math.max(...earlier)}.`;
+    }
+  }
+  return note;
 }

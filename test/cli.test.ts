@@ -218,3 +218,36 @@ test("indicators includes the long title that --search also matches", async () =
     },
   ]);
 });
+
+test("an empty result with the defaulted newest year prints [] and a note to try the previous year", async () => {
+  const cli = makeRoutingCli({ ...fx.landData, features: [] });
+  assert.equal(await run(["query", "AI002-1-5", "--level", "kreis", "--compact"], cli.deps), 0);
+  assert.equal(cli.out.join("\n"), "[]");
+  // The defaulted year is the newest catalogue year, and the catalogue was fetched once.
+  const layer = JSON.parse(queryOf(dataCalls(cli.mt.calls)[0]!).get("layer") ?? "{}") as {
+    source: { dataSource: { query: string } };
+  };
+  assert.match(layer.source.dataSource.query, /typ = 3 AND jahr = 2024/);
+  assert.equal(cli.mt.calls.length, 2);
+  assert.deepEqual(cli.err, [
+    "Note: the data host returned no rows for AI002-1-5 at level kreis in 2024. " +
+      "2024 is the newest year in the catalogue, but its data may not be loaded yet; try --year 2020.",
+  ]);
+});
+
+test("an empty result for an explicit year notes it without a year hint", async () => {
+  const cli = makeRoutingCli({ ...fx.landData, features: [] });
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
+  assert.equal(JSON.stringify(JSON.parse(cli.out.join("\n"))), "[]");
+  assert.deepEqual(cli.err, ["Note: the data host returned no rows for AI002-1-5 at level land in 2020."]);
+});
+
+test("a --region that matches nothing notes the region, no note when rows remain", async () => {
+  const none = makeRoutingCli();
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Bayern"], none.deps), 0);
+  assert.deepEqual(none.err, ['Note: no rows for AI002-1-5 at level land in 2020 match --region "Bayern".']);
+
+  const some = makeRoutingCli();
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Bremen"], some.deps), 0);
+  assert.deepEqual(some.err, []);
+});

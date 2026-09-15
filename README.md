@@ -45,7 +45,8 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
 - **`indicators`** lists the indicators — `code`, short and long title, year range — with
   `--theme` / `--year` / `--search` filters.
 - **`query <code>`** fetches the data rows for an indicator at a geo level (`--level`,
-  default `land`), for a year (`--year`, default the indicator's latest). `--region`
+  default `land`), for a year (`--year`, default the newest catalogue year, which may not
+  be loaded yet: an empty result says so on stderr). `--region`
   and `--fields` filter and project **client-side**.
 
 Global flags: `--base-url`, `--catalog-url`, `--timeout`, `--user-agent`,

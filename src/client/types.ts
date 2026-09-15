@@ -151,7 +151,10 @@ export interface QueryOptions {
   indicator: string;
   /** Geo level: a friendly name (`land`, `kreis`, …) resolved to a `typ`. */
   level: string;
-  /** Year; defaults to the indicator's latest available year. */
+  /**
+   * Year; defaults to the indicator's newest catalogue year. The data host may not have
+   * loaded that year yet, in which case the query returns no rows.
+   */
   year?: number;
   /** Client-side region filter: an AGS (numeric) or a substring of the name. */
   region?: string;
