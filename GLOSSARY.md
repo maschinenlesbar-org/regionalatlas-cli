@@ -13,8 +13,8 @@ Regionalatlas terms and fields, as the CLI surfaces them.
 | **typ / geo level** | `--level` | The geographic aggregation level. `land`=1 (Bundesländer, 16), `regierungsbezirk`/`rb`=2, `kreis`/`landkreis`=3 (Kreise/kreisfreie Städte, ~400), `gemeinde`=5 (Gemeinden). |
 | **AGS** (Amtlicher Gemeindeschlüssel) | `ags` | The official regional key of a Land/Kreis/Gemeinde (a string, e.g. `03` for Niedersachsen, `03361` for a Kreis). Leading zeros matter — `--region` ignores them for numeric matches. |
 | **Gebietsname** | `name` | The region name (`gen` in the data), e.g. `Niedersachsen`, `Bremen`. |
-| **jahr / year** | `--year`, `year` | The reporting year (a 4-digit integer). Each indicator offers a specific set of years; omit `--year` for the latest. |
-| **value field** | `values` | An indicator value column (e.g. `ai0201`) — a number or `null`. `--fields` keeps only named ones. |
+| **jahr / year** | `--year`, `year` | The reporting year (a 4-digit integer). Each indicator offers a specific set of years, often with gaps that the first–last range from `indicators` (e.g. `1998–2025` for `AI005`) doesn't show. Leaving out `--year` uses the newest catalogue year, which the data host may not have loaded yet: `query` then returns `[]` and notes it on stderr. |
+| **value field** | `values` | An indicator value column (e.g. `ai0201`) — a number or `null`. `--fields` keeps only named ones. The CLI prints no label or unit for a column. |
 | **precision-flag `v` field** | (dropped) | A `<field>v` variant (e.g. `ai0201v`) flags the precision/quality of the matching value field. The parsed `RegionRow` drops these so `values` holds only the measured values. |
 | **gen2 / ags2 / jahr2** | (internal) | The joined side of the SQL `LEFT OUTER JOIN`. `gen2` is leading-space padded in the raw data — the client trims it; the parsed row uses `gen`/`ags`/`jahr`. |
 | **dynamicLayer / queryTable** | (internal) | The ArcGIS mechanism that runs the raw SQL join behind `query`. |

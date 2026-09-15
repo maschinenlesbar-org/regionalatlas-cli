@@ -20,7 +20,9 @@ They compose: **catalog → map**, or **catalog → compare**.
 - **Notes:** the indicator, geo level, and year are validated against the catalogue
   before any query runs (an unknown indicator/level/year is a usage error, not a bad
   request); `query` returns one row per region as `{ ags, name, typ, level, year, values }`;
-  `--region`/`--fields` filter and project client-side; omit `--year` for the latest.
+  `--region`/`--fields` filter and project client-side; leaving out `--year` uses the
+  newest catalogue year, which may not be loaded yet (an empty result then carries a
+  `Note:` on stderr naming the previous year).
 
 ## Installing the plugin
 
