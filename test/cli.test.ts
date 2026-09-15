@@ -166,6 +166,26 @@ test("an unknown command exits 2", async () => {
   assert.equal(await run(["boguscmd"], cli.deps), 2);
 });
 
+test("DEL and C1 control characters in server data are escaped in the JSON output", async () => {
+  const controls = String.fromCharCode(0x7f, 0x85, 0x9b) + "2J";
+  const name = `Nieder${controls}`;
+  const ags = String.fromCharCode(0x1b) + "[31m";
+  const feature = { attributes: { ...fx.landData.features[0]!.attributes, gen: name, ags } };
+  const served = { ...fx.landData, features: [feature] };
+  for (const format of [[], ["--compact"]]) {
+    const cli = makeRoutingCli(served);
+    assert.equal(await run([...format, "query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
+    const text = cli.out.join("\n");
+    const raw = [...text].filter((c) => c.charCodeAt(0) < 0x20 ? c !== "\n" : c.charCodeAt(0) >= 0x7f && c.charCodeAt(0) <= 0x9f);
+    assert.deepEqual(raw, [], format.join(" "));
+    assert.match(text, /Nieder\\u007f\\u0085\\u009b2J/);
+    const rows = JSON.parse(text) as { name: string; ags: string }[];
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]!.name, name);
+    assert.equal(rows[0]!.ags, ags);
+  }
+});
+
 test("--compact prints single-line JSON", async () => {
   const cli = makeRoutingCli();
   await run(["themes", "--compact"], cli.deps);

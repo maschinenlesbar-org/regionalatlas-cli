@@ -61,8 +61,9 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
  * sequence) in an error body into a real ESC byte, so without this a hostile or
  * MITM'd endpoint could inject
  * ANSI/OSC terminal escape sequences (screen clears, title changes, output
- * spoofing) when the message reaches the user's terminal. The success path is
- * already safe (`JSON.stringify` escapes these). Removes all C0 controls (except
+ * spoofing) when the message reaches the user's terminal. The CLI's JSON output is
+ * escaped separately (`escapeControlChars` in cli/shared.ts), as `JSON.stringify`
+ * alone leaves DEL and the C1 range raw. Removes all C0 controls (except
  * tab/newline), DEL, and the C1 range; implemented via char codes so this source
  * file never contains a raw control byte.
  */
