@@ -31,7 +31,7 @@ region, or fetch the whole level once and filter with `jq` (fewer requests):
 | Field to compare on | Where it is |
 |---|---|
 | region name | `name` (e.g. `Bayern`) |
-| region key | `ags` (e.g. `09` for Bayern, `03361` for a Kreis) |
+| region key | `ags` (e.g. `09` for Bayern, `03361` for a Kreis) — use it to pick Kreise and Gemeinden |
 | the number(s) | `values.<field>` (e.g. `values.ai0201`) |
 
 ## Recipes
@@ -48,6 +48,11 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
 regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   | jq 'sort_by(.values.ai0201) | {lowest: .[0]|{name, v:.values.ai0201}, highest: .[-1]|{name, v:.values.ai0201}}'
 
+# Kreise by AGS: a city name also matches its Landkreis ("München" gives 09162 München
+# and 09184 München, Landkreis), so pick the exact keys
+regionalatlas query AI-S-01 --level kreis --compact \
+  | jq '[.[] | select(.ags|IN("09162","14713"))] | map({ags, name, values})'
+
 # Compare one Kreis against the level average
 regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   | jq '{avg: ([.[].values.ai0201|select(.!=null)]|add/length), verden: (.[]|select(.name=="Verden")|.values.ai0201)}'
@@ -59,11 +64,23 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   one call; pick the `--level` that holds all the regions you want.
 - **`--region` is one selector per call** — for many regions, fetch the level once and
   filter with `jq` rather than N requests.
+- **A city name also matches its Landkreis.** `--region München` at `--level kreis`
+  returns `09162 München` and `09184 München, Landkreis` (same for Leipzig: `14713` /
+  `14729`), and a `test("…")` jq filter does the same. At Kreis and Gemeinde level, check
+  the names you got, then compare by `ags`.
 - **Pick a value field** (`--fields ai0201`) so the comparison is on a single number;
   inspect a row's `values` keys first. Unknown field names are ignored.
+- **Value columns are unlabelled.** `values` keys are bare column codes (`ai0501`…`ai0507`
+  for `AI005`, `ai0306`/`ai0307` for `AI003-3`), and nothing the CLI prints says what a
+  column measures or its unit. Don't infer a column's meaning from its code order or the
+  size of its numbers. With one column, use it; with several, name the code you used and
+  tell the user the CLI can't confirm the label (the interactive Regionalatlas at
+  regionalatlas.statistikportal.de names each column) instead of guessing.
 - **Watch `null`** — a region with no figure sorts oddly; filter `select(.!=null)`
   before `min`/`max`/`avg`.
-- **Same `--year` across regions** (omit for the latest) so you compare like with like.
+- **Same `--year` across regions** so you compare like with like. Leaving it out uses the
+  newest catalogue year, which may not be loaded yet: the CLI then prints `[]` with a
+  `Note:` on stderr naming the previous year to use.
 - To dump the whole level for a map → the **regionalatlas-map** skill; to find the code
   → the **regionalatlas-catalog** skill.
 - Cite the source: © Statistische Ämter des Bundes und der Länder (dl-de/by-2.0).
