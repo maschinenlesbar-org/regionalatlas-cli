@@ -137,8 +137,8 @@ export class RegionalatlasClient {
         `Expected "features" to be an array in the data query response, got ${typeof res.features}.`,
       );
     }
-    const rows = (res.features ?? []).map((f) =>
-      parseRow(f.attributes, level.typ, level.name, year),
+    const rows = (res.features ?? []).map((f, i) =>
+      parseRow(featureAttributes(f, i), level.typ, level.name, year),
     );
 
     // 5. Client-side region filter + field projection (no user text upstream).
@@ -181,6 +181,31 @@ export class RegionalatlasClient {
 // --------------------------------------------------------------------------
 // Row parsing & client-side filtering (exported for tests)
 // --------------------------------------------------------------------------
+
+/**
+ * Pull the `attributes` off one feature, refusing anything that is not an object.
+ *
+ * The guard above catches a `features` that is not an array; this is the same guard
+ * one level down. Without it a `null` element or a feature without `attributes`
+ * reached `parseRow` and surfaced as "Unexpected error: Cannot read properties of
+ * null (reading 'attributes')" — the one place this client's typed-error discipline
+ * leaked an internal message.
+ */
+function featureAttributes(feature: unknown, index: number): RawFeatureAttributes {
+  if (feature === null || typeof feature !== "object") {
+    throw new RegionalatlasParseError(
+      `Expected feature ${index} of the data query response to be an object, got ` +
+        `${feature === null ? "null" : typeof feature}.`,
+    );
+  }
+  const attrs = (feature as { attributes?: unknown }).attributes;
+  if (attrs === null || typeof attrs !== "object") {
+    throw new RegionalatlasParseError(
+      `Feature ${index} of the data query response has no "attributes" object.`,
+    );
+  }
+  return attrs as RawFeatureAttributes;
+}
 
 /**
  * A plain decimal number, the only string shape accepted as a value: optional sign,

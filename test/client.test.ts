@@ -327,3 +327,20 @@ test("a non-array features field surfaces as a typed RegionalatlasParseError, no
     (err) => err instanceof RegionalatlasParseError && /"features".*array/.test(err.message),
   );
 });
+
+test("a null feature is a typed parse error too, not a raw TypeError", async () => {
+  const { client } = clientRouting({ features: [fx.landData.features[0], null] });
+  await assert.rejects(
+    () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
+    (err) =>
+      err instanceof RegionalatlasParseError && /feature 1 .*to be an object, got null/.test(err.message),
+  );
+});
+
+test("a feature without an attributes object is a typed parse error", async () => {
+  const { client } = clientRouting({ features: [{}] });
+  await assert.rejects(
+    () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
+    (err) => err instanceof RegionalatlasParseError && /no "attributes" object/.test(err.message),
+  );
+});
