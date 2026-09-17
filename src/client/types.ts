@@ -28,8 +28,23 @@ export interface GeoLevelInfo {
 // --------------------------------------------------------------------------
 
 /**
+ * One attribute (value column) of an indicator in the raw services.json catalogue.
+ * `code` is the upper-case form of the field name the data query returns
+ * (`AI0201` -> `ai0201`); `meta` is a long wiki-markup description we do not use.
+ */
+export interface RawCatalogAttribute {
+  code: string;
+  title_short?: string;
+  title_long?: string;
+  unit?: string;
+  meta?: string;
+  [key: string]: unknown;
+}
+
+/**
  * One indicator entry in the raw services.json catalogue. `years` is a map from a
  * 4-digit year string to per-year detail arrays; we only need its keys.
+ * `attributes` is the field dictionary — see `RawCatalogAttribute`.
  */
 export interface RawCatalogIndicator {
   code: string;
@@ -37,6 +52,7 @@ export interface RawCatalogIndicator {
   title_long?: string;
   timestamp?: string;
   years?: Record<string, unknown>;
+  attributes?: RawCatalogAttribute[];
   [key: string]: unknown;
 }
 
@@ -59,10 +75,25 @@ export interface Theme {
 }
 
 /**
+ * One value column of an indicator: the key it appears under in a `RegionRow`'s
+ * `values`, plus what it measures and in what unit. Taken from the catalogue's
+ * `attributes` array — the data query itself returns only bare field names with
+ * uninformative aliases, so the catalogue is the only source of labels.
+ */
+export interface IndicatorField {
+  /** Field name as it appears in `RegionRow.values`, lower-case (e.g. "ai0201"). */
+  code: string;
+  /** What the column measures, e.g. "Bevölkerungsdichte (EW je qkm)". */
+  title: string;
+  /** The unit, e.g. "Anzahl", "Prozent", "EUR", "PP" (percentage points). */
+  unit: string;
+}
+
+/**
  * A single indicator (Indikator), flattened out of the catalogue with a resolved
- * SQL `table` name and its available years. The `table` is derived solely from the
- * catalogue `code` and is the ONLY value ever interpolated as a table name into the
- * SQL query.
+ * SQL `table` name, its available years and its value columns. The `table` is
+ * derived solely from the catalogue `code` and is the ONLY value ever interpolated
+ * as a table name into the SQL query.
  */
 export interface Indicator {
   /** Catalogue code, e.g. "AI002-1-5". */
@@ -77,6 +108,12 @@ export interface Indicator {
   titleLong: string;
   /** Available years, ascending, as 4-digit strings (e.g. ["2000","2005",…]). */
   years: string[];
+  /**
+   * The value columns this indicator's rows carry, in catalogue order — which is
+   * also the order the data host returns them in. Empty when the catalogue entry
+   * lists no attributes.
+   */
+  fields: IndicatorField[];
 }
 
 // --------------------------------------------------------------------------

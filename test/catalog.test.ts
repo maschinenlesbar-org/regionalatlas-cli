@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   filterIndicators,
+  findField,
   parseIndicators,
   parseThemes,
   resolveIndicator,
@@ -32,6 +33,48 @@ test("parseIndicators flattens the catalogue with table + theme + sorted years",
   assert.equal(ai002.table, "ai002_1_5");
   assert.equal(ai002.theme, "Bevölkerung");
   assert.deepEqual(ai002.years, ["2000", "2020", "2024"]);
+});
+
+test("parseIndicators reads the field dictionary out of the catalogue attributes", () => {
+  const ai002 = parseIndicators(fx.catalog).find((i) => i.code === "AI002-1-5");
+  assert.ok(ai002);
+  // Codes are lower-cased so they match the keys of a parsed RegionRow's `values`,
+  // and stay in catalogue order — the order the data host returns them in.
+  assert.deepEqual(ai002.fields, [
+    { code: "ai0201", title: "Bevölkerungsdichte (EW je qkm)", unit: "Anzahl" },
+    { code: "ai0202", title: "Bevölkerungsentwicklung je 10.000 EW", unit: "Anzahl" },
+    {
+      code: "ai0201v",
+      title: "Bevölkerungsdichte (EW je qkm) (Veränderungsrate)",
+      unit: "Prozent",
+    },
+  ]);
+});
+
+test("parseIndicators tolerates a catalogue entry with no or malformed attributes", () => {
+  const raw = [
+    {
+      title: "T",
+      children: [
+        { code: "A-1", years: { "2020": [] } },
+        { code: "A-2", years: { "2020": [] }, attributes: "nope" },
+        { code: "A-3", years: { "2020": [] }, attributes: [null, {}, { code: "  X1 " }] },
+      ],
+    },
+  ];
+  const [a1, a2, a3] = parseIndicators(raw);
+  assert.deepEqual(a1?.fields, []);
+  assert.deepEqual(a2?.fields, []);
+  // Null/code-less entries are skipped; a real one is trimmed and lower-cased.
+  assert.deepEqual(a3?.fields, [{ code: "x1", title: "", unit: "" }]);
+});
+
+test("findField matches a value column case-insensitively", () => {
+  const ai002 = parseIndicators(fx.catalog).find((i) => i.code === "AI002-1-5");
+  assert.ok(ai002);
+  assert.equal(findField(ai002, "AI0201")?.unit, "Anzahl");
+  assert.equal(findField(ai002, " ai0201v ")?.unit, "Prozent");
+  assert.equal(findField(ai002, "nonsense"), undefined);
 });
 
 test("parseThemes/parseIndicators reject a non-array catalogue", () => {

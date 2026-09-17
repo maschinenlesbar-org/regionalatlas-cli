@@ -57,6 +57,11 @@ export function registerCommands(program: Command, deps: CliDeps): void {
             titleShort: ind.titleShort,
             titleLong: ind.titleLong,
             years: yearRange(ind.years),
+            // The value columns a `query` for this indicator returns, with what
+            // each measures. Bare field names (`ai0201`) are unguessable from the
+            // indicator code — `AI-S-01` returns `ai1601` — so listing them here
+            // is what makes `query --fields` usable without a probing run first.
+            fields: ind.fields,
           })),
         );
       }),

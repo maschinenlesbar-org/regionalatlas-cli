@@ -12,6 +12,9 @@ export const catalog = [
         title_short: "Flächennutzung nach ALKIS",
         title_long: "Themenbereich Gebiet und Fläche — Flächennutzung",
         years: { "2016": [], "2020": [], "2022": [] },
+        attributes: [
+          { code: "AI0102", title_short: "Siedlungs- und Verkehrsfläche", unit: "Prozent" },
+        ],
       },
     ],
   },
@@ -23,12 +26,24 @@ export const catalog = [
         title_short: "Bevölkerungsstand - Geburten - Gestorbene - Wanderungen",
         title_long: "Themenbereich Bevölkerung — Bevölkerungsstand",
         years: { "2000": [], "2020": [], "2024": [] },
+        // Shaped like the live catalogue: a value column, a second one, and the
+        // first column's Veränderungsrate — a published value with its own unit.
+        attributes: [
+          { code: "AI0201", title_short: "Bevölkerungsdichte (EW je qkm)", unit: "Anzahl" },
+          { code: "AI0202", title_short: "Bevölkerungsentwicklung je 10.000 EW", unit: "Anzahl" },
+          {
+            code: "AI0201v",
+            title_short: "Bevölkerungsdichte (EW je qkm) (Veränderungsrate)",
+            unit: "Prozent",
+          },
+        ],
       },
       {
         code: "AI002-2-5",
         title_short: "Bevölkerung nach Altersgruppen",
         title_long: "Themenbereich Bevölkerung — Altersgruppen",
         years: { "2019": [], "2020": [] },
+        attributes: [{ code: "AI0203", title_short: "Anteil unter 18-Jährige", unit: "Prozent" }],
       },
     ],
   },

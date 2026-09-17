@@ -8,7 +8,9 @@
 
 import type {
   Indicator,
+  IndicatorField,
   RawCatalog,
+  RawCatalogAttribute,
   RawCatalogIndicator,
   RawCatalogTheme,
   Theme,
@@ -27,6 +29,37 @@ function normalizeIndicatorKey(input: string): string {
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+/**
+ * Parse an indicator's `attributes` array into the field dictionary.
+ *
+ * This is the only place a value column's meaning is available: the data query
+ * returns bare field names (`ai0201`) whose ArcGIS `alias` just repeats the name,
+ * and the suffix carries no meaning either — `AI005` numbers the parties `ai0501`
+ * to `ai0505` and `ai0507`, with `ai0506` being turnout. Codes are lower-cased so
+ * they match the keys of a parsed `RegionRow.values`.
+ */
+function parseFields(raw: unknown): IndicatorField[] {
+  if (!Array.isArray(raw)) return [];
+  const fields: IndicatorField[] = [];
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== "object") continue;
+    const a = entry as RawCatalogAttribute;
+    const code = asString(a.code).trim().toLowerCase();
+    if (code === "") continue;
+    fields.push({ code, title: asString(a.title_short), unit: asString(a.unit) });
+  }
+  return fields;
+}
+
+/**
+ * Look up one of an indicator's value columns by name, case-insensitively —
+ * the same matching `projectFields` applies.
+ */
+export function findField(indicator: Indicator, name: string): IndicatorField | undefined {
+  const key = name.trim().toLowerCase();
+  return indicator.fields.find((f) => f.code === key);
 }
 
 /** Parse the raw services.json array into a flat list of indicators. */
@@ -57,6 +90,7 @@ export function parseIndicators(raw: unknown): Indicator[] {
         titleShort: asString(c.title_short),
         titleLong: asString(c.title_long),
         years,
+        fields: parseFields(c.attributes),
       });
     }
   }

@@ -215,8 +215,21 @@ test("indicators includes the long title that --search also matches", async () =
       titleShort: "Bevölkerung nach Altersgruppen",
       titleLong: "Themenbereich Bevölkerung — Altersgruppen",
       years: "2019–2020",
+      fields: [{ code: "ai0203", title: "Anteil unter 18-Jährige", unit: "Prozent" }],
     },
   ]);
+});
+
+test("indicators names each value column, so --fields needs no probing query", async () => {
+  const cli = makeRoutingCli();
+  assert.equal(await run(["indicators", "--search", "bevölkerungsstand"], cli.deps), 0);
+  const parsed = JSON.parse(cli.out.join("\n")) as {
+    fields: { code: string; title: string; unit: string }[];
+  }[];
+  assert.deepEqual(
+    parsed[0]?.fields.map((f) => `${f.code} (${f.unit})`),
+    ["ai0201 (Anzahl)", "ai0202 (Anzahl)", "ai0201v (Prozent)"],
+  );
 });
 
 test("an empty result with the defaulted newest year prints [] and a note to try the previous year", async () => {
