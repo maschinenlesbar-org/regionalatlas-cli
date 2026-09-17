@@ -65,6 +65,11 @@ export function registerCommands(program: Command, deps: CliDeps): void {
             fields: ind.fields,
           })),
         );
+        if (indicators.length === 0) {
+          // `query` explains its empty results; discovery — where the user is most
+          // likely to be guessing — should not be the one command that stays silent.
+          deps.io.err(emptyIndicatorsNote(filter, await client.indicators()));
+        }
       }),
     );
 
@@ -100,6 +105,33 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         }
       }),
     );
+}
+
+/**
+ * The stderr note for an `indicators` listing that matched nothing. Names the
+ * filters that were applied, and — when `--year` is one of them — the years the
+ * catalogue actually offers, since that is the filter most often set to a year no
+ * indicator has.
+ */
+function emptyIndicatorsNote(filter: IndicatorFilter, all: Indicator[]): string {
+  const applied: string[] = [];
+  if (filter.theme !== undefined) applied.push(`--theme ${JSON.stringify(filter.theme)}`);
+  if (filter.year !== undefined) applied.push(`--year ${filter.year}`);
+  if (filter.search !== undefined) applied.push(`--search ${JSON.stringify(filter.search)}`);
+  if (applied.length === 0) {
+    return "Note: the catalogue lists no indicators at all — check --catalog-url.";
+  }
+  let note =
+    `Note: none of the ${all.length} catalogue indicators match ${applied.join(" + ")}.`;
+  if (filter.year !== undefined) {
+    const years = [...new Set(all.flatMap((i) => i.years))].sort();
+    const first = years[0];
+    const last = years[years.length - 1];
+    if (first !== undefined && last !== undefined) {
+      note += ` The catalogue covers ${first}–${last}.`;
+    }
+  }
+  return note;
 }
 
 /**

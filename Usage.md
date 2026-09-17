@@ -89,7 +89,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 
 | Code | Meaning |
 |---|---|
-| `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr |
+| `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr — from `query` and from `indicators` alike |
 | `1` | API/logical error (the ArcGIS `error` envelope), or a catch-all |
 | `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, redirecting base URL) |
 | `4` | HTTP 404 |

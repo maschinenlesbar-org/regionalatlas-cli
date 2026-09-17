@@ -96,6 +96,25 @@ test("an unknown indicator is a usage error (exit 2) and makes no data request",
   assert.match(cli.err.join("\n"), /Unknown indicator/);
 });
 
+test("an indicators listing that matches nothing says so on stderr, exit 0", async () => {
+  const cli = makeRoutingCli();
+  assert.equal(await run(["indicators", "--search", "zzzz", "--compact"], cli.deps), 0);
+  assert.equal(cli.out.join("\n"), "[]");
+  assert.match(cli.err.join("\n"), /none of the 3 catalogue indicators match --search "zzzz"/);
+});
+
+test("an empty indicators listing filtered by year names the catalogue's year span", async () => {
+  const cli = makeRoutingCli();
+  assert.equal(await run(["indicators", "--year", "1997", "--compact"], cli.deps), 0);
+  assert.match(cli.err.join("\n"), /--year 1997\. The catalogue covers 2000–2024\./);
+});
+
+test("a non-empty indicators listing stays quiet on stderr", async () => {
+  const cli = makeRoutingCli();
+  assert.equal(await run(["indicators", "--compact"], cli.deps), 0);
+  assert.deepEqual(cli.err, []);
+});
+
 test("a free-text option refuses to swallow the next option as its value", async () => {
   for (const argv of [
     ["query", "AI002-1-5", "--region", "--fields"],
