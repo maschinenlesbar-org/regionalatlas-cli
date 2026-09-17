@@ -17,10 +17,11 @@ Skills: [regionalatlas-catalog](#regionalatlas-catalog) · [regionalatlas-compar
 
 ```bash
 regionalatlas themes --compact | jq -r '.[] | "\(.title)\t\(.indicatorCount)"'
-regionalatlas indicators --search kita --compact                    # [] – kein Indikator enthält „kita"
+regionalatlas indicators --search kita --compact   # [] + „Note: none of the 70 … match --search "kita"."
 regionalatlas indicators --search betreu --compact | jq '.[] | {code, theme, titleShort, years}'
 regionalatlas indicators --search betreu --year 2025 --compact | jq -r '.[].code'
-regionalatlas query AI003-3 --level land --compact | jq '.[0]'      # Blick auf die Wertspalten
+regionalatlas indicators --search Betreuungsquote --compact | jq '.[].fields'   # was die Spalten messen
+regionalatlas query AI003-3 --level land --year 2025 --region Schleswig --compact
 ```
 
 „Kita" ergab nichts, deshalb suchte der Skill mit dem Wortstamm `betreu`. Er fand vier Indikatoren in drei verschiedenen Themenbereichen. Eine Suche nur nach Thema hätte einige davon übersehen.
@@ -34,10 +35,16 @@ Der Katalog umfasst 21 Themenbereiche und 70 Indikatoren. Vier davon betreffen d
 | `AIG-03-1` | Gender | Kinderbetreuung | 2007–2025 |
 | `AI-N-05` | Nachhaltigkeit | Ganztagsbetreuung von Kindern | 2009–2025 |
 
-Für „welcher Anteil der Kinder wird betreut" passt `AI003-3` (Betreuungsquote). Die Zeilen haben
-zwei Wertspalten, `ai0306` und `ai0307` (Schleswig-Holstein 2025: 41,3 und 92,1). Was die
-einzelnen Spalten messen, gibt die CLI nicht an. Daten © Statistische Ämter des Bundes und der
-Länder, dl-de/by-2.0.
+Für „welcher Anteil der Kinder wird betreut" passt `AI003-3` (Betreuungsquote). `indicators` nennt
+die beiden Wertspalten, eine Probeabfrage ist dafür nicht mehr nötig:
+
+| Spalte | Einheit | Misst |
+|---|---|---|
+| `ai0306` | Prozent | Betreuungsquote 0 bis 2 Jahre am 01.03. |
+| `ai0307` | Prozent | Betreuungsquote 3 bis 5 Jahre am 01.03. |
+
+Schleswig-Holstein 2025: `ai0306` 41,3 % der unter 3-Jährigen, `ai0307` 92,1 % der 3- bis
+5-Jährigen. Daten © Statistische Ämter des Bundes und der Länder, dl-de/by-2.0.
 
 Als Nächstes angeboten: `AI003-3` für alle Kreise abrufen (regionalatlas-map) oder einige Länder nebeneinanderstellen (regionalatlas-compare).
 

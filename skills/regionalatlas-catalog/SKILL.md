@@ -29,7 +29,7 @@ This skill drives the `regionalatlas` command. **Before anything else, validate 
 | Command | Output |
 |---|---|
 | `regionalatlas themes` | `[{ title, indicatorCount }, …]` — the 21 subject areas |
-| `regionalatlas indicators` | `[{ code, table, theme, titleShort, titleLong, years }, …]` — the indicators |
+| `regionalatlas indicators` | `[{ code, table, theme, titleShort, titleLong, years, fields }, …]` — the indicators |
 
 Indicator fields:
 
@@ -41,6 +41,7 @@ Indicator fields:
 | `titleShort` | short title of the indicator |
 | `titleLong` | long title, e.g. `Regionalatlas Deutschland Themenbereich "Wahlen" Indikatoren zu "Bundestagswahl"`; `--search` matches it too |
 | `years` | **first–last** catalogue year only, e.g. `1998–2025` — it hides gaps (see Traps) |
+| `fields` | the indicator's value columns: `{ code, title, unit }` each, in the order `query` returns them. This is what a `values` key means; pass a `code` to `query --fields` |
 
 ## Recipes
 
@@ -80,12 +81,13 @@ regionalatlas indicators --search AI005 --year 2024 --compact
 - **The newest catalogue year may not be loaded yet.** `AI013-1` listed `2000–2026` on
   2026-09-15, but `query` returned `[]` for 2026 (with a `Note:` on stderr naming 2025).
   A year listed here is not a guarantee of data.
-- **Value columns are unlabelled.** `values` keys are bare column codes (`ai0501`…`ai0507`
-  for `AI005`, `ai0306`/`ai0307` for `AI003-3`), and nothing the CLI prints says what a
-  column measures or its unit. Don't infer a column's meaning from its code order or the
-  size of its numbers. With one column, use it; with several, name the code you used and
-  tell the user the CLI can't confirm the label (the interactive Regionalatlas at
-  regionalatlas.statistikportal.de names each column) instead of guessing.
+- **`values` keys are bare column codes — `indicators` says what they mean.** Each
+  indicator row carries a `fields` list of `{code, title, unit}` in the order the data
+  host returns the columns. Read the label from there; never infer it from the code
+  order or the size of the numbers. `AI005` is the cautionary case: `ai0507` is the AfD
+  share and `ai0506` is Wahlbeteiligung, so "the sixth party" is wrong. Units matter
+  too — a Veränderungsrate on a share indicator is in percentage points (`ai0208v`),
+  not percent.
 - **The code is the handle** — pass `code` (`AI002-1-5`) or `table` (`ai002_1_5`) to
   `regionalatlas query`. To then pull the numbers → the **regionalatlas-map** or
   **regionalatlas-compare** skill.

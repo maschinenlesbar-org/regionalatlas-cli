@@ -17,10 +17,11 @@ Skills: [regionalatlas-catalog](#regionalatlas-catalog) · [regionalatlas-compar
 
 ```bash
 regionalatlas themes --compact | jq -r '.[] | "\(.title)\t\(.indicatorCount)"'
-regionalatlas indicators --search kita --compact                    # [] — no indicator matches "kita"
+regionalatlas indicators --search kita --compact   # [] + "Note: none of the 70 … match --search "kita"."
 regionalatlas indicators --search betreu --compact | jq '.[] | {code, theme, titleShort, years}'
 regionalatlas indicators --search betreu --year 2025 --compact | jq -r '.[].code'
-regionalatlas query AI003-3 --level land --compact | jq '.[0]'      # peek at the value fields
+regionalatlas indicators --search Betreuungsquote --compact | jq '.[].fields'   # what the columns mean
+regionalatlas query AI003-3 --level land --year 2025 --region Schleswig --compact
 ```
 
 "Kita" matched nothing, so the skill searched for the stem `betreu`. It found four indicators under three different themes, so searching by theme alone would have missed some.
@@ -34,9 +35,16 @@ The catalogue has 21 themes and 70 indicators. Four of them cover childcare, and
 | `AIG-03-1` | Gender | Kinderbetreuung | 2007–2025 |
 | `AI-N-05` | Nachhaltigkeit | Ganztagsbetreuung von Kindern | 2009–2025 |
 
-For "what share of children are in care", use `AI003-3` (Betreuungsquote). Its rows have two value
-columns, `ai0306` and `ai0307` (Schleswig-Holstein 2025: 41.3 and 92.1). The CLI doesn't say
-what each column measures. Data © Statistische Ämter des Bundes und der Länder, dl-de/by-2.0.
+For "what share of children are in care", use `AI003-3` (Betreuungsquote). `indicators` names its
+two value columns, so no probing query is needed to read them:
+
+| Column | Unit | Measures |
+|---|---|---|
+| `ai0306` | Prozent | Betreuungsquote 0 bis 2 Jahre am 01.03. |
+| `ai0307` | Prozent | Betreuungsquote 3 bis 5 Jahre am 01.03. |
+
+Schleswig-Holstein 2025 is `ai0306` 41.3 % of under-3s and `ai0307` 92.1 % of 3-to-5s.
+Data © Statistische Ämter des Bundes und der Länder, dl-de/by-2.0.
 
 Next steps offered: pull `AI003-3` for every Kreis (regionalatlas-map) or set a few Länder side by side (regionalatlas-compare).
 

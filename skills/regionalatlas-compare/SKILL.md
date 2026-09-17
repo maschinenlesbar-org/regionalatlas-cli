@@ -74,14 +74,18 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   returns `09162 München` and `09184 München, Landkreis` (same for Leipzig: `14713` /
   `14729`), and a `test("…")` jq filter does the same. At Kreis and Gemeinde level, check
   the names you got, then compare by `ags`.
-- **Pick a value field** (`--fields ai0201`) so the comparison is on a single number;
-  inspect a row's `values` keys first. Unknown field names are ignored.
-- **Value columns are unlabelled.** `values` keys are bare column codes (`ai0501`…`ai0507`
-  for `AI005`, `ai0306`/`ai0307` for `AI003-3`), and nothing the CLI prints says what a
-  column measures or its unit. Don't infer a column's meaning from its code order or the
-  size of its numbers. With one column, use it; with several, name the code you used and
-  tell the user the CLI can't confirm the label (the interactive Regionalatlas at
-  regionalatlas.statistikportal.de names each column) instead of guessing.
+- **Pick a value field** (`--fields ai0201`) so the comparison is on a single number.
+  Get the column names and what they measure from `indicators` (each row carries a
+  `fields` list of `{code, title, unit}`) — the codes do not follow the indicator code
+  (`AI-S-01` returns `ai1601`) and the suffix carries no meaning (`AI005` has `ai0507`
+  for AfD and `ai0506` for Wahlbeteiligung). An unknown name is a usage error (exit 2)
+  listing the valid ones.
+- **`values` keys are bare column codes — `indicators` says what they mean.** Each
+  indicator row carries a `fields` list of `{code, title, unit}` in the order the data
+  host returns the columns. Read the label and unit from there, and name both when
+  reporting a comparison; never infer a column's meaning from its code order or the
+  size of its numbers. `AI005` is the cautionary case: `ai0507` is the AfD share and
+  `ai0506` is Wahlbeteiligung.
 - **Watch `null`** — a region with no figure sorts oddly; filter `select(.!=null)`
   before `min`/`max`/`avg`.
 - **Same `--year` across regions** so you compare like with like. Leaving it out uses the
