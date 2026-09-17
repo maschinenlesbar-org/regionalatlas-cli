@@ -13,10 +13,15 @@ export function jsonResponse(body: unknown, status = 200): HttpResponse {
   };
 }
 
-export function rawResponse(data: string | Buffer, contentType: string, status = 200): HttpResponse {
+export function rawResponse(
+  data: string | Buffer,
+  contentType: string,
+  status = 200,
+  headers: Record<string, string> = {},
+): HttpResponse {
   return {
     status,
-    headers: { "content-type": contentType },
+    headers: { "content-type": contentType, ...headers },
     body: Buffer.isBuffer(data) ? data : Buffer.from(data),
   };
 }

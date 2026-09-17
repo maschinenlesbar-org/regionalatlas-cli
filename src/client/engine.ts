@@ -1,6 +1,6 @@
 // The request engine: turns logical (path, query) calls into HTTP GET requests via
-// a Transport, applies retry/backoff for transient statuses (429, 503), and decodes
-// JSON responses. The Regionalatlas is backed by an ArcGIS MapServer — an
+// a Transport, applies retry/backoff for transient statuses (429, 503) — honouring
+// Retry-After when the server sends one — and decodes JSON responses. The Regionalatlas is backed by an ArcGIS MapServer — an
 // unauthenticated GET API whose parameters travel in the query string.
 //
 // Two-host note: the *data* queries hit the ArcGIS MapServer (`baseUrl`, default
@@ -86,6 +86,32 @@ export function sanitizeServerText(text: string): string {
 
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Upper bound on a honoured `Retry-After`. The header is server-controlled, and a
+ * `Retry-After: 86400` would otherwise park the CLI for a day.
+ */
+const MAX_RETRY_AFTER_MS = 30_000;
+
+/** Coerce a possibly-repeated header value to a single string (or undefined). */
+function headerValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * Parse `Retry-After` in either documented form — delta-seconds or an HTTP-date —
+ * into milliseconds from now. Returns undefined for a missing or unparseable value,
+ * so the caller falls back to linear backoff.
+ */
+function parseRetryAfter(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (/^[0-9]+$/.test(trimmed)) return Number(trimmed) * 1000;
+  const when = Date.parse(trimmed);
+  if (Number.isNaN(when)) return undefined;
+  return Math.max(0, when - Date.now());
+}
 
 /**
  * Reject a request URL whose scheme is not http/https, before it reaches the
@@ -174,7 +200,14 @@ export class RequestEngine {
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {
         attempt += 1;
-        await this.sleep(this.retryDelayMs * attempt);
+        // Honour a Retry-After header (delta-seconds or HTTP-date) when present,
+        // clamped to MAX_RETRY_AFTER_MS; otherwise fall back to linear backoff.
+        const retryAfter = parseRetryAfter(headerValue(response.headers["retry-after"]));
+        const delay =
+          retryAfter !== undefined
+            ? Math.min(retryAfter, MAX_RETRY_AFTER_MS)
+            : this.retryDelayMs * attempt;
+        await this.sleep(delay);
         continue;
       }
 

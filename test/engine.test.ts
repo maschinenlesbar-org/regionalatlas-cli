@@ -109,6 +109,96 @@ test("a 503 is retried up to maxRetries then surfaces as a RegionalatlasApiError
   assert.equal(calls, 3);
 });
 
+test("a retry honours Retry-After in seconds, clamped to 30s", async () => {
+  const slept: number[] = [];
+  let calls = 0;
+  const mt = makeMockTransport(() => {
+    calls += 1;
+    return calls === 1
+      ? rawResponse("slow down", "text/plain", 429, { "retry-after": "5" })
+      : jsonResponse(fx.landData);
+  });
+  const e = new RequestEngine({
+    transport: mt.transport,
+    maxRetries: 2,
+    retryDelayMs: 200,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  await e.getJson("/x");
+  assert.deepEqual(slept, [5000]);
+
+  // A server-controlled header must not park the CLI for a day.
+  slept.length = 0;
+  calls = 0;
+  const long = makeMockTransport(() => {
+    calls += 1;
+    return calls === 1
+      ? rawResponse("slow down", "text/plain", 503, { "retry-after": "86400" })
+      : jsonResponse(fx.landData);
+  });
+  const e2 = new RequestEngine({
+    transport: long.transport,
+    maxRetries: 2,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  await e2.getJson("/x");
+  assert.deepEqual(slept, [30_000]);
+});
+
+test("a retry honours Retry-After as an HTTP-date, and ignores an unparseable one", async () => {
+  const slept: number[] = [];
+  let calls = 0;
+  const when = new Date(Date.now() + 4000).toUTCString();
+  const mt = makeMockTransport(() => {
+    calls += 1;
+    return calls === 1
+      ? rawResponse("slow down", "text/plain", 429, { "retry-after": when })
+      : jsonResponse(fx.landData);
+  });
+  const e = new RequestEngine({
+    transport: mt.transport,
+    maxRetries: 2,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  await e.getJson("/x");
+  assert.ok(slept[0]! > 2000 && slept[0]! <= 4000, `expected ~4000ms, got ${slept[0]}`);
+
+  // Garbage falls back to linear backoff rather than to zero.
+  slept.length = 0;
+  calls = 0;
+  const bad = makeMockTransport(() => {
+    calls += 1;
+    return calls === 1
+      ? rawResponse("slow down", "text/plain", 429, { "retry-after": "soon-ish" })
+      : jsonResponse(fx.landData);
+  });
+  const e2 = new RequestEngine({
+    transport: bad.transport,
+    maxRetries: 2,
+    retryDelayMs: 200,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  await e2.getJson("/x");
+  assert.deepEqual(slept, [200]);
+});
+
+test("without Retry-After the backoff stays linear", async () => {
+  const slept: number[] = [];
+  let calls = 0;
+  const mt = makeMockTransport(() => {
+    calls += 1;
+    return calls < 3 ? jsonResponse({ error: "busy" }, 503) : jsonResponse(fx.landData);
+  });
+  const e = new RequestEngine({
+    transport: mt.transport,
+    maxRetries: 3,
+    retryDelayMs: 200,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  await e.getJson("/x");
+  assert.deepEqual(slept, [200, 400]);
+});
+
 test("requestUrl rejects a non-http(s) scheme at the engine level, before the transport", async () => {
   const mt = makeMockTransport(() => jsonResponse(fx.landData));
   // Data host with a file: base URL — a library consumer injecting a custom

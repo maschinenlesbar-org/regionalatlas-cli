@@ -156,11 +156,14 @@ host (catalogue vs data). Coverage highlights:
   integer typ/year, and the defence-in-depth asserts (bad table/typ/year rejected).
 - `levels.test.ts` — the friendly-name → typ mapping and unknown-level rejection.
 - `client.test.ts` — the guard end-to-end (bogus indicator/level/year never reaches the
-  data host), row parsing (trim `gen2`, drop `<field>v`), client-side region/field, and
+  data host), row parsing (trim `gen2`, keep `<field>v`, strict value coercion), the
+  malformed-feature guards, client-side region/field, and
   the ArcGIS-error-in-200-body → typed error mapping (incl. control-char stripping).
 - `cli.test.ts` — the three commands, `--level`/`--year` parse-time validation, the
   guard exit codes, and the hardening guards (control-char UA, empty/non-http URL,
-  bounded retries).
+  bounded retries, option-shaped filter values).
+- `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
+  the scheme guard, and JSON decoding/error mapping.
 
 ## Conventions to keep
 
@@ -168,6 +171,10 @@ host (catalogue vs data). Coverage highlights:
 - **Exit codes** (`run.ts`): help/version → 0; usage/validation → 2; 404 → 4;
   network → 6; other → 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
   from the data host that means a base-URL misconfiguration → usage).
+- **Retry/backoff:** `429`/`503` are retried up to `maxRetries` (default 2), honouring
+  a `Retry-After` header in either documented form — delta-seconds or HTTP-date —
+  clamped to 30 s so a server-set `Retry-After: 86400` cannot park the CLI for a day.
+  A missing or unparseable header falls back to linear backoff (`retryDelayMs × attempt`).
 - **Scaffold origin:** scaffolded from `ladesaeulenregister-cli` (ArcGIS, keyless,
   query.ts); rewritten for the two-host split, the catalogue allowlist, and the
   dynamicLayer SQL guard.
