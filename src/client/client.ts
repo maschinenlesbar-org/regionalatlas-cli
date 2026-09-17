@@ -182,6 +182,37 @@ export class RegionalatlasClient {
 // Row parsing & client-side filtering (exported for tests)
 // --------------------------------------------------------------------------
 
+/**
+ * A plain decimal number, the only string shape accepted as a value: optional sign,
+ * digits, optional fractional part. Deliberately NOT `Number()`, which would also
+ * accept hex and scientific literals, whitespace padding, the empty string,
+ * booleans and an empty array — see `toValue`.
+ */
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
+
+/**
+ * Coerce one raw attribute value to a number or `null`.
+ *
+ * Strict on purpose. Bare `Number()` coercion turned `true` into 1, `false` and
+ * `[]` into 0, and `"0x10"` into 16 — fabricating a measurement out of something
+ * that was never one, indistinguishable in the output from a real value. The CLI
+ * already argues this case against itself in `parseIntArg`, which uses a regex
+ * rather than `Number()` for exactly these reasons; the server's data deserves the
+ * same care as the user's input.
+ *
+ * Non-finite numbers become `null` too: `Infinity` passed `Number.isNaN`, so the
+ * library returned it while the CLI printed `null` (what `JSON.stringify` does with
+ * it), leaving the two disagreeing about the same row.
+ */
+function toValue(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && DECIMAL.test(value)) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 /** The non-value join columns present on every feature (excluded from `values`). */
 const JOIN_FIELDS = new Set([
   "id",
@@ -220,8 +251,7 @@ export function parseRow(
   const values: Record<string, number | null> = Object.create(null);
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
-    values[key] = typeof value === "number" ? value : value === null ? null : Number(value);
-    if (Number.isNaN(values[key] as number)) values[key] = null;
+    values[key] = toValue(value);
   }
 
   return { ags, name, typ, level, year, values };

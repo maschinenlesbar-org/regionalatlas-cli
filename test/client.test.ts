@@ -141,6 +141,67 @@ test("query() parses rows: trims gen2/name, drops join + <field>v columns", asyn
   assert.equal("gen2" in nds.values, false);
 });
 
+test("parseRow accepts a number or a plain decimal string, and nothing else", () => {
+  const row = parseRow(
+    {
+      ags: "01",
+      gen: "A",
+      num: 12.5,
+      negative: -3,
+      decimal: "12.5",
+      signed: "+7",
+      leadingDot: ".5",
+      nul: null,
+    },
+    1,
+    "land",
+    2020,
+  );
+  assert.deepEqual({ ...row.values }, {
+    num: 12.5,
+    negative: -3,
+    decimal: 12.5,
+    signed: 7,
+    leadingDot: 0.5,
+    nul: null,
+  });
+});
+
+test("parseRow never fabricates a number out of a non-value", () => {
+  const row = parseRow(
+    {
+      ags: "01",
+      gen: "A",
+      // Every one of these became a number under bare Number() coercion.
+      yes: true,
+      no: false,
+      emptyArray: [],
+      emptyObject: {},
+      hex: "0x10",
+      scientific: "1e3",
+      padded: " 7 ",
+      germanComma: "12,5",
+      empty: "",
+      infinite: "Infinity",
+    },
+    1,
+    "land",
+    2020,
+  );
+  assert.deepEqual(
+    Object.values({ ...row.values }),
+    [null, null, null, null, null, null, null, null, null, null],
+  );
+});
+
+test("parseRow maps a non-finite number to null, so library and CLI agree", () => {
+  // Infinity passes Number.isNaN, so it used to survive into `values` — where the
+  // library saw Infinity and the CLI printed null, JSON.stringify having its way.
+  const row = parseRow({ ags: "01", gen: "A", a: Infinity, b: -Infinity, c: NaN }, 1, "land", 2020);
+  assert.deepEqual({ ...row.values }, { a: null, b: null, c: null });
+  assert.equal(JSON.parse(JSON.stringify(row.values)).a, null);
+});
+
 test("a v-column is kept even though its base column is present", () => {
   const row = parseRow(
     { ags: "01", gen: "A", ai1301: 339.7, ai1301v: -0.7 },
