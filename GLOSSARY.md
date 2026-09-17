@@ -14,8 +14,8 @@ Regionalatlas terms and fields, as the CLI surfaces them.
 | **AGS** (Amtlicher Gemeindeschlüssel) | `ags` | The official regional key of a Land/Kreis/Gemeinde (a string, e.g. `03` for Niedersachsen, `03361` for a Kreis). Leading zeros matter — `--region` ignores them for numeric matches. |
 | **Gebietsname** | `name` | The region name (`gen` in the data), e.g. `Niedersachsen`, `Bremen`. |
 | **jahr / year** | `--year`, `year` | The reporting year (a 4-digit integer). Each indicator offers a specific set of years, often with gaps that the first–last range from `indicators` (e.g. `1998–2025` for `AI005`) doesn't show. Leaving out `--year` uses the newest catalogue year, which the data host may not have loaded yet: `query` then returns `[]` and notes it on stderr. |
-| **value field** | `values` | An indicator value column (e.g. `ai0201`) — a number or `null`. `--fields` keeps only named ones. The CLI prints no label or unit for a column. |
-| **precision-flag `v` field** | (dropped) | A `<field>v` variant (e.g. `ai0201v`) flags the precision/quality of the matching value field. The parsed `RegionRow` drops these so `values` holds only the measured values. |
+| **value field** | `values` | An indicator value column (e.g. `ai0201`) — a number or `null`. `--fields` keeps only named ones. `indicators` lists every column of an indicator with its title and unit. |
+| **Veränderungsrate (`v` field)** | `values` | A `<field>v` column (e.g. `ai0201v`) is the year-on-year **rate of change** of the matching value field — a published value in its own right, not a precision flag. Its unit is **percent**, or **percentage points** for a share indicator (`ai0208v`); `indicators` gives the unit per column. |
 | **gen2 / ags2 / jahr2** | (internal) | The joined side of the SQL `LEFT OUTER JOIN`. `gen2` is leading-space padded in the raw data — the client trims it; the parsed row uses `gen`/`ags`/`jahr`. |
 | **dynamicLayer / queryTable** | (internal) | The ArcGIS mechanism that runs the raw SQL join behind `query`. |
 | **`--base-url` / `--catalog-url`** | options | The ArcGIS data host / the indicator catalogue URL (the two upstream hosts). |

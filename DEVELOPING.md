@@ -74,7 +74,16 @@ WHERE typ = <TYP> AND jahr = <YEAR> AND (jahr2 = <YEAR> OR jahr2 IS NULL)
 The response is Esri JSON: `{fields:[…], features:[{attributes:{…}}]}`. Feature
 attributes are `id, typ, ags, jahr, gen` (the region) plus `jahr2, ags2, gen2` (the
 joined side — `gen2` is **leading-space padded**, so it is trimmed) plus the indicator
-value fields (e.g. `ai0201`) and their `<field>v` **precision-flag** variants.
+value fields (e.g. `ai0201`) and their `<field>v` variants.
+
+A `<field>v` column is **not** a precision flag (this file said so until
+2026-09-17, and the client dropped them on that basis): it is the year-on-year
+**Veränderungsrate** of the matching field, a published value the catalogue names
+and gives a unit for — percent, or **percentage points** for a share indicator.
+Verified against Bremen `AI002-1-5`: `ai0208` 21.4 (2022) → 22.3 (2023) with
+`ai0208v` = 0.9 PP. 12 such columns exist over 9 indicators, and for `AI013-1`,
+`AI-N-10`, `AI-N-12`, `AI-S-03` and `AI002-4-5` they are half the indicator.
+`parseRow` therefore keeps every non-join column.
 
 ### (B) Catalogue — the indicator list
 

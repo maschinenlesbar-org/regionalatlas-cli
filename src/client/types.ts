@@ -139,7 +139,7 @@ export interface RawFeatureAttributes {
   jahr2?: number | null;
   ags2?: string | null;
   gen2?: string | null;
-  /** The indicator value fields (e.g. `ai0201`) plus their `<field>v` flag variants. */
+  /** The indicator value fields (e.g. `ai0201`, and `ai0201v` for its Veränderungsrate). */
   [key: string]: unknown;
 }
 
@@ -164,8 +164,9 @@ export interface ArcGisQueryResponse {
 
 /**
  * One parsed region row: the geographic unit plus its indicator values. The value
- * map keeps only the indicator value fields (the `<field>v` precision flags are
- * dropped from the parsed row — see the client), with numbers or `null`.
+ * map keeps every indicator value field — including the `<field>v` Veränderungsrate
+ * columns — and drops only the join columns, with numbers or `null`. What each key
+ * measures is in the indicator's `fields`.
  */
 export interface RegionRow {
   /** Amtlicher Gemeindeschlüssel (AGS). */

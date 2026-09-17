@@ -81,7 +81,7 @@ indicator never reaches the server. See the injection-guard section in
 
 - [Usage.md](Usage.md) — commands, options, the geo levels, exit codes
 - [DEVELOPING.md](DEVELOPING.md) — architecture, the two-host split, the SQL guard
-- [GLOSSARY.md](GLOSSARY.md) — AGS, typ / geo levels, Indikator, table code, precision flags
+- [GLOSSARY.md](GLOSSARY.md) — AGS, typ / geo levels, Indikator, table code, Veränderungsrate
 - [DATA_LICENSE.md](DATA_LICENSE.md) — the dl-de/by-2.0 data terms
 - [SKILLS.md](SKILLS.md) — the Claude Code skills this repo ships
 

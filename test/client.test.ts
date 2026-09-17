@@ -134,8 +134,23 @@ test("query() parses rows: trims gen2/name, drops join + <field>v columns", asyn
   assert.equal(nds.typ, 1);
   assert.equal(nds.level, "land");
   assert.equal(nds.year, 2020);
-  assert.deepEqual({ ...nds.values }, { ai0201: 167.8, ai0202: 12.3 }); // ai0201v flag dropped
+  // Every value column survives, including ai0201v — the Veränderungsrate, which
+  // the catalogue publishes with its own unit. Only the join columns are dropped.
+  assert.deepEqual({ ...nds.values }, { ai0201: 167.8, ai0202: 12.3, ai0201v: 0.1 });
   assert.equal("ags" in nds.values, false);
+  assert.equal("gen2" in nds.values, false);
+});
+
+test("a v-column is kept even though its base column is present", () => {
+  const row = parseRow(
+    { ags: "01", gen: "A", ai1301: 339.7, ai1301v: -0.7 },
+    1,
+    "land",
+    2024,
+  );
+  // AI013-1 publishes exactly these two columns; dropping the second lost half
+  // the indicator, with no way to ask for it back.
+  assert.deepEqual({ ...row.values }, { ai1301: 339.7, ai1301v: -0.7 });
 });
 
 test("region filter: a numeric input matches AGS ignoring leading zeros", () => {

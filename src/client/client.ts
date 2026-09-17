@@ -192,8 +192,13 @@ const JOIN_FIELDS = new Set([
 
 /**
  * Parse one raw ArcGIS feature into a `RegionRow`. Trims the leading-space padding
- * of `gen2`, prefers `gen` for the name, and keeps only the indicator value fields
- * (dropping the join columns and the `<field>v` precision-flag variants).
+ * of `gen2`, prefers `gen` for the name, and keeps every indicator value field
+ * (dropping only the join columns).
+ *
+ * The `<field>v` columns are kept: they are not precision flags, as this file and
+ * the glossary used to claim, but the year-on-year *Veränderungsrate* — a
+ * published value the catalogue names and gives a unit for (percent, or
+ * percentage points for a share indicator). See `Indicator.fields`.
  */
 export function parseRow(
   attrs: RawFeatureAttributes,
@@ -211,11 +216,6 @@ export function parseRow(
   const values: Record<string, number | null> = Object.create(null);
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
-    // Drop the precision-flag variants: `<field>v` when `<field>` is also present.
-    if (key.endsWith("v")) {
-      const base = key.slice(0, -1);
-      if (Object.prototype.hasOwnProperty.call(attrs, base)) continue;
-    }
     values[key] = typeof value === "number" ? value : value === null ? null : Number(value);
     if (Number.isNaN(values[key] as number)) values[key] = null;
   }
