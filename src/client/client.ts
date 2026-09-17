@@ -18,6 +18,7 @@
 import { RequestEngine, sanitizeServerText, type EngineOptions } from "./engine.js";
 import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
 import {
+  assertKnownFields,
   filterIndicators,
   parseIndicators,
   parseThemes,
@@ -112,6 +113,9 @@ export class RegionalatlasClient {
     const level = resolveLevel(opts.level);
     // 3. Validate/default the year (throws if not an integer in the indicator's years).
     const year = resolveYear(indicator, opts.year);
+    // 3b. Validate the requested value fields against the catalogue's field
+    //     dictionary, before spending a request on rows that would project to {}.
+    if (opts.fields && opts.fields.length > 0) assertKnownFields(indicator, opts.fields);
 
     // 4. Build the SQL from validated pieces only.
     const layer = buildLayerParam(indicator.table, level.typ, year);

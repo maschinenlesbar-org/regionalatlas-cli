@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertKnownFields,
   filterIndicators,
   findField,
   parseIndicators,
@@ -135,4 +136,27 @@ test("resolveYear rejects a non-integer or out-of-range year", () => {
   const ind = parseIndicators(fx.catalog).find((i) => i.code === "AI002-1-5")!;
   assert.throws(() => resolveYear(ind, 2019), RegionalatlasValidationError); // not in list
   assert.throws(() => resolveYear(ind, 2020.5), RegionalatlasValidationError); // non-integer
+});
+
+test("assertKnownFields accepts known columns and rejects the rest", () => {
+  const ai002 = parseIndicators(fx.catalog).find((i) => i.code === "AI002-1-5")!;
+  assert.doesNotThrow(() => assertKnownFields(ai002, ["AI0201", " ai0201v "]));
+  assert.throws(
+    () => assertKnownFields(ai002, ["ai0201", "typo", "alsobad"]),
+    (err: unknown) => {
+      assert.ok(err instanceof RegionalatlasValidationError);
+      assert.match(err.message, /Unknown value fields "typo", "alsobad"/);
+      assert.match(err.message, /Available: ai0201 \(/);
+      return true;
+    },
+  );
+});
+
+test("assertKnownFields stays out of the way when the catalogue lists no columns", () => {
+  const bare = parseIndicators([
+    { title: "T", children: [{ code: "A-1", years: { "2020": [] } }] },
+  ])[0]!;
+  // The field dictionary is a convenience; an upstream that stops publishing it
+  // must not turn every --fields query into a usage error.
+  assert.doesNotThrow(() => assertKnownFields(bare, ["anything"]));
 });

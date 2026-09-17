@@ -165,6 +165,30 @@ export function resolveIndicator(indicators: Indicator[], input: string): Indica
 }
 
 /**
+ * Validate requested value-field names against the indicator's field dictionary.
+ *
+ * `projectFields` ignores a name it does not recognise — correct, because no user
+ * text may reach the SQL — but that turned a typo into a full set of rows whose
+ * `values` were all `{}`, which reads as "this indicator has no data here" rather
+ * than "you mistyped". Failing here makes it a usage error, matching how an
+ * unknown indicator, level and year are already handled.
+ *
+ * Skipped when the catalogue lists no attributes for the indicator: the dictionary
+ * is a convenience, and an upstream that stops publishing it must not break queries.
+ */
+export function assertKnownFields(indicator: Indicator, fields: string[]): void {
+  if (indicator.fields.length === 0) return;
+  const unknown = fields.filter((f) => f.trim() !== "" && findField(indicator, f) === undefined);
+  if (unknown.length === 0) return;
+  const available = indicator.fields.map((f) => `${f.code} (${f.title || f.unit || "—"})`);
+  throw new RegionalatlasValidationError(
+    `Unknown value ${unknown.length > 1 ? "fields" : "field"} ` +
+      `${unknown.map((f) => JSON.stringify(f)).join(", ")} for indicator "${indicator.code}". ` +
+      `Available: ${available.join("; ")}.`,
+  );
+}
+
+/**
  * Validate and resolve the year for an indicator. When `year` is undefined, the
  * latest available year is used. A provided year must be an integer AND present in
  * the indicator's catalogue years. Only the validated integer enters SQL.

@@ -96,6 +96,24 @@ test("an unknown indicator is a usage error (exit 2) and makes no data request",
   assert.match(cli.err.join("\n"), /Unknown indicator/);
 });
 
+test("an unknown --fields name is a usage error (exit 2) and makes no data request", async () => {
+  const cli = makeRoutingCli();
+  const code = await run(["query", "AI002-1-5", "--year", "2020", "--fields", "ai0201,nonsense"], cli.deps);
+  assert.equal(code, 2);
+  // Caught against the catalogue, so no rows are fetched only to project to {}.
+  assert.equal(dataCalls(cli.mt.calls).length, 0);
+  assert.match(cli.err.join("\n"), /Unknown value field "nonsense"/);
+  // The message names what the indicator does offer.
+  assert.match(cli.err.join("\n"), /ai0201 \(Bevölkerungsdichte/);
+});
+
+test("a Veränderungsrate column is a valid --fields name", async () => {
+  const cli = makeRoutingCli();
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--fields", "ai0201v"], cli.deps), 0);
+  const parsed = JSON.parse(cli.out.join("\n")) as { values: Record<string, number> }[];
+  assert.deepEqual(parsed[0]!.values, { ai0201v: 0.1 });
+});
+
 test("an unknown --level is rejected at parse time (exit 2), no request at all", async () => {
   const cli = makeRoutingCli();
   const code = await run(["query", "AI002-1-5", "--level", "galaxy"], cli.deps);

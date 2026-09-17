@@ -47,7 +47,7 @@ title, which `--search` also matches (it contains the theme name).
 | `--level <level>` | geo level: `land` \| `regierungsbezirk` \| `kreis` \| `gemeinde` (default `land`) |
 | `--year <yyyy>` | reporting year (default: the newest year in the catalogue, which may not be loaded yet — see below) |
 | `--region <name\|ags>` | keep only rows matching a name substring or an AGS |
-| `--fields <a,b,c>` | keep only these value fields (comma-separated) |
+| `--fields <a,b,c>` | keep only these value fields (comma-separated); names are checked against the indicator's columns |
 
 The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the table
 form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, typ, level, year,
@@ -56,7 +56,8 @@ values }, …]`, one row per region.
 `--level` accepts these aliases: `land`/`laender`/`bundesland` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),
 `gemeinde`/`gemeinden` (=5). `--region` and `--fields` are applied **client-side** (they
-never enter the upstream request).
+never enter the upstream request), but a `--fields` name is validated against the
+indicator's value columns first — `indicators` lists them with their titles and units.
 
 An empty result prints `[]`, exits 0 and explains itself on stderr. The catalogue can list
 a newest year the data host has not loaded yet: on 2026-09-15 `AI013-1` listed 2026, and
@@ -82,14 +83,14 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 |---|---|
 | `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr |
 | `1` | API/logical error (the ArcGIS `error` envelope), or a catch-all |
-| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--year` outside the indicator's range, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, redirecting base URL) |
+| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, redirecting base URL) |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |
 
 ## Notes
 
-- **The indicator, level, and year are validated against the catalogue before any query
-  is built** — an unknown indicator is a usage error (exit 2) and never reaches the
+- **The indicator, level, year and `--fields` columns are validated against the catalogue
+  before any query is built** — an unknown indicator is a usage error (exit 2) and never reaches the
   server. See the injection-guard section in [DEVELOPING.md](DEVELOPING.md).
 - **The ArcGIS server reports logical errors as HTTP 200 with an `error` object** — the
   CLI detects it and exits 1 with the message.
