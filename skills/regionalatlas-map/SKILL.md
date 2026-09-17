@@ -27,9 +27,14 @@ This skill drives the `regionalatlas` command. **Before anything else, validate 
 | `--level` (aliases) | typ | Regions |
 |---|---|---|
 | `land` (`laender`, `bundesland`) | 1 | 16 Bundesländer |
-| `regierungsbezirk` (`rb`) | 2 | Regierungsbezirke |
-| `kreis` (`kreise`, `landkreis`) | 3 | ~400 Kreise / kreisfreie Städte |
-| `gemeinde` (`gemeinden`) | 5 | Gemeinden (many thousands) |
+| `regierungsbezirk` (`rb`) | 2 | 38 rows: 29 Regierungsbezirke + the 9 Bundesländer that have none |
+| `kreis` (`kreise`, `landkreis`) | 3 | 400 Kreise / kreisfreie Städte (incl. Berlin, Hamburg) |
+| `gemeinde` (`gemeinden`) | 5 | ~11 000 Gemeinden (incl. kreisfreie Städte at their Kreis key) |
+
+Every level covers **all of Germany**, filling in with the next coarser unit where the
+finer one does not exist — which is why `ags` length varies within a level (2, 3, 5 or 8
+digits). Each level is still a non-overlapping partition, so summing or mapping one is
+safe; describing `regierungsbezirk` as "the 38 Regierungsbezirke" is not.
 
 ## Row shape
 

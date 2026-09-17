@@ -55,7 +55,15 @@ values }, …]`, one row per region.
 
 `--level` accepts these aliases: `land`/`laender`/`bundesland` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),
-`gemeinde`/`gemeinden` (=5). `--region` and `--fields` are applied **client-side** (they
+`gemeinde`/`gemeinden` (=5).
+
+Every level covers **all of Germany**, filling in with the next coarser unit where the
+finer one does not exist — so `ags` length varies within a level. `regierungsbezirk`
+returns 38 rows: the 29 actual Regierungsbezirke plus the 9 Bundesländer that have
+none. `kreis` (400) and `gemeinde` (~11 000) carry Berlin and Hamburg at 2 digits, and
+`gemeinde` carries 104 kreisfreie Städte at their 5-digit Kreis key. Each level is a
+non-overlapping partition, so summing or mapping one is safe; counting its rows as
+"the Regierungsbezirke of Germany" is not. `--region` and `--fields` are applied **client-side** (they
 never enter the upstream request), but a `--fields` name is validated against the
 indicator's value columns first — `indicators` lists them with their titles and units.
 

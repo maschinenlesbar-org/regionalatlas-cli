@@ -62,6 +62,12 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
 
 - **Same level for all regions being compared** — you can't mix a Land and a Kreis in
   one call; pick the `--level` that holds all the regions you want.
+- **A level fills in with coarser units where a finer one does not exist**, so `ags`
+  length varies within it. `regierungsbezirk` returns 38 rows — 29 Regierungsbezirke
+  plus the 9 Bundesländer that have none — and `kreis`/`gemeinde` carry Berlin and
+  Hamburg at 2 digits. Each level is still a complete, non-overlapping cover of
+  Germany, so a rank or an average over one is sound; just don't call all 38 rows
+  Regierungsbezirke.
 - **`--region` is one selector per call** — for many regions, fetch the level once and
   filter with `jq` rather than N requests.
 - **A city name also matches its Landkreis.** `--region München` at `--level kreis`
