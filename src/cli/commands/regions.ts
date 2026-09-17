@@ -12,6 +12,7 @@ import {
   parseFieldList,
   parseLevel,
   parseNonEmpty,
+  parseTextArg,
   parseYear,
   renderJson,
 } from "../shared.js";
@@ -37,9 +38,9 @@ export function registerCommands(program: Command, deps: CliDeps): void {
   program
     .command("indicators")
     .description("List indicators (Indikatoren): code, short and long title, available years")
-    .option("--theme <substr>", "filter by theme title (case-insensitive substring)", parseNonEmpty)
+    .option("--theme <substr>", "filter by theme title (case-insensitive substring)", parseTextArg)
     .option("--year <yyyy>", "only indicators offering this year", parseYear)
-    .option("--search <substr>", "filter over code + short + long title (case-insensitive)", parseNonEmpty)
+    .option("--search <substr>", "filter over code + short + long title (case-insensitive)", parseTextArg)
     .action(
       action(deps, async ({ client, global, opts }) => {
         const filter: IndicatorFilter = {};
@@ -78,7 +79,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
       "land",
     )
     .option("--year <yyyy>", "reporting year (defaults to the newest year in the catalogue)", parseYear)
-    .option("--region <name|ags>", "keep only rows matching this name (substring) or AGS", parseNonEmpty)
+    .option("--region <name|ags>", "keep only rows matching this name (substring) or AGS", parseTextArg)
     .option("--fields <a,b,c>", "keep only these value fields (comma-separated)", parseFieldList)
     .action(
       action(deps, async ({ client, global, opts }, [indicator]) => {

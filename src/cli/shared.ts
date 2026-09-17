@@ -42,6 +42,36 @@ export function parseNonEmpty(value: string): string {
 }
 
 /**
+ * Anything shaped like one of this CLI's own options: a long flag (`--fields`) or a
+ * single-letter short flag (`-h`). Deliberately narrower than the sibling CLIs'
+ * `/^--?[^\s]/`, which would also reject `-1-5` — and here a leading hyphen is
+ * ordinary text, because indicator codes are full of them (`--search -1-5` is a
+ * real query, and a value parser cannot see whether commander got it as
+ * `--search=-1-5`, so there would be no way to escape it).
+ */
+const OPTION_SHAPED = /^(--[A-Za-z][\w-]*|-[A-Za-z])$/;
+
+/**
+ * commander value-parser for a free-text value (a filter term, a region name).
+ *
+ * Rejects a value shaped like an option, which is almost always the *next option*
+ * consumed because this one was left without a value: `--region --fields` silently
+ * made "--fields" the region and returned no rows.
+ */
+export function parseTextArg(value: string): string {
+  if (OPTION_SHAPED.test(value)) {
+    throw new InvalidArgumentError(
+      `looks like a missing value — "${value}" is the next option, consumed because ` +
+        "this one was left without a value. Supply the intended term.",
+    );
+  }
+  if (value.trim() === "") {
+    throw new InvalidArgumentError("Expected a non-empty value.");
+  }
+  return value;
+}
+
+/**
  * commander value-parser for `--level`: resolves a friendly name/alias to the
  * canonical level name, rejecting an unknown level at parse time (exit 2) with a
  * clear message. The client re-resolves it (defence in depth) and only the fixed

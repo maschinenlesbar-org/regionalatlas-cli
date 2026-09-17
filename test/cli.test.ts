@@ -96,6 +96,28 @@ test("an unknown indicator is a usage error (exit 2) and makes no data request",
   assert.match(cli.err.join("\n"), /Unknown indicator/);
 });
 
+test("a free-text option refuses to swallow the next option as its value", async () => {
+  for (const argv of [
+    ["query", "AI002-1-5", "--region", "--fields"],
+    ["indicators", "--search", "--theme"],
+    ["indicators", "--theme", "-h"],
+  ]) {
+    const cli = makeRoutingCli();
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /looks like a missing value/);
+  }
+});
+
+test("a dash-leading term that is not an option is still a valid filter", async () => {
+  // Indicator codes are full of hyphens, so `--search -1-5` is a real query. The
+  // sibling CLIs' blanket dash rejection would refuse it with no way to escape it.
+  const cli = makeRoutingCli();
+  assert.equal(await run(["indicators", "--search", "-1-5"], cli.deps), 0);
+  const parsed = JSON.parse(cli.out.join("\n")) as { code: string }[];
+  assert.deepEqual(parsed.map((p) => p.code), ["AI002-1-5"]);
+});
+
 test("an unknown --fields name is a usage error (exit 2) and makes no data request", async () => {
   const cli = makeRoutingCli();
   const code = await run(["query", "AI002-1-5", "--year", "2020", "--fields", "ai0201,nonsense"], cli.deps);
