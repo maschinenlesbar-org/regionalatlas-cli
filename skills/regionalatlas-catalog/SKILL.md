@@ -8,8 +8,11 @@ description: >
   "which years does this indicator cover?", or wants to discover the themes and
   indicator codes before pulling data. Lists the 21 themes and the 70 indicators
   with their codes, titles and year ranges, and resolves a topic to an indicator code.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `regionalatlas` CLI (npm package
+  @maschinenlesbar.org/regionalatlas-cli) on PATH, installed by the user; the
+  skill never installs it. Uses jq for JSON filtering. Network access to
+  regionalatlas.statistikportal.de and www.gis-idmz.nrw.de.
 ---
 
 # Regionalatlas Catalogue
@@ -21,6 +24,8 @@ The Regionalatlas publishes **21 themes (Themenbereiche)** and **70 indicators
 ## Tooling
 
 This skill drives the `regionalatlas` command. **Before anything else, validate it is available** — run `command -v regionalatlas` (or `regionalatlas --version`). If it is not on your PATH, STOP and inform the user that the `regionalatlas` CLI (`@maschinenlesbar.org/regionalatlas-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 **No API key is required.** The catalogue is a public JSON file. `regionalatlas themes` lists the subject areas; `regionalatlas indicators [--theme …] [--year …] [--search …]` lists the indicators. `--compact` for `jq`. Data © Statistische Ämter des Bundes und der Länder under Datenlizenz Deutschland – Namensnennung 2.0 (dl-de/by-2.0, attribution required) — see DATA_LICENSE.md.
 

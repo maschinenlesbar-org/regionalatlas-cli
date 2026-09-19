@@ -7,8 +7,11 @@ description: >
   Hamburg vs Bremen", "which Bundesland has the highest / lowest X?", or wants a few
   named regions (or a single one) picked out and set side by side. Fetches the
   indicator at the right level and filters to the regions of interest.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `regionalatlas` CLI (npm package
+  @maschinenlesbar.org/regionalatlas-cli) on PATH, installed by the user; the
+  skill never installs it. Uses jq for JSON filtering. Network access to
+  regionalatlas.statistikportal.de and www.gis-idmz.nrw.de.
 ---
 
 # Regionalatlas Compare (indicator across regions)
@@ -19,6 +22,8 @@ handful, or the extremes of the whole set.
 ## Tooling
 
 This skill drives the `regionalatlas` command. **Before anything else, validate it is available** — run `command -v regionalatlas` (or `regionalatlas --version`). If it is not on your PATH, STOP and inform the user that the `regionalatlas` CLI (`@maschinenlesbar.org/regionalatlas-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 **No API key is required.** `regionalatlas query <code> --level <land|regierungsbezirk|kreis|gemeinde> [--year …] [--region …] [--fields …]` returns one row per region; `--region` picks a region by name substring or AGS. `--compact` for `jq`. Data © Statistische Ämter des Bundes und der Länder under Datenlizenz Deutschland – Namensnennung 2.0 (dl-de/by-2.0, attribution required) — see DATA_LICENSE.md.
 
