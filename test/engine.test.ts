@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, sanitizeServerText } from "../src/client/engine.js";
+import { RequestEngine, parseRetryAfter, sanitizeServerText } from "../src/client/engine.js";
 import {
   RegionalatlasApiError,
   RegionalatlasNetworkError,
@@ -218,4 +218,36 @@ test("requestUrl rejects a non-http(s) scheme at the engine level, before the tr
 test("sanitizeServerText drops bidi controls and folds line breaks to one line", () => {
   assert.equal(sanitizeServerText("a‮b⁦c‏d"), "abcd");
   assert.equal(sanitizeServerText("  one\nError: forged\r\n\ttwo three  "), "one Error: forged two three");
+});
+
+test("a malformed Retry-After falls back to linear backoff instead of a zero-delay burst", async () => {
+  for (const header of ["1.5", "-5", "0.5", "10 x", "+5", "1e3", "0x10", "2026-09-26T10:00:00Z"]) {
+    const slept: number[] = [];
+    let calls = 0;
+    const mt = makeMockTransport(() => {
+      calls += 1;
+      return calls < 3
+        ? rawResponse("slow down", "text/plain", 429, { "retry-after": header })
+        : jsonResponse(fx.landData);
+    });
+    const e = new RequestEngine({
+      transport: mt.transport,
+      maxRetries: 5,
+      retryDelayMs: 200,
+      sleep: async (ms) => void slept.push(ms),
+    });
+    await e.getJson("/x");
+    assert.deepEqual(slept, [200, 400], header);
+  }
+});
+
+test("parseRetryAfter reads delta-seconds and an IMF-fixdate only", () => {
+  const now = Date.parse("Sat, 26 Sep 2026 10:00:00 GMT");
+  assert.equal(parseRetryAfter("7", now), 7000);
+  assert.equal(parseRetryAfter([" 2 ", "9"], now), 2000);
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 10:00:03 GMT", now), 3000);
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 09:00:00 GMT", now), 0);
+  for (const bad of [undefined, "", "1.5", "-5", "Saturday, 26-Sep-26 10:00:03 GMT", "Sat Sep 26 10:00:03 2026"]) {
+    assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
+  }
 });

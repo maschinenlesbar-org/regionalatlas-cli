@@ -11,7 +11,14 @@ export {
   SPECIAL_VALUE_THRESHOLD,
 } from "./client.js";
 export type { RegionalatlasClientOptions } from "./client.js";
-export { RequestEngine, DEFAULT_BASE_URL, sanitizeServerText, isBidiControl } from "./engine.js";
+export {
+  RequestEngine,
+  DEFAULT_BASE_URL,
+  MAX_RETRY_AFTER_MS,
+  parseRetryAfter,
+  sanitizeServerText,
+  isBidiControl,
+} from "./engine.js";
 export type { EngineOptions, RawResponse } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";

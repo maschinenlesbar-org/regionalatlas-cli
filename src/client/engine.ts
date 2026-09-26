@@ -107,28 +107,35 @@ const realSleep = (ms: number): Promise<void> =>
 
 /**
  * Upper bound on a honoured `Retry-After`. The header is server-controlled, and a
- * `Retry-After: 86400` would otherwise park the CLI for a day.
+ * `Retry-After: 86400` would otherwise park the CLI for a day, so a longer wait is
+ * clamped to this.
  */
-const MAX_RETRY_AFTER_MS = 30_000;
+export const MAX_RETRY_AFTER_MS = 30_000;
 
-/** Coerce a possibly-repeated header value to a single string (or undefined). */
-function headerValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
+/** An IMF-fixdate (RFC 9110 §5.6.7), the one HTTP-date form senders must generate. */
+const IMF_FIXDATE =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
 
 /**
- * Parse `Retry-After` in either documented form — delta-seconds or an HTTP-date —
- * into milliseconds from now. Returns undefined for a missing or unparseable value,
- * so the caller falls back to linear backoff.
+ * Parse a `Retry-After` header into a delay in milliseconds (RFC 9110 §10.2.3):
+ * either delay-seconds (`"120"`) or an HTTP-date (`"Wed, 21 Oct 2026 07:28:00 GMT"`,
+ * turned into the time left from `now`; a date in the past gives 0).
+ *
+ * Returns `undefined` when the header is absent or malformed — negative (`"-5"`),
+ * fractional (`"1.5"`), any other date format — so the caller falls back to linear
+ * backoff. The strict patterns matter: `Date.parse` alone reads `"1.5"`, `"-5"` and
+ * `"0.5"` as dates in 2000/2001 and so retried at once, in a burst.
  */
-function parseRetryAfter(value: string | undefined): number | undefined {
-  if (value === undefined) return undefined;
-  const trimmed = value.trim();
-  if (trimmed === "") return undefined;
-  if (/^[0-9]+$/.test(trimmed)) return Number(trimmed) * 1000;
-  const when = Date.parse(trimmed);
-  if (Number.isNaN(when)) return undefined;
-  return Math.max(0, when - Date.now());
+export function parseRetryAfter(
+  header: string | string[] | undefined,
+  now: number = Date.now(),
+): number | undefined {
+  const value = (Array.isArray(header) ? header[0] : header)?.trim();
+  if (value === undefined || value === "") return undefined;
+  if (/^\d+$/.test(value)) return Number(value) * 1000;
+  if (!IMF_FIXDATE.test(value)) return undefined;
+  const when = Date.parse(value);
+  return Number.isNaN(when) ? undefined : Math.max(0, when - now);
 }
 
 /**
@@ -220,7 +227,7 @@ export class RequestEngine {
         attempt += 1;
         // Honour a Retry-After header (delta-seconds or HTTP-date) when present,
         // clamped to MAX_RETRY_AFTER_MS; otherwise fall back to linear backoff.
-        const retryAfter = parseRetryAfter(headerValue(response.headers["retry-after"]));
+        const retryAfter = parseRetryAfter(response.headers["retry-after"]);
         const delay =
           retryAfter !== undefined
             ? Math.min(retryAfter, MAX_RETRY_AFTER_MS)

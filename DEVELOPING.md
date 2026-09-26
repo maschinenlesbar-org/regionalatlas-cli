@@ -199,9 +199,12 @@ host (catalogue vs data). Coverage highlights:
   network → 6; other → 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
   from the data host that means a base-URL misconfiguration → usage).
 - **Retry/backoff:** `429`/`503` are retried up to `maxRetries` (default 2), honouring
-  a `Retry-After` header in either documented form — delta-seconds or HTTP-date —
-  clamped to 30 s so a server-set `Retry-After: 86400` cannot park the CLI for a day.
-  A missing or unparseable header falls back to linear backoff (`retryDelayMs × attempt`).
+  a `Retry-After` header in either documented form — delta-seconds (digits only) or an
+  HTTP-date in IMF-fixdate form (`Sat, 26 Sep 2026 10:00:00 GMT`) — clamped to 30 s so a
+  server-set `Retry-After: 86400` cannot park the CLI for a day. A missing or malformed
+  header (`1.5`, `-5`, any other date format) falls back to linear backoff
+  (`retryDelayMs × attempt`); `parseRetryAfter` never hands it to a bare `Date.parse`,
+  which reads `"1.5"` as a date in 2001 and so retried at once.
 - **Scaffold origin:** scaffolded from `ladesaeulenregister-cli` (ArcGIS, keyless,
   query.ts); rewritten for the two-host split, the catalogue allowlist, and the
   dynamicLayer SQL guard.
