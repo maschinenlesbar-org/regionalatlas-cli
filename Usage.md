@@ -50,7 +50,7 @@ title, which `--search` also matches (it contains the theme name).
 | `--level <level>` | geo level: `land` \| `regierungsbezirk` \| `kreis` \| `gemeinde` (default `land`) |
 | `--year <yyyy>` | reporting year (default: the newest year in the catalogue, which may not be loaded yet — see below) |
 | `--region <name\|ags>` | keep only rows matching a name substring or an AGS |
-| `--fields <a,b,c>` | keep only these value fields (comma-separated); names are checked against the indicator's columns |
+| `--fields <a,b,c>` | keep only these value fields (comma-separated; repeating the option adds to the list); names are checked against the indicator's columns |
 
 The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the table
 form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, typ, level, year,

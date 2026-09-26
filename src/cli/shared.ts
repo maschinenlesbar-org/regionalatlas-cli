@@ -91,9 +91,11 @@ export function parseLevel(value: string): string {
 /**
  * commander value-parser for a comma-separated field list. Splits on commas,
  * trims, and drops empty entries. Field names are validated/projected client-side
- * later, so this only produces a clean array.
+ * later, so this only produces a clean array. A repeated option adds to the list
+ * (commander passes the previous value): `--fields a --fields b` is `--fields a,b`,
+ * where it used to keep only the last one.
  */
-export function parseFieldList(value: string): string[] {
+export function parseFieldList(value: string, previous?: string[]): string[] {
   const fields = value
     .split(",")
     .map((f) => f.trim())
@@ -101,7 +103,7 @@ export function parseFieldList(value: string): string[] {
   if (fields.length === 0) {
     throw new InvalidArgumentError("Expected a comma-separated list of field names.");
   }
-  return fields;
+  return [...(previous ?? []), ...fields];
 }
 
 /**

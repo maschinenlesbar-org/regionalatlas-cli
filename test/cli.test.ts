@@ -493,3 +493,14 @@ test("userinfo in --base-url is redacted from error messages but still sent", as
   assert.match(stderr, /^Error: HTTP 404 for GET http:\/\/\*\*\*@gis-idmz\.example\/m\/arcgis\//);
   assert.equal(new URL(cli.mt.last().url).password, "secret");
 });
+
+test("a repeated --fields adds to the list instead of keeping only the last one", async () => {
+  const cli = makeRoutingCli();
+  const code = await run(
+    ["--compact", "query", "AI002-1-5", "--year", "2020", "--fields", "ai0201", "--fields", "ai0201v"],
+    cli.deps,
+  );
+  assert.equal(code, 0);
+  const rows = JSON.parse(cli.out.join("\n")) as { values: Record<string, number> }[];
+  assert.deepEqual(rows[0]!.values, { ai0201: 167.8, ai0201v: 0.1 });
+});

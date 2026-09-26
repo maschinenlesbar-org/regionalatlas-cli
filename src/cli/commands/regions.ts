@@ -85,7 +85,11 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     )
     .option("--year <yyyy>", "reporting year (defaults to the newest year in the catalogue)", parseYear)
     .option("--region <name|ags>", "keep only rows matching this name (substring) or AGS", parseTextArg)
-    .option("--fields <a,b,c>", "keep only these value fields (comma-separated)", parseFieldList)
+    .option(
+      "--fields <a,b,c>",
+      "keep only these value fields (comma-separated; repeatable)",
+      parseFieldList,
+    )
     .action(
       action(deps, async ({ client, global, opts }, [indicator]) => {
         const query: QueryOptions = {
