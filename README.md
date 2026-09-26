@@ -61,6 +61,8 @@ const c = new RegionalatlasClient();
 await c.themes();                                                 // the subject areas
 await c.indicators({ search: "bevölkerung" });                    // matching indicators
 const rows = await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 });
+// queryResult() adds `fetched`: the rows the host returned before the region filter
+const { rows: hits, fetched } = await c.queryResult({ indicator: "AI002-1-5", level: "land", region: "Bremen" });
 ```
 
 ## Two hosts

@@ -77,7 +77,9 @@ row for every region with every value `null`. `--region` and `--fields` are appl
 never enter the upstream request), but a `--fields` name is validated against the
 indicator's value columns first — `indicators` lists them with their titles and units.
 
-An empty result prints `[]`, exits 0 and explains itself on stderr. The catalogue can list
+An empty result prints `[]`, exits 0 and explains itself on stderr, by cause: either the
+data host returned no rows for the indicator, level and year, or it did and no row matched
+`--region` (the note then says how many rows there were, and gives no year hint). The catalogue can list
 a newest year the data host has not loaded yet: on 2026-09-15 `AI013-1` listed 2026, and
 `query AI013-1 --level kreis` returned `[]`, while `--year 2025` returned all 400
 Kreise. When the year was defaulted, the note names the previous catalogue year to

@@ -196,6 +196,18 @@ export interface RegionRow {
   missing?: Record<string, string>;
 }
 
+/** A data query's rows plus what the client saw before filtering them. */
+export interface QueryResult {
+  /** The rows, after the client-side `region` filter and `fields` projection. */
+  rows: RegionRow[];
+  /**
+   * How many rows the data host returned, before the `region` filter. 0 means the
+   * host had nothing for the indicator, level and year; more than 0 with no `rows`
+   * means only the region filter matched nothing.
+   */
+  fetched: number;
+}
+
 /** Options for a data query. */
 export interface QueryOptions {
   /** Indicator code (`AI002-1-5`) or table form (`ai002_1_5`); resolved against the catalogue. */

@@ -95,13 +95,13 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         if (typeof opts["year"] === "number") query.year = opts["year"];
         if (typeof opts["region"] === "string") query.region = opts["region"];
         if (Array.isArray(opts["fields"])) query.fields = opts["fields"] as string[];
-        const rows = await client.query(query);
+        const { rows, fetched } = await client.queryResult(query);
         renderJson(deps, global, rows);
         if (rows.length === 0) {
           // An empty result exits 0 like any other; say why on stderr so it isn't read
           // as "this indicator has no data". The catalogue is cached, so no new request.
           const resolved = resolveIndicator(await client.indicators(), query.indicator);
-          deps.io.err(emptyResultNote(resolved, query));
+          deps.io.err(emptyResultNote(resolved, query, fetched));
         }
       }),
     );
@@ -135,17 +135,24 @@ function emptyIndicatorsNote(filter: IndicatorFilter, all: Indicator[]): string 
 }
 
 /**
- * The stderr note for a query that returned no rows. The catalogue can list a year
- * (typically the newest) that the data host has not loaded yet, which yields `[]`;
- * when the year was defaulted, point at the previous catalogue year.
+ * The stderr note for a query that printed no rows, by cause. When the data host
+ * returned rows (`fetched` > 0), only `--region` removed them. When it returned
+ * none, the year is the suspect: the catalogue can list a year (typically the
+ * newest) that the data host has not loaded yet, so when the year was defaulted,
+ * point at the previous catalogue year.
  */
-function emptyResultNote(indicator: Indicator, query: QueryOptions): string {
+function emptyResultNote(indicator: Indicator, query: QueryOptions, fetched: number): string {
   const year = resolveYear(indicator, query.year);
   const where = `${indicator.code} at level ${query.level} in ${year}`;
+  if (fetched > 0) {
+    return (
+      `Note: none of the ${fetched} rows for ${where} match --region ` +
+      `${JSON.stringify(query.region)} (a name substring or an AGS).`
+    );
+  }
   let note =
-    query.region !== undefined
-      ? `Note: no rows for ${where} match --region ${JSON.stringify(query.region)}.`
-      : `Note: the data host returned no rows for ${where}.`;
+    `Note: the data host returned no rows for ${where}` +
+    `${query.region !== undefined ? " (before --region was applied)" : ""}.`;
   if (query.year === undefined) {
     const earlier = indicator.years.map(Number).filter((y) => y < year);
     if (earlier.length > 0) {

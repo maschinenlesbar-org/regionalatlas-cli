@@ -307,6 +307,15 @@ test("an empty result with the defaulted newest year prints [] and a note to try
   ]);
 });
 
+test("an empty host reply with --region blames the year, not the region", async () => {
+  const cli = makeRoutingCli({ ...fx.landData, features: [] });
+  assert.equal(await run(["query", "AI002-1-5", "--region", "11"], cli.deps), 0);
+  assert.deepEqual(cli.err, [
+    "Note: the data host returned no rows for AI002-1-5 at level land in 2024 (before --region was applied). " +
+      "2024 is the newest year in the catalogue, but its data may not be loaded yet; try --year 2020.",
+  ]);
+});
+
 test("an empty result for an explicit year notes it without a year hint", async () => {
   const cli = makeRoutingCli({ ...fx.landData, features: [] });
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
@@ -316,8 +325,12 @@ test("an empty result for an explicit year notes it without a year hint", async 
 
 test("a --region that matches nothing notes the region, no note when rows remain", async () => {
   const none = makeRoutingCli();
-  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Bayern"], none.deps), 0);
-  assert.deepEqual(none.err, ['Note: no rows for AI002-1-5 at level land in 2020 match --region "Bayern".']);
+  assert.equal(await run(["query", "AI002-1-5", "--region", "Bayern"], none.deps), 0);
+  // The host returned rows, so the year is not the suspect: no "try --year" hint.
+  assert.deepEqual(none.err, [
+    'Note: none of the 2 rows for AI002-1-5 at level land in 2024 match --region "Bayern" ' +
+      "(a name substring or an AGS).",
+  ]);
 
   const some = makeRoutingCli();
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Bremen"], some.deps), 0);

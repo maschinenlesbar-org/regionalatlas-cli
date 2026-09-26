@@ -34,6 +34,7 @@ import type {
   ArcGisQueryResponse,
   Indicator,
   QueryOptions,
+  QueryResult,
   RawFeatureAttributes,
   RegionRow,
   Theme,
@@ -108,6 +109,15 @@ export class RegionalatlasClient {
    * never enter the request.
    */
   async query(opts: QueryOptions): Promise<RegionRow[]> {
+    return (await this.queryResult(opts)).rows;
+  }
+
+  /**
+   * `query`, plus how many rows the data host returned before the `region` filter
+   * (`fetched`), so a caller can tell "the host has no rows for this year" from
+   * "no row matched the region".
+   */
+  async queryResult(opts: QueryOptions): Promise<QueryResult> {
     // 1. Resolve the indicator against the catalogue allowlist (throws if unknown).
     const indicators = await this.allIndicators();
     const indicator = resolveIndicator(indicators, opts.indicator);
@@ -147,7 +157,10 @@ export class RegionalatlasClient {
 
     // 5. Client-side region filter + field projection (no user text upstream).
     const filtered = opts.region ? filterByRegion(rows, opts.region) : rows;
-    return opts.fields && opts.fields.length > 0 ? projectFields(filtered, opts.fields) : filtered;
+    return {
+      rows: opts.fields && opts.fields.length > 0 ? projectFields(filtered, opts.fields) : filtered,
+      fetched: rows.length,
+    };
   }
 
   /** GET the dynamicLayer data query, then throw on the ArcGIS `error` envelope. */

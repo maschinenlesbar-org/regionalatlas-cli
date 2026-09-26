@@ -406,3 +406,14 @@ test("a reply without features, an array or any truthy error is a failure, never
   // A null error next to an empty features array is a real, empty result.
   assert.deepEqual(await clientRouting({ error: null, features: [] }).client.query(q), []);
 });
+
+test("queryResult() reports the rows fetched before the region filter", async () => {
+  const q = { indicator: "AI002-1-5", level: "land", year: 2020 };
+  const hit = await clientRouting().client.queryResult({ ...q, region: "Bremen" });
+  assert.equal(hit.fetched, 2);
+  assert.deepEqual(hit.rows.map((r) => r.name), ["Bremen"]);
+  const miss = await clientRouting().client.queryResult({ ...q, region: "Nowhere" });
+  assert.deepEqual(miss, { rows: [], fetched: 2 });
+  const empty = await clientRouting({ features: [] }).client.queryResult({ ...q, region: "Bremen" });
+  assert.deepEqual(empty, { rows: [], fetched: 0 });
+});
