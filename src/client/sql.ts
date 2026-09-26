@@ -8,29 +8,34 @@
 // applied client-side.
 
 import type { GeoLevel } from "./types.js";
+import { RegionalatlasError } from "./errors.js";
 
 /**
  * Extra defence-in-depth: assert the pieces are exactly the shape we expect right
  * before they enter the SQL string. These should never fire when called through the
  * client (the catalogue + levels layers already guarantee them), but a hard assert
  * here means a future refactor cannot accidentally route unvalidated text into SQL.
+ * They throw the typed base error (exit 1), never a bare Error the CLI would report
+ * as "Unexpected error".
  */
 function assertSafeTable(table: string): void {
   // A catalogue table name is lowercase letters, digits and underscores only.
   if (!/^[a-z0-9_]+$/.test(table)) {
-    throw new Error(`Refusing to build SQL: table "${table}" is not a valid catalogue table name.`);
+    throw new RegionalatlasError(
+      `Refusing to build SQL: table "${table}" is not a valid catalogue table name.`,
+    );
   }
 }
 
 function assertSafeTyp(typ: number): asserts typ is GeoLevel {
   if (typ !== 1 && typ !== 2 && typ !== 3 && typ !== 5) {
-    throw new Error(`Refusing to build SQL: typ ${typ} is not an allowed geo level.`);
+    throw new RegionalatlasError(`Refusing to build SQL: typ ${typ} is not an allowed geo level.`);
   }
 }
 
 function assertSafeYear(year: number): void {
   if (!Number.isInteger(year) || year < 1000 || year > 9999) {
-    throw new Error(`Refusing to build SQL: year ${year} is not a 4-digit integer.`);
+    throw new RegionalatlasError(`Refusing to build SQL: year ${year} is not a 4-digit integer.`);
   }
 }
 

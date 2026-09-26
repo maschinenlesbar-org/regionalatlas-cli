@@ -270,3 +270,34 @@ test("the suggested level is the published one closest to the requested level", 
     /only at levels kreis, gemeinde, so every land row would be null\. Use --level kreis\./,
   );
 });
+
+test("malformed catalogue codes, year keys and column names are left out when parsing", () => {
+  const raw = [
+    {
+      title: "T",
+      children: [
+        { code: "X1 UNION SELECT", years: { "2020": [] } },
+        { code: "Z\u001b[31mRED", years: { "2020": [] } },
+        null,
+        5,
+        { code: "Y2", years: { "20x0": [], abcd: [] } },
+        { code: "Y3", years: { "99999": [], "2020": [], "0999": [] } },
+        {
+          code: "Y4",
+          years: { "2020": [] },
+          attributes: [{ code: "ai0201" }, { code: "ai\u001b0202" }, { code: "a b" }],
+        },
+      ],
+    },
+  ];
+  const indicators = parseIndicators(raw);
+  assert.deepEqual(indicators.map((i) => i.code), ["Y2", "Y3", "Y4"]);
+  assert.deepEqual(indicators[0]!.years, []);
+  assert.deepEqual(indicators[1]!.years, ["2020"]);
+  assert.equal(resolveYear(indicators[1]!), 2020);
+  assert.deepEqual(indicators[2]!.fields.map((f) => f.code), ["ai0201"]);
+  // themes counts what `indicators` lists.
+  assert.deepEqual(parseThemes(raw), [{ title: "T", indicatorCount: 3 }]);
+  // An indicator left with no valid year is a validation error, not an internal one.
+  assert.throws(() => resolveYear(indicators[0]!), RegionalatlasValidationError);
+});

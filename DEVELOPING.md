@@ -111,6 +111,13 @@ available years are `Object.keys(child.years)`.
 The catalogue is fetched once and cached per client instance (a `query` needs it to
 resolve the indicator).
 
+`parseIndicators` leaves out what the SQL guard would refuse later: an entry whose
+code is not letters/digits joined by `-`/`_`, a year key that is not four digits
+without a leading zero, and a value column whose name is not `[a-z0-9_]+` after the
+`-` → `_` mapping. `themes` counts the same entries `indicators` lists, and the default
+year comes from the valid year keys only. `sql.ts`'s asserts throw `RegionalatlasError`
+(exit 1), not a bare `Error`.
+
 ## THE injection guard (repo-specific, security-critical)
 
 The data query embeds **raw SQL** the server executes. To prevent SQL/query injection,

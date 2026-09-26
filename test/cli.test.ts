@@ -373,3 +373,32 @@ test("a level the indicator has no figures at is a usage error before the data r
   const ok = makeCli(routeByHost(catalog, fx.landData));
   assert.equal(await run(["query", "AIGG-01", "--level", "land"], ok.deps), 0);
 });
+
+test("a malformed catalogue entry is never reported as an unexpected error", async () => {
+  const catalog = [
+    {
+      title: "T",
+      children: [
+        { code: "X1 UNION SELECT", years: { "2020": [] } },
+        { code: "Y2", years: { "20x0": [], abcd: [] } },
+        { code: "Y3", years: { "99999": [], "2020": [] } },
+        { code: "Y7", years: { "0999": [], "2020": [] } },
+      ],
+    },
+  ];
+  const cases: [string[], number, RegExp][] = [
+    [["query", "X1 UNION SELECT"], 2, /Unknown indicator/],
+    [["query", "Y2"], 2, /has no years listed/],
+    [["query", "Y7", "--year", "0999"], 2, /Year 999 is not available .* Available: 2020\./],
+  ];
+  for (const [argv, exit, message] of cases) {
+    const cli = makeCli(routeByHost(catalog, fx.landData));
+    assert.equal(await run(argv, cli.deps), exit, argv.join(" "));
+    assert.match(cli.err.join("\n"), message);
+    assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+    assert.equal(dataCalls(cli.mt.calls).length, 0);
+  }
+  const y3 = makeCli(routeByHost(catalog, fx.landData));
+  assert.equal(await run(["query", "Y3"], y3.deps), 0);
+  assert.match(queryOf(dataCalls(y3.mt.calls)[0]!).get("layer") ?? "", /jahr = 2020/);
+});

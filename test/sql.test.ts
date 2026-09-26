@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildSql, buildLayerParam } from "../src/client/sql.js";
+import { RegionalatlasError } from "../src/client/errors.js";
 import { resolveLevel } from "../src/client/levels.js";
 
 test("buildSql interpolates only the table, typ and year", () => {
@@ -47,4 +48,14 @@ test("buildLayerParam embeds the SQL in a queryTable data source with wkid 25832
   assert.equal(layer.source.dataSource.spatialReference.wkid, 25832);
   assert.match(layer.source.dataSource.query, /JOIN ai002_1_5 ON/);
   assert.match(layer.source.dataSource.query, /typ = 1 AND jahr = 2020/);
+});
+
+test("the defence-in-depth asserts throw the typed base error, not a bare Error", () => {
+  for (const build of [
+    () => buildSql("x1 union select", 1, 2020),
+    () => buildSql("ai002_1_5", 4, 2020),
+    () => buildSql("ai002_1_5", 1, Number.NaN),
+  ]) {
+    assert.throws(build, (err: unknown) => err instanceof RegionalatlasError);
+  }
 });

@@ -33,6 +33,28 @@ function asString(value: unknown): string {
 }
 
 /**
+ * The shape of a catalogue indicator code (`AI002-1-5`, `AI-Z1-2011`, `AIGG-01`):
+ * letters and digits, joined by hyphens or underscores. The code becomes the SQL
+ * table name, so an entry whose code has any other character is left out when the
+ * catalogue is parsed — before `sql.ts`'s last-line assert would refuse it with an
+ * internal error.
+ */
+const CODE_SHAPE = /^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/;
+
+/** A catalogue year key: exactly four digits, no leading zero (it enters SQL as an integer). */
+const YEAR_SHAPE = /^[1-9][0-9]{3}$/;
+
+/** A value-column name after `fieldKey`: lower-case letters, digits, underscores. */
+const FIELD_SHAPE = /^[a-z0-9_]+$/;
+
+/** The code of a raw catalogue child, or `undefined` when the entry is not a usable indicator. */
+function indicatorCode(child: unknown): string | undefined {
+  if (child === null || typeof child !== "object") return undefined;
+  const code = (child as RawCatalogIndicator).code;
+  return typeof code === "string" && CODE_SHAPE.test(code) ? code : undefined;
+}
+
+/**
  * Parse an indicator's `attributes` array into the field dictionary.
  *
  * This is the only place a value column's meaning is available: the data query
@@ -50,7 +72,7 @@ function parseFields(raw: unknown): IndicatorField[] {
     if (entry === null || typeof entry !== "object") continue;
     const a = entry as RawCatalogAttribute;
     const code = fieldKey(asString(a.code));
-    if (code === "") continue;
+    if (!FIELD_SHAPE.test(code)) continue;
     fields.push({ code, title: asString(a.title_short), unit: asString(a.unit) });
   }
   return fields;
@@ -119,13 +141,17 @@ export function parseIndicators(raw: unknown): Indicator[] {
     const themeTitle = asString(t.title);
     const children = Array.isArray(t.children) ? t.children : [];
     for (const child of children) {
-      if (child === null || typeof child !== "object") continue;
+      // An entry without a well-formed code, and a year key that is not a plain
+      // 4-digit year, are left out here, so what `indicators`, `themes` and the
+      // default year see is what the SQL guard accepts.
+      const code = indicatorCode(child);
+      if (code === undefined) continue;
       const c = child as RawCatalogIndicator;
-      const code = asString(c.code);
-      if (code === "") continue;
       const rawYears =
         c.years && typeof c.years === "object" ? (c.years as Record<string, unknown>) : {};
-      const years = Object.keys(rawYears).sort();
+      const years = Object.keys(rawYears)
+        .filter((y) => YEAR_SHAPE.test(y))
+        .sort();
       const levels: Record<string, string[]> = Object.create(null);
       for (const year of years) {
         const published = publishedLevels(rawYears[year]);
@@ -158,7 +184,10 @@ export function parseThemes(raw: unknown): Theme[] {
     .filter((t): t is RawCatalogTheme => t !== null && typeof t === "object")
     .map((t) => ({
       title: asString(t.title),
-      indicatorCount: Array.isArray(t.children) ? t.children.length : 0,
+      // Count what `indicators` lists: entries with a well-formed code.
+      indicatorCount: Array.isArray(t.children)
+        ? t.children.filter((c) => indicatorCode(c) !== undefined).length
+        : 0,
     }));
 }
 
