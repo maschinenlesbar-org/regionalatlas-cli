@@ -15,7 +15,7 @@
 //   await c.indicators({ search: "bevölkerung" });       // matching indicators
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
-import { RequestEngine, sanitizeServerText, type EngineOptions } from "./engine.js";
+import { RequestEngine, describeArcGisError, type EngineOptions } from "./engine.js";
 import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
 import {
   assertKnownFields,
@@ -134,15 +134,14 @@ export class RegionalatlasClient {
       spatialRel: "esriSpatialRelIntersects",
     });
 
-    // `?? []` only catches a missing field; a truthy non-array (e.g. an upstream
-    // or cache serving an unexpected shape) would otherwise reach `.map` below as
-    // a raw TypeError.
-    if (res.features !== undefined && !Array.isArray(res.features)) {
-      throw new RegionalatlasParseError(
-        `Expected "features" to be an array in the data query response, got ${typeof res.features}.`,
-      );
+    // A reply without a `features` array is not an empty result: a maintenance page
+    // served as `{"status":"maintenance"}` must not read as "no rows" (and send the
+    // user looking for a data gap), and a truthy non-array would otherwise reach
+    // `.map` below as a raw TypeError.
+    if (!Array.isArray(res.features)) {
+      throw shapeError(`a features array, got ${kindOf(res.features)}`);
     }
-    const rows = (res.features ?? []).map((f, i) =>
+    const rows = res.features.map((f, i) =>
       parseRow(featureAttributes(f, i), level.typ, level.name, year),
     );
 
@@ -153,39 +152,50 @@ export class RegionalatlasClient {
 
   /** GET the dynamicLayer data query, then throw on the ArcGIS `error` envelope. */
   private async getData(params: Record<string, string | number | boolean>): Promise<ArcGisQueryResponse> {
-    const res = await this.engine.getJson<ArcGisQueryResponse>(DATA_PATH, params);
-    // The endpoint answers with a JSON envelope object. A null (empty/204 body) or
-    // non-object reply means the endpoint did not return the expected shape.
-    if (res === null || typeof res !== "object") {
-      throw new RegionalatlasParseError(
-        `Expected a JSON object from the data query but received ${res === null ? "an empty body" : typeof res}.`,
-      );
+    const res: unknown = await this.engine.getJson<unknown>(DATA_PATH, params);
+    // The endpoint answers with a JSON envelope object. A null (empty/204 body), an
+    // array or a scalar means the endpoint did not return the expected shape.
+    if (res === null || typeof res !== "object" || Array.isArray(res)) {
+      throw shapeError(`a JSON object, got ${res === null ? "an empty body" : kindOf(res)}`);
     }
     // Logical errors arrive as HTTP 200 with a top-level `error` key — sniff for it.
-    const err = res.error;
-    if (err && typeof err === "object") {
-      // The ArcGIS `error` message/details come from the (attacker-controllable)
-      // response body and flow into an Error.message printed raw to stderr; strip
-      // control characters so a hostile endpoint cannot inject terminal escapes.
-      const detail = [err.message, ...(Array.isArray(err.details) ? err.details : [])]
-        .filter((s): s is string => typeof s === "string" && s.length > 0)
-        .map(sanitizeServerText)
-        .join("; ");
+    // Any present, truthy `error` is a failure: ArcGIS writes an object, but a
+    // gateway or proxy may send a bare string ("Token Required") or `true`, which
+    // must not pass as an empty, successful result.
+    const err: unknown = (res as { error?: unknown }).error;
+    if (err) {
+      const code =
+        typeof err === "object" ? (err as { code?: unknown }).code : undefined;
       throw new RegionalatlasApiError({
         url: this.engine.buildUrl(DATA_PATH, params),
         method: "GET",
         body: JSON.stringify(res),
-        arcgisCode: typeof err.code === "number" ? err.code : undefined,
-        detail: detail || undefined,
+        arcgisCode: typeof code === "number" ? code : undefined,
+        // Message and details, control characters stripped (sanitizeServerText).
+        detail: describeArcGisError(err),
       });
     }
-    return res;
+    return res as ArcGisQueryResponse;
   }
 }
 
 // --------------------------------------------------------------------------
 // Row parsing & client-side filtering (exported for tests)
 // --------------------------------------------------------------------------
+
+/** The P12 wording shared with the sibling CLIs for a reply of the wrong shape. */
+function shapeError(expected: string): RegionalatlasParseError {
+  return new RegionalatlasParseError(`Unexpected response shape from ${DATA_PATH}: expected ${expected}.`);
+}
+
+/** A short description of a JSON value for a shape error ("none", "an array", "a string", …). */
+function kindOf(value: unknown): string {
+  if (value === undefined) return "none";
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  if (typeof value === "object") return "an object";
+  return `a ${typeof value}`;
+}
 
 /**
  * Pull the `attributes` off one feature, refusing anything that is not an object.

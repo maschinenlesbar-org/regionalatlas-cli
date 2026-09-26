@@ -162,7 +162,12 @@ typ/year (no `;`, `--`, or quotes).
 - **Logical errors are HTTP 200 with `{"error":{code,message,details}}`** (verified
   live — a malformed query returns HTTP 200, not a 4xx). The client **sniffs for a
   top-level `error` key in the 2xx body** and throws `RegionalatlasApiError`
-  (`arcgisCode` set) — it does not rely on the HTTP status alone. The `error.message`
+  (`arcgisCode` set) — it does not rely on the HTTP status alone. Any truthy `error`
+  counts (a proxy's bare `"Token Required"` or `true` too); `describeArcGisError` joins
+  message and details without repeats, for the 200 envelope and non-2xx replies alike.
+  A body that is not a JSON object, or has no `features` array, is a
+  `RegionalatlasParseError` (`Unexpected response shape from <path>: expected …`), not
+  an empty result. The `error.message`
   is run through `sanitizeServerText` before it can reach stderr: control and bidi
   characters dropped, whitespace folded to one line. The catalogue is a second trust
   domain (`--catalog-url`), so its texts (titles, units, theme names) go through the

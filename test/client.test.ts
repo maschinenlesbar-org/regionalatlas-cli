@@ -316,7 +316,11 @@ test("an empty 200 data body surfaces as a typed RegionalatlasParseError", async
   const client = new RegionalatlasClient({ transport: mt.transport });
   await assert.rejects(
     () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
-    (err) => err instanceof RegionalatlasParseError && /Expected a JSON object/.test(err.message),
+    (err) =>
+      err instanceof RegionalatlasParseError &&
+      /Unexpected response shape from \S+\/dynamicLayer\/query: expected a JSON object, got an empty body\./.test(
+        err.message,
+      ),
   );
 });
 
@@ -324,7 +328,9 @@ test("a non-array features field surfaces as a typed RegionalatlasParseError, no
   const { client } = clientRouting({ features: { message: "unexpected shape" } });
   await assert.rejects(
     () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
-    (err) => err instanceof RegionalatlasParseError && /"features".*array/.test(err.message),
+    (err) =>
+      err instanceof RegionalatlasParseError &&
+      /expected a features array, got an object\./.test(err.message),
   );
 });
 
@@ -372,4 +378,31 @@ test("a special-value code is null with its meaning in missing, never a figure",
   // --fields projects missing along with values.
   assert.deepEqual({ ...projectFields([row], ["ai0507"])[0]!.missing }, { ai0507: "nichts vorhanden" });
   assert.equal(projectFields([row], ["ai0501"])[0]!.missing, undefined);
+});
+
+test("a reply without features, an array or any truthy error is a failure, never zero rows", async () => {
+  const q = { indicator: "AI002-1-5", level: "land", year: 2020 };
+  await assert.rejects(
+    () => clientRouting({ status: "maintenance" }).client.query(q),
+    (err) => err instanceof RegionalatlasParseError && /expected a features array, got none\./.test(err.message),
+  );
+  await assert.rejects(
+    () => clientRouting([]).client.query(q),
+    (err) => err instanceof RegionalatlasParseError && /expected a JSON object, got an array\./.test(err.message),
+  );
+  await assert.rejects(
+    () => clientRouting({ error: "boom" }).client.query(q),
+    (err) => err instanceof RegionalatlasApiError && err.detail === "boom" && /: boom$/.test(err.message),
+  );
+  await assert.rejects(
+    () => clientRouting({ error: true, features: [] }).client.query(q),
+    (err) => err instanceof RegionalatlasApiError && err.detail === undefined,
+  );
+  // Repeats between message and details are dropped.
+  await assert.rejects(
+    () => clientRouting({ error: { code: 400, message: "Invalid URL", details: ["Invalid URL", ""] } }).client.query(q),
+    (err) => err instanceof RegionalatlasApiError && err.detail === "Invalid URL",
+  );
+  // A null error next to an empty features array is a real, empty result.
+  assert.deepEqual(await clientRouting({ error: null, features: [] }).client.query(q), []);
 });

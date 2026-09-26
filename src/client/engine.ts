@@ -102,6 +102,30 @@ export function sanitizeServerText(text: string): string {
   return out.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The human-readable text of an ArcGIS `error` value, for an error message: a bare
+ * string as is, or an `{code, message, details}` object's `message` and `details`
+ * joined with "; ". Empty parts and repeats are dropped (the server can send
+ * `"message": ""` with the reason only in `details`, or the same text in both).
+ * Every part goes through `sanitizeServerText`. Returns `undefined` when nothing
+ * readable is left.
+ */
+export function describeArcGisError(error: unknown): string | undefined {
+  let parts: unknown[] = [];
+  if (typeof error === "string") parts = [error];
+  else if (error !== null && typeof error === "object") {
+    const e = error as { message?: unknown; details?: unknown };
+    parts = [e.message, ...(Array.isArray(e.details) ? e.details : [])];
+  }
+  const seen = new Set<string>();
+  for (const part of parts) {
+    if (typeof part !== "string") continue;
+    const text = sanitizeServerText(part);
+    if (text !== "") seen.add(text);
+  }
+  return seen.size > 0 ? [...seen].join("; ") : undefined;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -278,11 +302,12 @@ export class RequestEngine {
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as {
-        error?: { message?: unknown };
+        error?: unknown;
         message?: unknown;
         detail?: unknown;
       };
-      if (parsed?.error && typeof parsed.error.message === "string") detail = parsed.error.message;
+      const arcgis = parsed?.error ? describeArcGisError(parsed.error) : undefined;
+      if (arcgis !== undefined) detail = arcgis;
       else if (typeof parsed?.message === "string") detail = parsed.message;
       else if (typeof parsed?.detail === "string") detail = parsed.detail;
     } catch {

@@ -429,3 +429,11 @@ test("hostile catalogue text and an escape-laden argument never reach stderr raw
     assert.doesNotMatch(stderr, controls, JSON.stringify(stderr));
   }
 });
+
+test("a maintenance reply exits 1 with the shape error and no empty-result note", async () => {
+  const cli = makeCli(routeByHost(fx.catalog, { status: "maintenance" }));
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 1);
+  assert.equal(cli.out.length, 0);
+  assert.match(cli.err.join("\n"), /^Error: Unexpected response shape from .*expected a features array, got none\.$/);
+  assert.doesNotMatch(cli.err.join("\n"), /Note:/);
+});

@@ -16,6 +16,7 @@ export {
   DEFAULT_BASE_URL,
   MAX_RETRY_AFTER_MS,
   parseRetryAfter,
+  describeArcGisError,
   sanitizeServerText,
   isBidiControl,
 } from "./engine.js";
