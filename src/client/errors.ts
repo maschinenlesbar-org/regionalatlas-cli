@@ -19,6 +19,29 @@ export function redactUrl(url: string): string {
   return parsed.href;
 }
 
+/** Longest query-parameter value an error message shows; a longer one becomes `…`. */
+const MAX_SHOWN_PARAM_LENGTH = 60;
+
+/**
+ * The URL as an error message shows it: every query-parameter value longer than
+ * `MAX_SHOWN_PARAM_LENGTH` characters (as sent, percent-encoded) is replaced by
+ * `…`. The data query's `layer` parameter carries the whole SQL join as
+ * URL-encoded JSON (about 750 characters), which pushed the actual reason to the
+ * end of an 800-character line. The error's `url` field keeps the full URL.
+ */
+export function shortenUrl(url: string): string {
+  const q = url.indexOf("?");
+  if (q < 0) return url;
+  const params = url
+    .slice(q + 1)
+    .split("&")
+    .map((part) => {
+      const eq = part.indexOf("=");
+      return eq >= 0 && part.length - eq - 1 > MAX_SHOWN_PARAM_LENGTH ? `${part.slice(0, eq)}=…` : part;
+    });
+  return `${url.slice(0, q)}?${params.join("&")}`;
+}
+
 /** Base class for every error originating from this client. */
 export class RegionalatlasError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -59,7 +82,7 @@ export class RegionalatlasApiError extends RegionalatlasError {
       args.status !== undefined
         ? `HTTP ${args.status}`
         : `ArcGIS error${args.arcgisCode !== undefined ? ` ${args.arcgisCode}` : ""}`;
-    super(`${head} for ${args.method} ${url}${detailPart}`);
+    super(`${head} for ${args.method} ${shortenUrl(url)}${detailPart}`);
     this.status = args.status;
     this.arcgisCode = args.arcgisCode;
     this.url = url;

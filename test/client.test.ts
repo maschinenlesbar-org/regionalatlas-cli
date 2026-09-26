@@ -434,3 +434,24 @@ test("region filter matches a decomposed (NFD) umlaut in the name", () => {
   ];
   assert.deepEqual(filterByRegion(rows, "württemberg").map((r) => r.ags), ["08"]);
 });
+
+test("an ArcGIS error names the query URL without the long encoded layer, reason in reach", async () => {
+  const { client } = clientRouting({
+    error: { code: 400, message: "Unable to complete operation.", details: ["Invalid SQL"] },
+  });
+  await assert.rejects(
+    () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
+    (err) => {
+      assert.ok(err instanceof RegionalatlasApiError);
+      assert.equal(
+        err.message,
+        "ArcGIS error 400 for GET https://www.gis-idmz.nrw.de/arcgis/rest/services/stba/regionalatlas/" +
+          "MapServer/dynamicLayer/query?layer=…&f=json&outFields=*&returnGeometry=false&where=1%3D1" +
+          "&spatialRel=esriSpatialRelIntersects: Unable to complete operation.; Invalid SQL",
+      );
+      // The full URL, SQL included, stays on the error for a caller who needs it.
+      assert.match(err.url, /layer=%7B.*ai002_1_5/);
+      return true;
+    },
+  );
+});
