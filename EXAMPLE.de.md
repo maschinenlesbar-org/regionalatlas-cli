@@ -3,7 +3,8 @@
 Echte Beispiele für die Claude-Code-Skills des Plugins `regionalatlas`, eines pro Skill: eine
 Anfrage, die `regionalatlas`-Befehle, die der Skill ausgeführt hat, und Claudes Antwort.
 
-Jedes Beispiel lief am 15. September 2026 mit `regionalatlas` 0.0.4 gegen die Live-API.
+Jedes Beispiel lief am 15. September 2026 mit `regionalatlas` 0.0.4 gegen die Live-API, außer
+regionalatlas-catalog, das am 26. September 2026 mit 0.2.0 neu lief.
 Die Daten ändern sich, Ihre Ergebnisse werden also abweichen; mit den gezeigten IDs und
 Schlüsseln können Sie die Anfragen selbst ausprobieren. Lange Listen sind gekürzt.
 
@@ -17,7 +18,7 @@ Skills: [regionalatlas-catalog](#regionalatlas-catalog) · [regionalatlas-compar
 
 ```bash
 regionalatlas themes --compact | jq -r '.[] | "\(.title)\t\(.indicatorCount)"'
-regionalatlas indicators --search kita --compact   # [] + „Note: none of the 70 … match --search "kita"."
+regionalatlas indicators --search kita --compact   # [] + „Note: none of the 71 catalogue indicators match --search "kita"."
 regionalatlas indicators --search betreu --compact | jq '.[] | {code, theme, titleShort, years}'
 regionalatlas indicators --search betreu --year 2025 --compact | jq -r '.[].code'
 regionalatlas indicators --search Betreuungsquote --compact | jq '.[].fields'   # was die Spalten messen
@@ -26,7 +27,7 @@ regionalatlas query AI003-3 --level land --year 2025 --region Schleswig --compac
 
 „Kita" ergab nichts, deshalb suchte der Skill mit dem Wortstamm `betreu`. Er fand vier Indikatoren in drei verschiedenen Themenbereichen. Eine Suche nur nach Thema hätte einige davon übersehen.
 
-Der Katalog umfasst 21 Themenbereiche und 70 Indikatoren. Vier davon betreffen die Kinderbetreuung, und alle vier reichen bis 2025:
+Der Katalog umfasst 21 Themenbereiche und 71 Indikatoren. Vier davon betreffen die Kinderbetreuung, und alle vier reichen bis 2025:
 
 | Code | Themenbereich | Indikator | Jahre |
 |---|---|---|---|

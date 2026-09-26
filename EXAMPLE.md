@@ -3,7 +3,8 @@
 Real examples for the Claude Code skills of the `regionalatlas` plugin, one per skill: a request,
 the `regionalatlas` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 15 September 2026 with `regionalatlas` 0.0.4.
+Every example ran against the live API on 15 September 2026 with `regionalatlas` 0.0.4, except
+regionalatlas-catalog, re-run on 26 September 2026 with 0.2.0.
 The data changes, so your results will differ; the ids and keys shown work for trying the
 requests yourself. Long lists are shortened.
 
@@ -17,7 +18,7 @@ Skills: [regionalatlas-catalog](#regionalatlas-catalog) · [regionalatlas-compar
 
 ```bash
 regionalatlas themes --compact | jq -r '.[] | "\(.title)\t\(.indicatorCount)"'
-regionalatlas indicators --search kita --compact   # [] + "Note: none of the 70 … match --search "kita"."
+regionalatlas indicators --search kita --compact   # [] + "Note: none of the 71 catalogue indicators match --search "kita"."
 regionalatlas indicators --search betreu --compact | jq '.[] | {code, theme, titleShort, years}'
 regionalatlas indicators --search betreu --year 2025 --compact | jq -r '.[].code'
 regionalatlas indicators --search Betreuungsquote --compact | jq '.[].fields'   # what the columns mean
@@ -26,7 +27,7 @@ regionalatlas query AI003-3 --level land --year 2025 --region Schleswig --compac
 
 "Kita" matched nothing, so the skill searched for the stem `betreu`. It found four indicators under three different themes, so searching by theme alone would have missed some.
 
-The catalogue has 21 themes and 70 indicators. Four of them cover childcare, and all four include 2025:
+The catalogue has 21 themes and 71 indicators. Four of them cover childcare, and all four include 2025:
 
 | Code | Theme | Indicator | Years |
 |---|---|---|---|
