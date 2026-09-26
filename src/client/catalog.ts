@@ -37,8 +37,10 @@ function asString(value: unknown): string {
  * This is the only place a value column's meaning is available: the data query
  * returns bare field names (`ai0201`) whose ArcGIS `alias` just repeats the name,
  * and the suffix carries no meaning either — `AI005` numbers the parties `ai0501`
- * to `ai0505` and `ai0507`, with `ai0506` being turnout. Codes are lower-cased so
- * they match the keys of a parsed `RegionRow.values`.
+ * to `ai0505` and `ai0507`, with `ai0506` being turnout. Codes go through
+ * `fieldKey` so they match the keys of a parsed `RegionRow.values`: the Zensus 2011
+ * indicators list their columns as `AI-Z01`, while the data host returns them as
+ * `ai_z01` — the same `-` → `_` mapping that turns a code into its table name.
  */
 function parseFields(raw: unknown): IndicatorField[] {
   if (!Array.isArray(raw)) return [];
@@ -46,7 +48,7 @@ function parseFields(raw: unknown): IndicatorField[] {
   for (const entry of raw) {
     if (entry === null || typeof entry !== "object") continue;
     const a = entry as RawCatalogAttribute;
-    const code = asString(a.code).trim().toLowerCase();
+    const code = fieldKey(asString(a.code));
     if (code === "") continue;
     fields.push({ code, title: asString(a.title_short), unit: asString(a.unit) });
   }
@@ -54,11 +56,21 @@ function parseFields(raw: unknown): IndicatorField[] {
 }
 
 /**
- * Look up one of an indicator's value columns by name, case-insensitively —
- * the same matching `projectFields` applies.
+ * The canonical form of a value-column name: trimmed, lower-case, `-` → `_`. The
+ * data host names the columns in this form (`ai0201`, `ai_z01`), so both the
+ * catalogue's spelling (`AI-Z01`) and the data's spelling match. Used by
+ * `findField` and by `projectFields`.
+ */
+export function fieldKey(name: string): string {
+  return name.trim().toLowerCase().replace(/-/g, "_");
+}
+
+/**
+ * Look up one of an indicator's value columns by name, case-insensitively and
+ * with `-` and `_` treated alike — the same matching `projectFields` applies.
  */
 export function findField(indicator: Indicator, name: string): IndicatorField | undefined {
-  const key = name.trim().toLowerCase();
+  const key = fieldKey(name);
   return indicator.fields.find((f) => f.code === key);
 }
 

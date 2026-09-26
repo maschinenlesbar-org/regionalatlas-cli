@@ -344,3 +344,9 @@ test("a feature without an attributes object is a typed parse error", async () =
     (err) => err instanceof RegionalatlasParseError && /no "attributes" object/.test(err.message),
   );
 });
+
+test("field projection treats - and _ alike, so a catalogue spelling selects the data key", () => {
+  const row = parseRow({ ags: "11", gen: "Berlin", ai_z01: 42.3, ai_z02: 43.6 }, 1, "land", 2011);
+  assert.deepEqual({ ...projectFields([row], ["AI-Z01"])[0]!.values }, { ai_z01: 42.3 });
+  assert.deepEqual({ ...projectFields([row], ["ai_z02"])[0]!.values }, { ai_z02: 43.6 });
+});

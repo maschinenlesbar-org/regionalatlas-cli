@@ -160,3 +160,27 @@ test("assertKnownFields stays out of the way when the catalogue lists no columns
   // must not turn every --fields query into a usage error.
   assert.doesNotThrow(() => assertKnownFields(bare, ["anything"]));
 });
+
+test("a hyphenated attribute code (Zensus 2011) is keyed like the data host's column", () => {
+  // Live: AI-Z1-2011 lists its columns as AI-Z01 … AI-Z07, and the data host returns
+  // them as ai_z01 … ai_z07 (the same - → _ mapping as the table name).
+  const raw = [
+    {
+      title: "Zensus",
+      children: [
+        {
+          code: "AI-Z1-2011",
+          years: { "2011": [] },
+          attributes: [{ code: "AI-Z01", title_short: "Durchschnittsalter", unit: "Anzahl" }],
+        },
+      ],
+    },
+  ];
+  const [zensus] = parseIndicators(raw);
+  assert.ok(zensus);
+  assert.deepEqual(zensus.fields, [{ code: "ai_z01", title: "Durchschnittsalter", unit: "Anzahl" }]);
+  // Both spellings find the column, so neither is refused as unknown.
+  assert.equal(findField(zensus, "ai_z01")?.code, "ai_z01");
+  assert.equal(findField(zensus, "AI-Z01")?.code, "ai_z01");
+  assert.doesNotThrow(() => assertKnownFields(zensus, ["ai_z01", "AI-Z01"]));
+});

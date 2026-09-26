@@ -22,6 +22,7 @@ export {
   resolveYear,
   tableForCode,
   findField,
+  fieldKey,
   assertKnownFields,
 } from "./catalog.js";
 export type { IndicatorFilter } from "./catalog.js";

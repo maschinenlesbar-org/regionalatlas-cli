@@ -19,6 +19,7 @@ import { RequestEngine, sanitizeServerText, type EngineOptions } from "./engine.
 import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
 import {
   assertKnownFields,
+  fieldKey,
   filterIndicators,
   parseIndicators,
   parseThemes,
@@ -299,16 +300,18 @@ export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
 
 /**
  * Client-side field projection: keep only the named value fields. Unknown field
- * names are ignored (never sent upstream). Names are matched case-insensitively.
+ * names are ignored (never sent upstream). Names are matched case-insensitively,
+ * with `-` and `_` treated alike (`fieldKey`), so the catalogue's `AI-Z01` selects
+ * the data's `ai_z01`.
  */
 export function projectFields(rows: RegionRow[], fields: string[]): RegionRow[] {
-  const wanted = new Set(fields.map((f) => f.trim().toLowerCase()).filter((f) => f !== ""));
+  const wanted = new Set(fields.map(fieldKey).filter((f) => f !== ""));
   if (wanted.size === 0) return rows;
   return rows.map((r) => {
     // Null-prototype map, same rationale as parseRow: keys are response-derived.
     const values: Record<string, number | null> = Object.create(null);
     for (const [key, value] of Object.entries(r.values)) {
-      if (wanted.has(key.toLowerCase())) values[key] = value;
+      if (wanted.has(fieldKey(key))) values[key] = value;
     }
     return { ...r, values };
   });

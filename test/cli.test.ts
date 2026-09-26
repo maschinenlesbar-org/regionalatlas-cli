@@ -323,3 +323,35 @@ test("a --region that matches nothing notes the region, no note when rows remain
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Bremen"], some.deps), 0);
   assert.deepEqual(some.err, []);
 });
+
+test("a Zensus column is selectable by the data key and by the catalogue's hyphenated code", async () => {
+  const catalog = [
+    {
+      title: "Zensus",
+      children: [
+        {
+          code: "AI-Z1-2011",
+          years: { "2011": [] },
+          attributes: [
+            { code: "AI-Z01", title_short: "Durchschnittsalter", unit: "Anzahl" },
+            { code: "AI-Z02", title_short: "Durchschnittsalter Männer", unit: "Anzahl" },
+          ],
+        },
+      ],
+    },
+  ];
+  const data = {
+    features: [{ attributes: { ags: "11", gen: "Berlin", jahr: 2011, ai_z01: 42.3, ai_z02: 43.6 } }],
+  };
+  for (const name of ["ai_z01", "AI-Z01"]) {
+    const cli = makeCli(routeByHost(catalog, data));
+    const code = await run(["--compact", "query", "AI-Z1-2011", "--fields", name], cli.deps);
+    assert.equal(code, 0, cli.err.join("\n"));
+    const rows = JSON.parse(cli.out.join("\n")) as { values: Record<string, number> }[];
+    assert.deepEqual(rows[0]!.values, { ai_z01: 42.3 });
+  }
+  const list = makeCli(routeByHost(catalog, data));
+  await run(["--compact", "indicators"], list.deps);
+  const listed = JSON.parse(list.out.join("\n")) as { fields: { code: string }[] }[];
+  assert.deepEqual(listed[0]!.fields.map((f) => f.code), ["ai_z01", "ai_z02"]);
+});
