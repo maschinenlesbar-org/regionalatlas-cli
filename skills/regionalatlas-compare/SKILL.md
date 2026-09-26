@@ -66,7 +66,10 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
 ## Traps
 
 - **Same level for all regions being compared** — you can't mix a Land and a Kreis in
-  one call; pick the `--level` that holds all the regions you want.
+  one call; pick the `--level` that holds all the regions you want. Not every indicator
+  exists at every level (`AIGG-01` only per Land): a level without figures is a usage
+  error (exit 2) naming the published levels, so tell the user the comparison is only
+  possible at those.
 - **A level fills in with coarser units where a finer one does not exist**, so `ags`
   length varies within it. `regierungsbezirk` returns 38 rows — 29 Regierungsbezirke
   plus the 9 Bundesländer that have none — and `kreis`/`gemeinde` carry Berlin and

@@ -130,7 +130,12 @@ no raw user text is ever interpolated:
    year (which the data host may not have loaded yet; the CLI then notes the empty result
    on stderr and names the previous year).
    Provided → must be an integer AND present in the indicator's catalogue years, else a
-   typed error. Only the validated integer enters SQL.
+   typed error. Only the validated integer enters SQL. Then `assertLevelPublished`
+   refuses a level whose catalogue `geom_levels` count is 0 for every column in that
+   year (`years[year][i].geom_levels` = `[land, rb, kreis, gemeinde]` region counts): the
+   data host would answer with a row per region, all `null` (live-checked 2026-09-26:
+   `AI008-2` 2006 and `AI019-3-5` 2022 at `land`, 16 rows each, no figure). A year
+   without usable `geom_levels` is not checked.
 4. **`--region` / `--fields` never touch the request.** The client always requests
    `outFields=*` and does region filtering + field projection **client-side**
    (`filterByRegion`, `projectFields`). Region: numeric → exact `ags` match ignoring

@@ -66,7 +66,14 @@ returns 38 rows: the 29 actual Regierungsbezirke plus the 9 Bundesländer that h
 none. `kreis` (400) and `gemeinde` (~11 000) carry Berlin and Hamburg at 2 digits, and
 `gemeinde` carries 104 kreisfreie Städte at their 5-digit Kreis key. Each level is a
 non-overlapping partition, so summing or mapping one is safe; counting its rows as
-"the Regierungsbezirke of Germany" is not. `--region` and `--fields` are applied **client-side** (they
+"the Regierungsbezirke of Germany" is not.
+
+Not every indicator is published at every level: `AIGG-01` (Gesundheitsausgaben) exists
+only per Land, `AI005` (Bundestagswahl) not per Gemeinde, and some years have no figures at
+all. The catalogue records which levels have figures in each year, and `query` refuses a
+level without any (exit 2, before the data request), naming the published levels and the
+years that do have figures at the requested one — the data host would otherwise return a
+row for every region with every value `null`. `--region` and `--fields` are applied **client-side** (they
 never enter the upstream request), but a `--fields` name is validated against the
 indicator's value columns first — `indicators` lists them with their titles and units.
 
@@ -94,7 +101,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 |---|---|
 | `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr — from `query` and from `indicators` alike |
 | `1` | API/logical error (the ArcGIS `error` envelope), or a catch-all |
-| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, redirecting base URL) |
+| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, redirecting base URL) |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |
 

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertKnownFields,
+  assertLevelPublished,
   filterIndicators,
   findField,
   parseIndicators,
@@ -183,4 +184,89 @@ test("a hyphenated attribute code (Zensus 2011) is keyed like the data host's co
   assert.equal(findField(zensus, "ai_z01")?.code, "ai_z01");
   assert.equal(findField(zensus, "AI-Z01")?.code, "ai_z01");
   assert.doesNotThrow(() => assertKnownFields(zensus, ["ai_z01", "AI-Z01"]));
+});
+
+/** A catalogue shaped like the live AIGG-01 (Land only) and AI008-2 (a year with nothing). */
+const levelCatalog = [
+  {
+    title: "Gesundheit",
+    children: [
+      {
+        code: "AIGG-01",
+        years: {
+          "2021": [{ geom_levels: [16, 0, 0, 0] }, { geom_levels: [16, 0, 0, 0] }],
+          "2022": [{ geom_levels: [16, 0, 0, 0] }, { geom_levels: [16, 0, 0, 0] }],
+        },
+      },
+      {
+        code: "AI008-2",
+        years: {
+          "2006": [{ geom_levels: [0, 0, 0, 0] }],
+          "2014": [{ geom_levels: [16, 0, 398, 0] }, { geom_levels: [16, 0, 0, 0] }],
+          "2020": [],
+        },
+      },
+    ],
+  },
+];
+
+test("parseIndicators records per year the levels the catalogue has figures for", () => {
+  const [aigg, ai008] = parseIndicators(levelCatalog);
+  assert.deepEqual({ ...aigg!.levels }, { "2021": ["land"], "2022": ["land"] });
+  // A level counts when any column has figures there; an empty year entry is unknown.
+  assert.deepEqual({ ...ai008!.levels }, { "2006": [], "2014": ["land", "kreis"] });
+});
+
+test("a level without figures in that year is refused, naming the published ones", () => {
+  const [aigg, ai008] = parseIndicators(levelCatalog);
+  assert.doesNotThrow(() => assertLevelPublished(aigg!, "land", 2022));
+  assert.throws(
+    () => assertLevelPublished(aigg!, "kreis", 2022),
+    (err: unknown) =>
+      err instanceof RegionalatlasValidationError &&
+      err.message ===
+        'Indicator "AIGG-01" has no figures at level kreis in 2022: the catalogue publishes it only ' +
+          "at level land, so every kreis row would be null. Use --level land. The catalogue lists no " +
+          "year with figures at level kreis.",
+  );
+  assert.throws(
+    () => assertLevelPublished(ai008!, "land", 2006),
+    /no figures for 2006 at any level .* Years with figures at level land: 2014, 2020\.$/,
+  );
+  assert.throws(() => assertLevelPublished(ai008!, "gemeinde", 2014), /only at levels land, kreis, so every gemeinde row would be null\. Use --level kreis\./);
+  // Unknown level information (an empty year entry) is not checked.
+  assert.doesNotThrow(() => assertLevelPublished(ai008!, "gemeinde", 2020));
+});
+
+test("malformed geom_levels leave the year unchecked rather than refusing it", () => {
+  const raw = [
+    {
+      title: "T",
+      children: [
+        {
+          code: "X-1",
+          years: {
+            "2020": [{ geom_levels: [16, 0, 0] }],
+            "2021": [{ geom_levels: [16, 0, "400", 0] }],
+            "2022": [{ precision: 1 }],
+            "2023": {},
+          },
+        },
+      ],
+    },
+  ];
+  const [x] = parseIndicators(raw);
+  assert.deepEqual({ ...x!.levels }, {});
+  assert.doesNotThrow(() => assertLevelPublished(x!, "kreis", 2021));
+});
+
+test("the suggested level is the published one closest to the requested level", () => {
+  const raw = [
+    { title: "T", children: [{ code: "AI019-3-5", years: { "2022": [{ geom_levels: [0, 0, 30, 1394] }] } }] },
+  ];
+  const [ind] = parseIndicators(raw);
+  assert.throws(
+    () => assertLevelPublished(ind!, "land", 2022),
+    /only at levels kreis, gemeinde, so every land row would be null\. Use --level kreis\./,
+  );
 });

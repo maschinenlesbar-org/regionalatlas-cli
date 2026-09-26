@@ -355,3 +355,21 @@ test("a Zensus column is selectable by the data key and by the catalogue's hyphe
   const listed = JSON.parse(list.out.join("\n")) as { fields: { code: string }[] }[];
   assert.deepEqual(listed[0]!.fields.map((f) => f.code), ["ai_z01", "ai_z02"]);
 });
+
+test("a level the indicator has no figures at is a usage error before the data request", async () => {
+  const catalog = [
+    {
+      title: "Gesundheit",
+      children: [
+        { code: "AIGG-01", years: { "2022": [{ geom_levels: [16, 0, 0, 0] }] } },
+      ],
+    },
+  ];
+  const cli = makeCli(routeByHost(catalog, fx.landData));
+  const code = await run(["query", "AIGG-01", "--level", "kreis"], cli.deps);
+  assert.equal(code, 2);
+  assert.equal(dataCalls(cli.mt.calls).length, 0);
+  assert.match(cli.err.join("\n"), /no figures at level kreis in 2022: .* Use --level land\./);
+  const ok = makeCli(routeByHost(catalog, fx.landData));
+  assert.equal(await run(["query", "AIGG-01", "--level", "land"], ok.deps), 0);
+});

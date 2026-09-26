@@ -92,6 +92,10 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   share and `ai0506` is Wahlbeteiligung, so "the sixth party" is wrong. Units matter
   too — a Veränderungsrate on a share indicator is in percentage points (`ai0208v`),
   not percent.
+- **Not every indicator exists at every level.** `AIGG-01` is published only per Land,
+  `AI005` not per Gemeinde. A level without figures in that year is a usage error (exit
+  2) that names the published levels — rerun with the one it suggests and tell the user
+  the map is at that level.
 - **`--level gemeinde` returns many thousands of rows** — project with `--fields`, pipe
   to `jq`, and consider a coarser level unless you truly need Gemeinden.
 - **`null` values** mean the indicator has no figure for that region/year. If the row

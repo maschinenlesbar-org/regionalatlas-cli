@@ -16,6 +16,7 @@ import type {
   Theme,
 } from "./types.js";
 import { RegionalatlasParseError, RegionalatlasValidationError } from "./errors.js";
+import { GEO_LEVELS } from "./levels.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -74,6 +75,35 @@ export function findField(indicator: Indicator, name: string): IndicatorField | 
   return indicator.fields.find((f) => f.code === key);
 }
 
+/**
+ * The geo levels a catalogue year has figures for, from its `geom_levels`.
+ *
+ * Each entry of `years[year]` describes one value column and carries
+ * `geom_levels: [land, regierungsbezirk, kreis, gemeinde]`, the number of regions
+ * with a figure at each level. A level whose count is 0 for every column is not
+ * published that year: the data host still answers, but with a row per region whose
+ * values are all null (live: `AIGG-01` at `kreis`, `AI008-2` in 2006 at `land`), or
+ * with a Land figure joined onto a finer row (Berlin and Hamburg).
+ *
+ * Returns `undefined` when the entry does not have that shape (no entries, or one
+ * without four non-negative counts): then nothing is known and nothing is checked.
+ */
+function publishedLevels(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const published = GEO_LEVELS.map(() => false);
+  for (const entry of raw) {
+    const counts: unknown =
+      entry !== null && typeof entry === "object" ? (entry as { geom_levels?: unknown }).geom_levels : undefined;
+    if (!Array.isArray(counts) || counts.length !== GEO_LEVELS.length) return undefined;
+    for (let i = 0; i < counts.length; i++) {
+      const n: unknown = counts[i];
+      if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return undefined;
+      if (n > 0) published[i] = true;
+    }
+  }
+  return GEO_LEVELS.filter((_, i) => published[i]).map((l) => l.name);
+}
+
 /** Parse the raw services.json array into a flat list of indicators. */
 export function parseIndicators(raw: unknown): Indicator[] {
   if (!Array.isArray(raw)) {
@@ -93,8 +123,14 @@ export function parseIndicators(raw: unknown): Indicator[] {
       const c = child as RawCatalogIndicator;
       const code = asString(c.code);
       if (code === "") continue;
-      const years =
-        c.years && typeof c.years === "object" ? Object.keys(c.years).sort() : [];
+      const rawYears =
+        c.years && typeof c.years === "object" ? (c.years as Record<string, unknown>) : {};
+      const years = Object.keys(rawYears).sort();
+      const levels: Record<string, string[]> = Object.create(null);
+      for (const year of years) {
+        const published = publishedLevels(rawYears[year]);
+        if (published !== undefined) levels[year] = published;
+      }
       out.push({
         code,
         table: tableForCode(code),
@@ -102,6 +138,7 @@ export function parseIndicators(raw: unknown): Indicator[] {
         titleShort: asString(c.title_short),
         titleLong: asString(c.title_long),
         years,
+        levels,
         fields: parseFields(c.attributes),
       });
     }
@@ -197,6 +234,44 @@ export function assertKnownFields(indicator: Indicator, fields: string[]): void 
     `Unknown value ${unknown.length > 1 ? "fields" : "field"} ` +
       `${unknown.map((f) => JSON.stringify(f)).join(", ")} for indicator "${indicator.code}". ` +
       `Available: ${available.join("; ")}.`,
+  );
+}
+
+/**
+ * Refuse a level the catalogue says has no figures for this indicator and year.
+ *
+ * The data query would still return a row for every region of the level, all of
+ * them `null` — which reads as "no figure for these regions" when the indicator is
+ * not published at that level at all (`AIGG-01` exists only per Land). Skipped when
+ * the catalogue carries no usable `geom_levels` for the year.
+ */
+export function assertLevelPublished(indicator: Indicator, level: string, year: number): void {
+  const published = indicator.levels[String(year)];
+  if (published === undefined || published.includes(level)) return;
+  const yearsAtLevel = indicator.years.filter((y) => {
+    const p = indicator.levels[y];
+    return p === undefined || p.includes(level);
+  });
+  const otherYears =
+    yearsAtLevel.length > 0
+      ? ` Years with figures at level ${level}: ${yearsAtLevel.join(", ")}.`
+      : ` The catalogue lists no year with figures at level ${level}.`;
+  if (published.length === 0) {
+    throw new RegionalatlasValidationError(
+      `Indicator "${indicator.code}" has no figures for ${year} at any level (the catalogue ` +
+        `publishes none), so every row would be null.${otherYears}`,
+    );
+  }
+  // Suggest the published level closest to the requested one (the coarser on a tie).
+  const rank = (name: string): number => GEO_LEVELS.findIndex((l) => l.name === name);
+  const wanted = rank(level);
+  const nearest = [...published].sort(
+    (a, b) => Math.abs(rank(a) - wanted) - Math.abs(rank(b) - wanted) || rank(a) - rank(b),
+  )[0];
+  throw new RegionalatlasValidationError(
+    `Indicator "${indicator.code}" has no figures at level ${level} in ${year}: the catalogue ` +
+      `publishes it only at ${published.length > 1 ? "levels" : "level"} ${published.join(", ")}, ` +
+      `so every ${level} row would be null. Use --level ${nearest}.${otherYears}`,
   );
 }
 

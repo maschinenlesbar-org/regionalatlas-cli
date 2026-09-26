@@ -19,6 +19,7 @@ import { RequestEngine, sanitizeServerText, type EngineOptions } from "./engine.
 import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
 import {
   assertKnownFields,
+  assertLevelPublished,
   fieldKey,
   filterIndicators,
   parseIndicators,
@@ -114,6 +115,9 @@ export class RegionalatlasClient {
     const level = resolveLevel(opts.level);
     // 3. Validate/default the year (throws if not an integer in the indicator's years).
     const year = resolveYear(indicator, opts.year);
+    // 3a. Refuse a level the catalogue publishes no figures for in that year: the
+    //     query would return a row per region, every value null.
+    assertLevelPublished(indicator, level.name, year);
     // 3b. Validate the requested value fields against the catalogue's field
     //     dictionary, before spending a request on rows that would project to {}.
     if (opts.fields && opts.fields.length > 0) assertKnownFields(indicator, opts.fields);

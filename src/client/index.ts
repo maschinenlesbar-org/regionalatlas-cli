@@ -27,6 +27,7 @@ export {
   findField,
   fieldKey,
   assertKnownFields,
+  assertLevelPublished,
 } from "./catalog.js";
 export type { IndicatorFilter } from "./catalog.js";
 export { GEO_LEVELS, LEVEL_ALIASES, findLevel, resolveLevel, levelForTyp } from "./levels.js";

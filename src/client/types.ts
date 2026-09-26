@@ -109,6 +109,13 @@ export interface Indicator {
   /** Available years, ascending, as 4-digit strings (e.g. ["2000","2005",…]). */
   years: string[];
   /**
+   * Per year, the geo levels (`land`, `regierungsbezirk`, `kreis`, `gemeinde`) the
+   * catalogue has figures for, from its `geom_levels`. A year missing here has no
+   * usable level information and is not checked. `query` refuses a level that is
+   * not listed for the year, since every row would be null.
+   */
+  levels: Record<string, string[]>;
+  /**
    * The value columns this indicator's rows carry, in catalogue order — which is
    * also the order the data host returns them in. Empty when the catalogue entry
    * lists no attributes.
