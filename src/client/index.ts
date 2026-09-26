@@ -46,6 +46,7 @@ export {
   RegionalatlasNetworkError,
   RegionalatlasValidationError,
   RegionalatlasParseError,
+  redactUrl,
 } from "./errors.js";
 
 export * from "./types.js";

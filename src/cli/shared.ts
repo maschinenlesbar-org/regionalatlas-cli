@@ -128,6 +128,23 @@ export function parseHttpUrl(value: string): string {
   return value;
 }
 
+/**
+ * commander value-parser for `--base-url`: `parseHttpUrl`, plus no query or
+ * fragment and no surrounding whitespace. The client appends the data path to the
+ * base URL as a string, so `?token=abc` or `#frag` would swallow the path.
+ * Userinfo is allowed (Node sends it as Basic auth) and redacted in messages.
+ */
+export function parseBaseUrl(value: string): string {
+  parseHttpUrl(value);
+  if (/[?#]/.test(value)) {
+    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
+  }
+  if (value !== value.trim()) {
+    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
+  }
+  return value;
+}
+
 /** Build a commander value-parser for an integer constrained to [min, max]. */
 export function parseBoundedInt(min: number, max: number): (value: string) => number {
   return (value: string) => {

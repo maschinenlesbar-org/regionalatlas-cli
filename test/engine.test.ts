@@ -251,3 +251,14 @@ test("parseRetryAfter reads delta-seconds and an IMF-fixdate only", () => {
     assert.equal(parseRetryAfter(bad, now), undefined, String(bad));
   }
 });
+
+test("the engine refuses a base URL with a query or fragment, redacting userinfo", () => {
+  assert.throws(
+    () => new RequestEngine({ baseUrl: "http://u:secret@h.example/m?token=1" }),
+    (err: unknown) =>
+      err instanceof RegionalatlasNetworkError &&
+      err.message === "Base URL must not contain a query or fragment: http://***@h.example/m?token=1",
+  );
+  assert.throws(() => new RequestEngine({ baseUrl: "http://h.example/m#f" }), RegionalatlasNetworkError);
+  assert.doesNotThrow(() => new RequestEngine({ baseUrl: "http://h.example/mirror/" }));
+});

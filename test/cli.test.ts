@@ -460,3 +460,36 @@ test("a result cut off at the host's record limit prints the rows and a note", a
       "so the result is incomplete. Query a coarser --level.",
   ]);
 });
+
+test("a --base-url with a query, fragment or surrounding whitespace is a usage error", async () => {
+  for (const [url, message] of [
+    ["http://127.0.0.1:1/m?token=abc", /cannot have a query \(\?\) or fragment \(#\)/],
+    ["http://127.0.0.1:1/m#frag", /cannot have a query \(\?\) or fragment \(#\)/],
+    [" http://127.0.0.1:1/m", /cannot have surrounding whitespace/],
+  ] as const) {
+    const cli = makeRoutingCli();
+    assert.equal(await run(["--base-url", url, "query", "AI002-1-5"], cli.deps), 2, url);
+    assert.match(cli.err.join("\n"), message);
+    assert.equal(cli.mt.calls.length, 0);
+  }
+  // A mirror path prefix and userinfo stay allowed.
+  const ok = makeRoutingCli();
+  assert.equal(await run(["--base-url", "https://user:pw@gis-idmz.example/mirror/", "themes"], ok.deps), 0);
+});
+
+test("userinfo in --base-url is redacted from error messages but still sent", async () => {
+  const cli = makeCli((req) =>
+    new URL(req.url).hostname.includes("statistikportal")
+      ? jsonResponse(fx.catalog)
+      : jsonResponse({ error: { code: 404, message: "nope" } }, 404),
+  );
+  const code = await run(
+    ["--base-url", "http://user:secret@gis-idmz.example/m", "query", "AI002-1-5", "--year", "2020"],
+    cli.deps,
+  );
+  assert.equal(code, 4);
+  const stderr = cli.err.join("\n");
+  assert.doesNotMatch(stderr, /secret/);
+  assert.match(stderr, /^Error: HTTP 404 for GET http:\/\/\*\*\*@gis-idmz\.example\/m\/arcgis\//);
+  assert.equal(new URL(cli.mt.last().url).password, "secret");
+});

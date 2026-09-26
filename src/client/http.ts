@@ -8,7 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import { RegionalatlasNetworkError } from "./errors.js";
+import { RegionalatlasNetworkError, redactUrl } from "./errors.js";
 
 export interface HttpRequest {
   method: string;
@@ -48,14 +48,18 @@ export const nodeHttpTransport: Transport = (request) =>
     try {
       url = new URL(request.url);
     } catch {
-      reject(new RegionalatlasNetworkError(`Invalid URL: ${request.url}`));
+      reject(new RegionalatlasNetworkError(`Invalid URL: ${redactUrl(request.url)}`));
       return;
     }
 
     // Only http/https are supported. Reject anything else up front with a clear,
     // typed error instead of letting Node throw an opaque ERR_INVALID_PROTOCOL.
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      reject(new RegionalatlasNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${request.url}`));
+      reject(
+        new RegionalatlasNetworkError(
+          `Unsupported protocol "${url.protocol}" in URL: ${redactUrl(request.url)}`,
+        ),
+      );
       return;
     }
 

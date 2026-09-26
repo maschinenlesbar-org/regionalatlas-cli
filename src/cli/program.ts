@@ -9,7 +9,13 @@ import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { RegionalatlasClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { parseIntArg, parseBoundedInt, parseHeaderValue, parseHttpUrl } from "./shared.js";
+import {
+  parseIntArg,
+  parseBaseUrl,
+  parseBoundedInt,
+  parseHeaderValue,
+  parseHttpUrl,
+} from "./shared.js";
 import { registerCommands } from "./commands/regions.js";
 
 /**
@@ -52,7 +58,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .option(
       "--base-url <url>",
       "ArcGIS data host base URL",
-      parseHttpUrl,
+      parseBaseUrl,
       "https://www.gis-idmz.nrw.de",
     )
     .option(

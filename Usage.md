@@ -20,7 +20,10 @@ regionalatlas [global options] <command> [command options]
 | `--compact` | print JSON on a single line (for piping to `jq`) |
 | `-V, --version` / `-h, --help` | version / help |
 
-`--base-url` and `--catalog-url` accept only `http:`/`https:` URLs.
+`--base-url` and `--catalog-url` accept only `http:`/`https:` URLs. `--base-url` must
+not have a query (`?`) or fragment (`#`) or surrounding whitespace (the CLI appends the
+data path to it); a path prefix for a mirror is fine. A `user:password@` part is sent as
+Basic auth and shown as `***@` in error messages.
 
 ## Commands
 
@@ -103,7 +106,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 |---|---|
 | `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr — from `query` and from `indicators` alike |
 | `1` | API/logical error (the ArcGIS `error` envelope), or a catch-all |
-| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, redirecting base URL) |
+| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, a `--base-url` with a query, fragment or surrounding whitespace, redirecting base URL) |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |
 

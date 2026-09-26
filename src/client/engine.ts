@@ -15,6 +15,7 @@ import {
   RegionalatlasApiError,
   RegionalatlasNetworkError,
   RegionalatlasParseError,
+  redactUrl,
 } from "./errors.js";
 
 /** The ArcGIS MapServer host that answers the dynamicLayer data queries. */
@@ -172,7 +173,7 @@ function assertHttpScheme(url: string): void {
   try {
     protocol = new URL(url).protocol;
   } catch {
-    throw new RegionalatlasNetworkError(`Invalid request URL: ${url}`);
+    throw new RegionalatlasNetworkError(`Invalid request URL: ${redactUrl(url)}`);
   }
   if (protocol !== "http:" && protocol !== "https:") {
     throw new RegionalatlasNetworkError(
@@ -194,6 +195,14 @@ export class RequestEngine {
 
   constructor(options: EngineOptions = {}) {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+    // Request paths are appended to the base URL as a string, so a `?` or `#` in it
+    // would swallow every path: `http://h/m?token=abc` requests
+    // `/m?token=abc/arcgis/...` and `http://h/m#f` requests `/m` with no parameters.
+    if (/[?#]/.test(this.baseUrl)) {
+      throw new RegionalatlasNetworkError(
+        `Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`,
+      );
+    }
     this.transport = options.transport ?? nodeHttpTransport;
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.defaultHeaders = options.defaultHeaders ?? {};
