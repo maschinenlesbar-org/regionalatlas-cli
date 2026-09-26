@@ -5,7 +5,7 @@
 //   (A) data   — the ArcGIS MapServer `dynamicLayer/query` on `baseUrl`
 //                (default https://www.gis-idmz.nrw.de), which runs a raw SQL join.
 //   (B) catalogue — the static `services.json` on statistikportal.de, listing the
-//                21 themes / 70 indicators (`catalogUrl`).
+//                21 themes / 71 indicators on 2026-09-26 (`catalogUrl`).
 //
 // The ArcGIS server answers HTTP 200 even for logical errors, carrying them in an
 // `error` object — the client checks for it and throws.

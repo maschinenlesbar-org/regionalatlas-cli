@@ -39,8 +39,9 @@ Basic auth and shown as `***@` in error messages.
 | `--year <yyyy>` | only indicators offering this year |
 | `--search <substr>` | filter over code + short + long title (case-insensitive; a decomposed umlaut matches too, as for `--theme` and `--region`) |
 
-`regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years }, …]`,
-where `years` is a compact range (e.g. `2000–2024`). `titleLong` is the catalogue's long
+`regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years, fields }, …]`,
+where `years` is a compact range (e.g. `2000–2024`) and `fields` lists the value columns a
+`query` returns as `{ code, title, unit }`, `code` being the key in `values`. `titleLong` is the catalogue's long
 title, which `--search` also matches (it contains the theme name).
 
 ### `query <indicator-code>` — fetch data rows
@@ -65,11 +66,15 @@ the reason per field.
 
 Every level covers **all of Germany**, filling in with the next coarser unit where the
 finer one does not exist — so `ags` length varies within a level. `regierungsbezirk`
-returns 38 rows: the 29 actual Regierungsbezirke plus the 9 Bundesländer that have
-none. `kreis` (400) and `gemeinde` (~11 000) carry Berlin and Hamburg at 2 digits, and
+returns 38 rows for recent years: the 29 actual Regierungsbezirke plus the 9 Bundesländer
+that have none. `kreis` (400 for recent years) and `gemeinde` (~11 000) carry Berlin and
+Hamburg at 2 digits, and
 `gemeinde` carries 104 kreisfreie Städte at their 5-digit Kreis key. Each level is a
 non-overlapping partition, so summing or mapping one is safe; counting its rows as
-"the Regierungsbezirke of Germany" is not.
+"the Regierungsbezirke of Germany" is not. Row counts follow the boundaries of the
+reporting year: for 2000, `regierungsbezirk` has 40 rows and `kreis` 440, among them two
+Kreise named Hannover (`03201`, `03253`) from before the Region Hannover — compare by
+`ags`, not by name, across years.
 
 Not every indicator is published at every level: `AIGG-01` (Gesundheitsausgaben) exists
 only per Land, `AI005` (Bundestagswahl) not per Gemeinde, and some years have no figures at

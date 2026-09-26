@@ -6,7 +6,7 @@ description: >
   "what regional statistics are available?", "which indicators are there for
   population / elections / environment?", "find the code for Bevölkerungsstand",
   "which years does this indicator cover?", or wants to discover the themes and
-  indicator codes before pulling data. Lists the 21 themes and the 70 indicators
+  indicator codes before pulling data. Lists the 21 themes and the 71 indicators
   with their codes, titles and year ranges, and resolves a topic to an indicator code.
 compatibility: >
   Requires the `regionalatlas` CLI (npm package
@@ -17,8 +17,8 @@ compatibility: >
 
 # Regionalatlas Catalogue
 
-The Regionalatlas publishes **21 themes (Themenbereiche)** and **70 indicators
-(Indikatoren)**. This skill browses that catalogue and finds the code you need for a
+The Regionalatlas publishes **21 themes (Themenbereiche)** and **71 indicators
+(Indikatoren)** (on 2026-09-26). This skill browses that catalogue and finds the code you need for a
 `query`.
 
 ## Tooling
@@ -76,8 +76,10 @@ regionalatlas indicators --search AI005 --year 2024 --compact
   title contains the theme name, so a theme word (`wahlen`, `umwelt`) matches every
   indicator of that theme.
 - **`--search` does not see the value columns.** An indicator has several columns (`AI005`
-  Bundestagswahl has seven: party shares and turnout), and the CLI prints no column names,
-  so a column topic such as `wahlbeteiligung` returns `[]`. Search the indicator's topic.
+  Bundestagswahl has seven: party shares and turnout), and `--search` matches only the
+  code and the indicator's titles, not the column titles in `fields`, so a column topic
+  such as `wahlbeteiligung` returns `[]`. Search the indicator's topic, then read its
+  `fields` (`AI005` lists "Wahlbeteiligung, Bundestagswahl" there).
 - **The `years` range hides gaps.** It shows only the first and last year: `AI005` says
   `1998–2025` but offers only the election years (1998, 2002, 2005, 2009, 2013, 2017, 2021,
   2025), and `AI002-1-5` says `2000–2024` but skips 2001–2004. Check a year with

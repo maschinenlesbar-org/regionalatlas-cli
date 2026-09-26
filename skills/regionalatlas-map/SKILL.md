@@ -32,14 +32,16 @@ This skill also filters JSON with `jq`. **Validate it too** — run `command -v 
 | `--level` (aliases) | typ | Regions |
 |---|---|---|
 | `land` (`laender`, `bundesland`) | 1 | 16 Bundesländer |
-| `regierungsbezirk` (`rb`) | 2 | 38 rows: 29 Regierungsbezirke + the 9 Bundesländer that have none |
-| `kreis` (`kreise`, `landkreis`) | 3 | 400 Kreise / kreisfreie Städte (incl. Berlin, Hamburg) |
+| `regierungsbezirk` (`rb`) | 2 | 38 rows in recent years: 29 Regierungsbezirke + the 9 Bundesländer that have none |
+| `kreis` (`kreise`, `landkreis`) | 3 | 400 Kreise / kreisfreie Städte in recent years (incl. Berlin, Hamburg) |
 | `gemeinde` (`gemeinden`) | 5 | ~11 000 Gemeinden (incl. kreisfreie Städte at their Kreis key) |
 
 Every level covers **all of Germany**, filling in with the next coarser unit where the
 finer one does not exist — which is why `ags` length varies within a level (2, 3, 5 or 8
 digits). Each level is still a non-overlapping partition, so summing or mapping one is
-safe; describing `regierungsbezirk` as "the 38 Regierungsbezirke" is not.
+safe; describing `regierungsbezirk` as "the 38 Regierungsbezirke" is not. Row counts
+follow the boundaries of the reporting year (2000: 40 `rb` rows, 440 Kreise, two of them
+named Hannover), so report the count you got, not a fixed one.
 
 ## Row shape
 

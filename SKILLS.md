@@ -7,7 +7,7 @@ missing — they never install anything.
 
 | Skill | Use it when you want to… |
 |---|---|
-| **regionalatlas-catalog** | Browse the 21 themes and 70 indicators — discover the code for a topic, and see which years an indicator covers. |
+| **regionalatlas-catalog** | Browse the 21 themes and 71 indicators — discover the code for a topic, and see which years an indicator covers. |
 | **regionalatlas-map** | Fetch an indicator for **every** region at a level (Bundesland / Regierungsbezirk / Kreis / Gemeinde) — the data behind a choropleth. |
 | **regionalatlas-compare** | Pick out **specific** regions and set an indicator side by side — a few named regions, or the extremes of the whole set. |
 

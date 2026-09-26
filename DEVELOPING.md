@@ -103,7 +103,7 @@ GET https://regionalatlas.statistikportal.de/taskrunner/services.json
 
 This is the engine's `catalogUrl` (fetched via `getJsonAbsolute`, a full URL, so it does
 **not** disturb the data `baseUrl`). It is a JSON array of **21 themes**, each with
-`children` indicators (**70 total**): `{code, title_short, title_long, timestamp,
+`children` indicators (**71 total** on 2026-09-26): `{code, title_short, title_long, timestamp,
 years:{ "2020": […], … }}`. The SQL table name is derived from the code:
 `code.toLowerCase().replace(/-/g,"_")` (`"AI002-1-5"` → `ai002_1_5`). An indicator's
 available years are `Object.keys(child.years)`.
