@@ -5,6 +5,7 @@ import {
   RegionalatlasApiError,
   RegionalatlasNetworkError,
   RegionalatlasParseError,
+  RegionalatlasValidationError,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse, queryOf } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -261,4 +262,30 @@ test("the engine refuses a base URL with a query or fragment, redacting userinfo
   );
   assert.throws(() => new RequestEngine({ baseUrl: "http://h.example/m#f" }), RegionalatlasNetworkError);
   assert.doesNotThrow(() => new RequestEngine({ baseUrl: "http://h.example/mirror/" }));
+});
+
+test("negative, fractional, NaN or oversized engine options are refused", () => {
+  for (const [name, value] of [
+    ["maxResponseBytes", -5],
+    ["timeoutMs", -1],
+    ["timeoutMs", Number.NaN],
+    ["timeoutMs", 2 ** 31],
+    ["maxRetries", -3],
+    ["maxRetries", 11],
+    ["maxRetries", Number.POSITIVE_INFINITY],
+    ["retryDelayMs", 1.5],
+    ["retryDelayMs", 30_001],
+  ] as const) {
+    assert.throws(
+      () => new RequestEngine({ [name]: value }),
+      (err: unknown) =>
+        err instanceof RegionalatlasValidationError &&
+        err.message.startsWith(`Invalid option ${name}: expected an integer from 0 to `) &&
+        err.message.endsWith(`, got ${String(value)}.`),
+      `${name}=${value}`,
+    );
+  }
+  assert.doesNotThrow(
+    () => new RequestEngine({ timeoutMs: 0, maxRetries: 10, retryDelayMs: 0, maxResponseBytes: 0 }),
+  );
 });

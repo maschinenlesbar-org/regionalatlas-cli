@@ -15,6 +15,7 @@ export {
   RequestEngine,
   DEFAULT_BASE_URL,
   MAX_RETRY_AFTER_MS,
+  MAX_RETRIES,
   parseRetryAfter,
   describeArcGisError,
   sanitizeServerText,

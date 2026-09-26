@@ -218,6 +218,12 @@ host (catalogue vs data). Coverage highlights:
   header (`1.5`, `-5`, any other date format) falls back to linear backoff
   (`retryDelayMs × attempt`); `parseRetryAfter` never hands it to a bare `Date.parse`,
   which reads `"1.5"` as a date in 2001 and so retried at once.
+- **Engine options are checked** (`intOption` in engine.ts): `timeoutMs` 0..2^31−1,
+  `maxRetries` 0..`MAX_RETRIES` (10, shared with `--max-retries`), `retryDelayMs`
+  0..30 000, `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER`; anything else (negative,
+  fractional, NaN, Infinity) throws `RegionalatlasValidationError`
+  (`Invalid option <name>: expected an integer from 0 to <max>, got <v>.`) instead of
+  silently disabling the timeout or the size cap.
 - **Scaffold origin:** scaffolded from `ladesaeulenregister-cli` (ArcGIS, keyless,
   query.ts); rewritten for the two-host split, the catalogue allowlist, and the
   dynamicLayer SQL guard.
