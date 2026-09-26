@@ -239,6 +239,42 @@ function toValue(value: unknown): number | null {
   return null;
 }
 
+/**
+ * Values above this are not measurements but the Regionalatlas' special-value codes
+ * (Sonderfälle). The Regionalatlas web app draws every value above 2,000,000,000 as
+ * a special class, not on the scale (`app/js/modulRendern.js`, checked 2026-09-26),
+ * and no catalogue column comes near it: every column is a rate, a share or a
+ * per-head figure.
+ */
+export const SPECIAL_VALUE_THRESHOLD = 2_000_000_000;
+
+/**
+ * The special-value codes the web app names, with its labels — the Destatis table
+ * symbols `-`, `.`, `x`, `/` and `...` written as numbers. Live, `2222222222` fills
+ * `AI005`'s AfD share for 1998 and the Veränderungsraten of `AI002-1-5` for 2000 (no
+ * previous year), and `6666666666` fills `ai0202` for 2000.
+ */
+export const SPECIAL_VALUES: Readonly<Record<string, string>> = Object.freeze({
+  "2222222222": "nichts vorhanden",
+  "5555555555": "Wert geheim zu halten",
+  "6666666666": "Aussage nicht sinnvoll",
+  "7777777777": "Wert nicht sicher genug",
+  "8888888888": "Angabe fällt später an",
+});
+
+/**
+ * The reason a value is a special-value code rather than a measurement, or
+ * `undefined` for an ordinary number. A code above the threshold that the web app
+ * does not name gets a generic reason that still carries the code.
+ */
+export function specialValueReason(value: number): string | undefined {
+  if (!(value > SPECIAL_VALUE_THRESHOLD)) return undefined;
+  const key = String(value);
+  return Object.hasOwn(SPECIAL_VALUES, key)
+    ? SPECIAL_VALUES[key]
+    : `Sonderwert ${key} (special-value code without a label)`;
+}
+
 /** The non-value join columns present on every feature (excluded from `values`). */
 const JOIN_FIELDS = new Set([
   "id",
@@ -275,12 +311,26 @@ export function parseRow(
   // `__proto__`/`constructor` field in a hostile/MITM'd body must land as a plain data
   // key, never reparenting the object or touching Object.prototype (defence-in-depth).
   const values: Record<string, number | null> = Object.create(null);
+  let missing: Record<string, string> | undefined;
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
-    values[key] = toValue(value);
+    const n = toValue(value);
+    // A special-value code (2222222222 = "nichts vorhanden") is not a figure: an
+    // average or a ranking over it would be off by billions. It becomes null like
+    // any other missing value, and `missing` says why.
+    const reason = n === null ? undefined : specialValueReason(n);
+    if (reason === undefined) {
+      values[key] = n;
+    } else {
+      values[key] = null;
+      missing ??= Object.create(null) as Record<string, string>;
+      missing[key] = reason;
+    }
   }
 
-  return { ags, name, typ, level, year, values };
+  return missing === undefined
+    ? { ags, name, typ, level, year, values }
+    : { ags, name, typ, level, year, values, missing };
 }
 
 /**
@@ -313,6 +363,12 @@ export function projectFields(rows: RegionRow[], fields: string[]): RegionRow[] 
     for (const [key, value] of Object.entries(r.values)) {
       if (wanted.has(fieldKey(key))) values[key] = value;
     }
-    return { ...r, values };
+    const { missing: allMissing, ...rest } = r;
+    if (allMissing === undefined) return { ...rest, values };
+    const missing: Record<string, string> = Object.create(null);
+    for (const [key, reason] of Object.entries(allMissing)) {
+      if (wanted.has(fieldKey(key))) missing[key] = reason;
+    }
+    return Object.keys(missing).length > 0 ? { ...rest, values, missing } : { ...rest, values };
   });
 }

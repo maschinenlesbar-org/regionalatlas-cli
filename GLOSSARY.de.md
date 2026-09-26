@@ -17,6 +17,7 @@ Begriffe und Felder des Regionalatlas, so wie die CLI sie ausgibt.
 | **jahr / year** | `--year`, `year` | Das Berichtsjahr (eine vierstellige Ganzzahl). Jeder Indikator bietet bestimmte Jahre an, oft mit Lücken, die der Bereich „erstes–letztes Jahr“ aus `indicators` (z. B. `1998–2025` für `AI005`) nicht zeigt. Ohne `--year` wird das neueste Katalogjahr verwendet, das der Datenhost womöglich noch nicht geladen hat: `query` liefert dann `[]` und weist auf stderr darauf hin. |
 | **Wertfeld** | `values` | Eine Wertspalte eines Indikators (z. B. `ai0201`) – eine Zahl oder `null`. `--fields` behält nur die genannten (unabhängig von Groß-/Kleinschreibung, `-` und `_` gleichwertig). `indicators` listet jede Spalte eines Indikators mit Bezeichnung und Einheit auf, unter dem Schlüssel, den sie in `values` trägt – der Katalog der Zensus-2011-Indikatoren schreibt `AI-Z01`, der Datenhost `ai_z01`, und die CLI verwendet für beides `ai_z01`. |
 | **Veränderungsrate (`v`-Feld)** | `values` | Eine `<field>v`-Spalte (z. B. `ai0201v`) ist die **Veränderungsrate** des zugehörigen Wertfelds gegenüber dem Vorjahr – ein eigenständiger veröffentlichter Wert, kein Präzisionsflag. Einheit ist **Prozent**, bei Anteilsindikatoren **Prozentpunkte** (`ai0208v`); `indicators` nennt die Einheit je Spalte. |
+| **Sonderwert** | `missing` | Eine Zahl über 2.000.000.000, die für ein Tabellenzeichen steht, nicht für einen Wert: `2222222222` nichts vorhanden (`-`), `5555555555` Wert geheim zu halten (`.`), `6666666666` Aussage nicht sinnvoll (`x`), `7777777777` Wert nicht sicher genug (`/`), `8888888888` Angabe fällt später an (`...`) – die Codes und Bezeichnungen der Regionalatlas-Webanwendung. Die CLI gibt einen solchen Wert als `null` aus und nennt den Grund im Objekt `missing` der Zeile (`"missing": {"ai0507": "nichts vorhanden"}`, der AfD-Anteil 1998). |
 | **gen2 / ags2 / jahr2** | (intern) | Die verknüpfte Seite des SQL-`LEFT OUTER JOIN`. `gen2` ist in den Rohdaten mit führenden Leerzeichen aufgefüllt – der Client entfernt sie; die geparste Zeile verwendet `gen`/`ags`/`jahr`. |
 | **dynamicLayer / queryTable** | (intern) | Der ArcGIS-Mechanismus, der den rohen SQL-Join hinter `query` ausführt. |
 | **`--base-url` / `--catalog-url`** | Optionen | Der ArcGIS-Datenhost bzw. die URL des Indikatorenkatalogs (die beiden Upstream-Hosts). |
@@ -26,6 +27,9 @@ Begriffe und Felder des Regionalatlas, so wie die CLI sie ausgibt.
 - **`query` liefert eine Zeile je Region** auf der gewählten `--level`-Ebene: `{ ags, name, typ,
   level, year, values }`.
 - **Ein `null`-Wert** bedeutet, dass der Indikator für diese Region bzw. dieses Jahr keinen Wert hat.
+  Hat der Upstream stattdessen einen Sonderwert geschickt, nennt das Objekt `missing` der Zeile
+  den Grund (`nichts vorhanden`, `Wert geheim zu halten`, …); eine Zeile ohne Sonderwerte hat
+  keinen `missing`-Schlüssel.
 - **Geografie wird mit Statistik verknüpft** – jede Region der Ebene erscheint; auch eine Region
   ohne Indikatorzeile ist enthalten (ihre `values` sind `null`), dank des `LEFT OUTER JOIN`.
 - **Der Indikatorenkatalog ist die Allowlist** – nur katalogisierte Codes/Tabellen lassen sich

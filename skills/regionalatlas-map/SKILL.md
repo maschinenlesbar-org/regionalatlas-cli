@@ -51,6 +51,7 @@ safe; describing `regierungsbezirk` as "the 38 Regierungsbezirke" is not.
 | `name` | Gebietsname (region name) |
 | `year` | reporting year |
 | `values` | `{ <valueField>: number\|null }` — the indicator's value columns, keyed by bare codes (`ai0201`). `indicators` gives each column's title and unit |
+| `missing` | only on rows where the upstream sent a special-value code: `{ <valueField>: reason }` (e.g. `"nichts vorhanden"`); that field's value is `null` |
 
 ## Recipes
 
@@ -93,6 +94,8 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   not percent.
 - **`--level gemeinde` returns many thousands of rows** — project with `--fields`, pipe
   to `jq`, and consider a coarser level unless you truly need Gemeinden.
-- **`null` values** mean the indicator has no figure for that region/year.
+- **`null` values** mean the indicator has no figure for that region/year. If the row
+  has a `missing` object, it names why (`nichts vorhanden`, `Wert geheim zu halten`,
+  `Aussage nicht sinnvoll`, …) — say that on the map legend instead of "no data".
 - To compare a few named regions side by side → the **regionalatlas-compare** skill.
 - Cite the source: © Statistische Ämter des Bundes und der Länder (dl-de/by-2.0).

@@ -181,6 +181,12 @@ export interface RegionRow {
   year: number;
   /** Indicator value fields → number or null. */
   values: Record<string, number | null>;
+  /**
+   * Present only when the upstream sent a special-value code instead of a figure
+   * (e.g. `2222222222`, "nichts vorhanden"): value field → the code's meaning. The
+   * matching `values` entry is `null`. See `SPECIAL_VALUES`.
+   */
+  missing?: Record<string, string>;
 }
 
 /** Options for a data query. */

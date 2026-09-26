@@ -85,6 +85,16 @@ Verified against Bremen `AI002-1-5`: `ai0208` 21.4 (2022) → 22.3 (2023) with
 `AI-N-10`, `AI-N-12`, `AI-S-03` and `AI002-4-5` they are half the indicator.
 `parseRow` therefore keeps every non-join column.
 
+**Special-value codes.** The upstream writes the table symbols as numbers above
+2,000,000,000: `2222222222` nichts vorhanden, `5555555555` Wert geheim zu halten,
+`6666666666` Aussage nicht sinnvoll, `7777777777` Wert nicht sicher genug, `8888888888`
+Angabe fällt später an (codes and labels from the web app's `app/js/modulRendern.js`,
+which also treats every value above 2,000,000,000 as such a class; checked 2026-09-26).
+Seen live: `AI005` 1998 `ai0507` (no AfD yet) and `AI002-1-5` 2000 (`ai0202`, and the
+`v` columns of the first year). `parseRow` turns them into `null` and records the reason
+in `RegionRow.missing` (`SPECIAL_VALUES`, `specialValueReason`); no catalogue column is a
+total that could reach the threshold.
+
 ### (B) Catalogue — the indicator list
 
 ```

@@ -51,7 +51,10 @@ title, which `--search` also matches (it contains the theme name).
 
 The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the table
 form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, typ, level, year,
-values }, …]`, one row per region.
+values }, …]`, one row per region. A value the upstream sent as a special-value code
+(`2222222222` = nichts vorhanden, `6666666666` = Aussage nicht sinnvoll, …; see
+[GLOSSARY.md](GLOSSARY.md)) is `null`, and the row then carries a `missing` object naming
+the reason per field.
 
 `--level` accepts these aliases: `land`/`laender`/`bundesland` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),

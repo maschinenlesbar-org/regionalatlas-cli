@@ -6,6 +6,9 @@ export {
   parseRow,
   filterByRegion,
   projectFields,
+  specialValueReason,
+  SPECIAL_VALUES,
+  SPECIAL_VALUE_THRESHOLD,
 } from "./client.js";
 export type { RegionalatlasClientOptions } from "./client.js";
 export { RequestEngine, DEFAULT_BASE_URL, sanitizeServerText } from "./engine.js";

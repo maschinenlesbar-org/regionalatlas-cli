@@ -17,6 +17,7 @@ Regionalatlas terms and fields, as the CLI surfaces them.
 | **jahr / year** | `--year`, `year` | The reporting year (a 4-digit integer). Each indicator offers a specific set of years, often with gaps that the first–last range from `indicators` (e.g. `1998–2025` for `AI005`) doesn't show. Leaving out `--year` uses the newest catalogue year, which the data host may not have loaded yet: `query` then returns `[]` and notes it on stderr. |
 | **value field** | `values` | An indicator value column (e.g. `ai0201`) — a number or `null`. `--fields` keeps only named ones (case-insensitive, `-` and `_` alike). `indicators` lists every column of an indicator with its title and unit, under the key it has in `values` — the Zensus 2011 indicators' catalogue writes `AI-Z01`, the data host `ai_z01`, and the CLI uses `ai_z01` for both. |
 | **Veränderungsrate (`v` field)** | `values` | A `<field>v` column (e.g. `ai0201v`) is the year-on-year **rate of change** of the matching value field — a published value in its own right, not a precision flag. Its unit is **percent**, or **percentage points** for a share indicator (`ai0208v`); `indicators` gives the unit per column. |
+| **Sonderwert (special-value code)** | `missing` | A number above 2,000,000,000 that stands for a table symbol, not a figure: `2222222222` nichts vorhanden (`-`), `5555555555` Wert geheim zu halten (`.`), `6666666666` Aussage nicht sinnvoll (`x`), `7777777777` Wert nicht sicher genug (`/`), `8888888888` Angabe fällt später an (`...`) — the codes and labels of the Regionalatlas web app. The CLI prints such a value as `null` and names the reason in the row's `missing` object (`"missing": {"ai0507": "nichts vorhanden"}`, the AfD share in 1998). |
 | **gen2 / ags2 / jahr2** | (internal) | The joined side of the SQL `LEFT OUTER JOIN`. `gen2` is leading-space padded in the raw data — the client trims it; the parsed row uses `gen`/`ags`/`jahr`. |
 | **dynamicLayer / queryTable** | (internal) | The ArcGIS mechanism that runs the raw SQL join behind `query`. |
 | **`--base-url` / `--catalog-url`** | options | The ArcGIS data host / the indicator catalogue URL (the two upstream hosts). |
@@ -25,7 +26,10 @@ Regionalatlas terms and fields, as the CLI surfaces them.
 
 - **`query` returns one row per region** at the chosen `--level`: `{ ags, name, typ,
   level, year, values }`.
-- **A `null` value** means the indicator has no figure for that region/year.
+- **A `null` value** means the indicator has no figure for that region/year. When the
+  upstream sent a special-value code instead, the row's `missing` object names the
+  reason (`nichts vorhanden`, `Wert geheim zu halten`, …); a row without such codes has
+  no `missing` key.
 - **It joins geography to statistics** — every region present at the level appears; a
   region with no indicator row still appears (its `values` are `null`), thanks to the
   `LEFT OUTER JOIN`.

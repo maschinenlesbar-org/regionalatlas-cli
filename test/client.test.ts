@@ -350,3 +350,26 @@ test("field projection treats - and _ alike, so a catalogue spelling selects the
   assert.deepEqual({ ...projectFields([row], ["AI-Z01"])[0]!.values }, { ai_z01: 42.3 });
   assert.deepEqual({ ...projectFields([row], ["ai_z02"])[0]!.values }, { ai_z02: 43.6 });
 });
+
+test("a special-value code is null with its meaning in missing, never a figure", () => {
+  // Live 1998 AI005: every Land row carries ai0507 (AfD share, Prozent) = 2222222222.
+  const row = parseRow(
+    { ags: "09", gen: "Bayern", ai0501: 47.7, ai0507: 2222222222, ai0202: "6666666666", ai0209: 3333333333 },
+    1,
+    "land",
+    1998,
+  );
+  assert.deepEqual({ ...row.values }, { ai0501: 47.7, ai0507: null, ai0202: null, ai0209: null });
+  assert.deepEqual({ ...row.missing }, {
+    ai0507: "nichts vorhanden",
+    ai0202: "Aussage nicht sinnvoll",
+    ai0209: "Sonderwert 3333333333 (special-value code without a label)",
+  });
+  // An ordinary row carries no missing key at all; the threshold itself is a value.
+  const plain = parseRow({ ags: "09", gen: "Bayern", ai0501: 2_000_000_000, ai0502: -11 }, 1, "land", 1998);
+  assert.equal(plain.missing, undefined);
+  assert.deepEqual({ ...plain.values }, { ai0501: 2_000_000_000, ai0502: -11 });
+  // --fields projects missing along with values.
+  assert.deepEqual({ ...projectFields([row], ["ai0507"])[0]!.missing }, { ai0507: "nichts vorhanden" });
+  assert.equal(projectFields([row], ["ai0501"])[0]!.missing, undefined);
+});

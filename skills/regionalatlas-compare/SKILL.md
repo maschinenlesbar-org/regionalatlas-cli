@@ -92,7 +92,9 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   size of its numbers. `AI005` is the cautionary case: `ai0507` is the AfD share and
   `ai0506` is Wahlbeteiligung.
 - **Watch `null`** — a region with no figure sorts oddly; filter `select(.!=null)`
-  before `min`/`max`/`avg`.
+  before `min`/`max`/`avg`. The upstream's special-value codes (`2222222222` =
+  nichts vorhanden, …) already arrive as `null`, with the reason in the row's `missing`
+  object — quote that reason when a compared region has no figure.
 - **Same `--year` across regions** so you compare like with like. Leaving it out uses the
   newest catalogue year, which may not be loaded yet: the CLI then prints `[]` with a
   `Note:` on stderr naming the previous year to use.
