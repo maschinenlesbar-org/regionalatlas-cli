@@ -206,6 +206,11 @@ export interface QueryResult {
    * means only the region filter matched nothing.
    */
   fetched: number;
+  /**
+   * True when the data host set `exceededTransferLimit`: it stopped at its record
+   * limit (`maxRecordCount`, 2,000,000 on 2026-09-26), so the rows are incomplete.
+   */
+  exceededTransferLimit: boolean;
 }
 
 /** Options for a data query. */

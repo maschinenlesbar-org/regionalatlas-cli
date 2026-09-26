@@ -174,6 +174,10 @@ typ/year (no `;`, `--`, or quotes).
   same function when parsed — they appear in error messages such as the list of
   `Available:` columns. As a last net, run.ts strips C0 (except tab/newline), DEL and
   C1 from everything written to stderr, which covers arguments quoted back as typed.
+- **`exceededTransferLimit`**: the MapServer stops at its `maxRecordCount` (2,000,000 on
+  2026-09-26, so no real query reaches it today) and says so only in this flag.
+  `queryResult()` passes it on (`=== true` only), and the CLI prints a `Note:` on
+  stderr with the rows it got; `query()` returns the rows alone.
 - The data query uses `spatialReference.wkid = 25832` (ETRS89 / UTM 32N) in the layer,
   and `returnGeometry=false` (we only need attributes).
 

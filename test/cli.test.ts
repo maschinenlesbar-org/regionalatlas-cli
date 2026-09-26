@@ -450,3 +450,13 @@ test("a maintenance reply exits 1 with the shape error and no empty-result note"
   assert.match(cli.err.join("\n"), /^Error: Unexpected response shape from .*expected a features array, got none\.$/);
   assert.doesNotMatch(cli.err.join("\n"), /Note:/);
 });
+
+test("a result cut off at the host's record limit prints the rows and a note", async () => {
+  const cli = makeRoutingCli({ ...fx.landData, exceededTransferLimit: true });
+  assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
+  assert.equal((JSON.parse(cli.out.join("\n")) as unknown[]).length, 2);
+  assert.deepEqual(cli.err, [
+    "Note: the data host stopped at its record limit after 2 rows (exceededTransferLimit), " +
+      "so the result is incomplete. Query a coarser --level.",
+  ]);
+});

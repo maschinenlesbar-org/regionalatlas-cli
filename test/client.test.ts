@@ -413,7 +413,16 @@ test("queryResult() reports the rows fetched before the region filter", async ()
   assert.equal(hit.fetched, 2);
   assert.deepEqual(hit.rows.map((r) => r.name), ["Bremen"]);
   const miss = await clientRouting().client.queryResult({ ...q, region: "Nowhere" });
-  assert.deepEqual(miss, { rows: [], fetched: 2 });
+  assert.deepEqual(miss, { rows: [], fetched: 2, exceededTransferLimit: false });
   const empty = await clientRouting({ features: [] }).client.queryResult({ ...q, region: "Bremen" });
-  assert.deepEqual(empty, { rows: [], fetched: 0 });
+  assert.deepEqual(empty, { rows: [], fetched: 0, exceededTransferLimit: false });
+});
+
+test("queryResult() passes on the host's exceededTransferLimit, only for a literal true", async () => {
+  const q = { indicator: "AI002-1-5", level: "land", year: 2020 };
+  const cut = await clientRouting({ ...fx.landData, exceededTransferLimit: true }).client.queryResult(q);
+  assert.equal(cut.exceededTransferLimit, true);
+  assert.equal(cut.rows.length, 2);
+  const odd = await clientRouting({ ...fx.landData, exceededTransferLimit: "true" }).client.queryResult(q);
+  assert.equal(odd.exceededTransferLimit, false);
 });

@@ -95,8 +95,14 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         if (typeof opts["year"] === "number") query.year = opts["year"];
         if (typeof opts["region"] === "string") query.region = opts["region"];
         if (Array.isArray(opts["fields"])) query.fields = opts["fields"] as string[];
-        const { rows, fetched } = await client.queryResult(query);
+        const { rows, fetched, exceededTransferLimit } = await client.queryResult(query);
         renderJson(deps, global, rows);
+        if (exceededTransferLimit) {
+          deps.io.err(
+            `Note: the data host stopped at its record limit after ${fetched} rows ` +
+              "(exceededTransferLimit), so the result is incomplete. Query a coarser --level.",
+          );
+        }
         if (rows.length === 0) {
           // An empty result exits 0 like any other; say why on stderr so it isn't read
           // as "this indicator has no data". The catalogue is cached, so no new request.

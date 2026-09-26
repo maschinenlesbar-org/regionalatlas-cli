@@ -115,7 +115,8 @@ export class RegionalatlasClient {
   /**
    * `query`, plus how many rows the data host returned before the `region` filter
    * (`fetched`), so a caller can tell "the host has no rows for this year" from
-   * "no row matched the region".
+   * "no row matched the region", and whether the host cut the rows off at its record
+   * limit (`exceededTransferLimit`), which `query` cannot show.
    */
   async queryResult(opts: QueryOptions): Promise<QueryResult> {
     // 1. Resolve the indicator against the catalogue allowlist (throws if unknown).
@@ -160,6 +161,9 @@ export class RegionalatlasClient {
     return {
       rows: opts.fields && opts.fields.length > 0 ? projectFields(filtered, opts.fields) : filtered,
       fetched: rows.length,
+      // The MapServer stops at its maxRecordCount and says so only in this flag; the
+      // rows are then a silent prefix of the level. Only a literal `true` counts.
+      exceededTransferLimit: res.exceededTransferLimit === true,
     };
   }
 
