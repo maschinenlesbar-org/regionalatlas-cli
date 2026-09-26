@@ -37,7 +37,7 @@ Basic auth and shown as `***@` in error messages.
 |---|---|
 | `--theme <substr>` | filter by theme title (case-insensitive substring) |
 | `--year <yyyy>` | only indicators offering this year |
-| `--search <substr>` | filter over code + short + long title (case-insensitive) |
+| `--search <substr>` | filter over code + short + long title (case-insensitive; a decomposed umlaut matches too, as for `--theme` and `--region`) |
 
 `regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years }, …]`,
 where `years` is a compact range (e.g. `2000–2024`). `titleLong` is the catalogue's long

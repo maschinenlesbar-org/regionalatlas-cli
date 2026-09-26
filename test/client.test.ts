@@ -426,3 +426,11 @@ test("queryResult() passes on the host's exceededTransferLimit, only for a liter
   const odd = await clientRouting({ ...fx.landData, exceededTransferLimit: "true" }).client.queryResult(q);
   assert.equal(odd.exceededTransferLimit, false);
 });
+
+test("region filter matches a decomposed (NFD) umlaut in the name", () => {
+  const rows = [
+    parseRow({ ags: "05", gen: "Nordrhein-Westfalen" }, 1, "land", 2020),
+    parseRow({ ags: "08", gen: "Baden-Württemberg" }, 1, "land", 2020),
+  ];
+  assert.deepEqual(filterByRegion(rows, "württemberg").map((r) => r.ags), ["08"]);
+});

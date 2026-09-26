@@ -330,3 +330,11 @@ test("catalogue texts lose control and bidi characters and line breaks before an
       !/[\u0000-\u001f\u007f-\u009f]/.test(err.message),
   );
 });
+
+test("--search and --theme match a decomposed (NFD) umlaut", () => {
+  const indicators = parseIndicators(fx.catalog);
+  const nfd = "Bevölkerung";
+  assert.ok(filterIndicators(indicators, { search: nfd }).some((i) => i.code === "AI002-1-5"));
+  assert.equal(filterIndicators(indicators, { theme: nfd }).length, 2);
+  assert.equal(filterIndicators(indicators, { theme: "Fläche" }).length, 1);
+});

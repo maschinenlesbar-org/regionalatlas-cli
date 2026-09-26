@@ -22,6 +22,7 @@ import {
   assertLevelPublished,
   fieldKey,
   filterIndicators,
+  foldText,
   parseIndicators,
   parseThemes,
   resolveIndicator,
@@ -366,7 +367,8 @@ export function parseRow(
 
 /**
  * Client-side region filter. A numeric input is matched as an exact `ags` (ignoring
- * leading zeros on both sides); otherwise a case-insensitive substring of the name.
+ * leading zeros on both sides); otherwise a case-insensitive substring of the name,
+ * compared in NFC (`foldText`) so a decomposed umlaut matches.
  */
 export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
   const trimmed = region.trim();
@@ -375,8 +377,8 @@ export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
     const target = String(Number(trimmed)); // strip leading zeros
     return rows.filter((r) => String(Number(r.ags.replace(/\D/g, "") || "0")) === target);
   }
-  const needle = trimmed.toLowerCase();
-  return rows.filter((r) => r.name.toLowerCase().includes(needle));
+  const needle = foldText(trimmed);
+  return rows.filter((r) => foldText(r.name).includes(needle));
 }
 
 /**

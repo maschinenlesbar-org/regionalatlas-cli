@@ -212,17 +212,26 @@ export interface IndicatorFilter {
   search?: string;
 }
 
+/**
+ * Fold text for a case-insensitive comparison: NFC first, so a decomposed umlaut
+ * ("o" + U+0308, as pasted from macOS file names and some input methods) matches
+ * the catalogue's and the data's composed "ö". Applied to both sides.
+ */
+export function foldText(text: string): string {
+  return text.normalize("NFC").toLowerCase();
+}
+
 /** Apply the (optional) filters to a flat indicator list. */
 export function filterIndicators(indicators: Indicator[], filter: IndicatorFilter = {}): Indicator[] {
-  const theme = filter.theme?.trim().toLowerCase();
-  const search = filter.search?.trim().toLowerCase();
+  const theme = filter.theme === undefined ? undefined : foldText(filter.theme.trim());
+  const search = filter.search === undefined ? undefined : foldText(filter.search.trim());
   const year = filter.year !== undefined ? String(filter.year) : undefined;
 
   return indicators.filter((ind) => {
-    if (theme && !ind.theme.toLowerCase().includes(theme)) return false;
+    if (theme && !foldText(ind.theme).includes(theme)) return false;
     if (year && !ind.years.includes(year)) return false;
     if (search) {
-      const hay = `${ind.code} ${ind.titleShort} ${ind.titleLong}`.toLowerCase();
+      const hay = foldText(`${ind.code} ${ind.titleShort} ${ind.titleLong}`);
       if (!hay.includes(search)) return false;
     }
     return true;

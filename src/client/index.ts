@@ -29,6 +29,7 @@ export {
   parseThemes,
   parseIndicators,
   filterIndicators,
+  foldText,
   resolveIndicator,
   resolveYear,
   tableForCode,
