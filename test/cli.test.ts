@@ -402,3 +402,30 @@ test("a malformed catalogue entry is never reported as an unexpected error", asy
   assert.equal(await run(["query", "Y3"], y3.deps), 0);
   assert.match(queryOf(dataCalls(y3.mt.calls)[0]!).get("layer") ?? "", /jahr = 2020/);
 });
+
+test("hostile catalogue text and an escape-laden argument never reach stderr raw", async () => {
+  const catalog = [
+    {
+      title: "T",
+      children: [
+        {
+          code: "Y6",
+          years: { "2020": [], "20\u001b]0;pwned\u000721": [] },
+          attributes: [{ code: "ai0201", title_short: "t\u001b]0;TITLE\u0007\u001b[31mRED" }],
+        },
+      ],
+    },
+  ];
+  const controls = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/;
+  for (const argv of [
+    ["query", "Y6", "--year", "2020", "--fields", "nope"],
+    ["query", "Y6", "--year", "1999"],
+    ["query", "Z\u001b[31mRED\u009b2J"],
+  ]) {
+    const cli = makeCli(routeByHost(catalog, fx.landData));
+    assert.equal(await run(argv, cli.deps), 2);
+    const stderr = cli.err.join("\n");
+    assert.match(stderr, /^Error: /);
+    assert.doesNotMatch(stderr, controls, JSON.stringify(stderr));
+  }
+});

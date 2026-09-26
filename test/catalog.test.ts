@@ -301,3 +301,32 @@ test("malformed catalogue codes, year keys and column names are left out when pa
   // An indicator left with no valid year is a validation error, not an internal one.
   assert.throws(() => resolveYear(indicators[0]!), RegionalatlasValidationError);
 });
+
+test("catalogue texts lose control and bidi characters and line breaks before any message", () => {
+  const raw = [
+    {
+      title: "Th\u001b]0;pwn\u0007eme",
+      children: [
+        {
+          code: "Y6",
+          title_short: "Short‮title",
+          title_long: "Long\ntitle",
+          years: { "2020": [] },
+          attributes: [{ code: "ai0201", title_short: "t\u001b]0;TITLE\u0007\u001b[31mRED", unit: "Pro\u009bzent" }],
+        },
+      ],
+    },
+  ];
+  const [ind] = parseIndicators(raw);
+  assert.equal(ind!.theme, "Th]0;pwneme");
+  assert.equal(ind!.titleShort, "Shorttitle");
+  assert.equal(ind!.titleLong, "Long title");
+  assert.deepEqual(ind!.fields, [{ code: "ai0201", title: "t]0;TITLE[31mRED", unit: "Prozent" }]);
+  assert.deepEqual(parseThemes(raw), [{ title: "Th]0;pwneme", indicatorCount: 1 }]);
+  assert.throws(
+    () => assertKnownFields(ind!, ["nope"]),
+    (err: unknown) =>
+      err instanceof Error && err.message.endsWith("Available: ai0201 (t]0;TITLE[31mRED).") &&
+      !/[\u0000-\u001f\u007f-\u009f]/.test(err.message),
+  );
+});

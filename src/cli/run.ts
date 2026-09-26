@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
+import { stripTerminalControls } from "./shared.js";
 import {
   RegionalatlasApiError,
   RegionalatlasError,
@@ -41,7 +42,14 @@ function configureTree(command: Command, deps: CliDeps): void {
   for (const child of command.commands) configureTree(child, deps);
 }
 
-export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
+export async function run(argv: string[], rawDeps: CliDeps = defaultDeps): Promise<number> {
+  // Everything written to stderr — our messages and commander's parse errors, which
+  // quote the raw argument — loses terminal control characters. stdout is left
+  // alone: it carries the data as escaped JSON.
+  const deps: CliDeps = {
+    ...rawDeps,
+    io: { ...rawDeps.io, err: (text) => rawDeps.io.err(stripTerminalControls(text)) },
+  };
   const program = buildProgram(deps);
   configureTree(program, deps);
 

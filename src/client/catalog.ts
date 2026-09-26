@@ -17,6 +17,7 @@ import type {
 } from "./types.js";
 import { RegionalatlasParseError, RegionalatlasValidationError } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
+import { sanitizeServerText } from "./engine.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -30,6 +31,16 @@ function normalizeIndicatorKey(input: string): string {
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+/**
+ * A text of the catalogue (a title, a unit, a theme name), made safe for stderr.
+ * The catalogue is a separate host from the data host (`--catalog-url`), and its
+ * texts end up in error messages ("Available: ai0201 (<title>)"), so a control or
+ * bidi character in it must not reach the terminal (`sanitizeServerText`).
+ */
+function catalogText(value: unknown): string {
+  return typeof value === "string" ? sanitizeServerText(value) : "";
 }
 
 /**
@@ -73,7 +84,7 @@ function parseFields(raw: unknown): IndicatorField[] {
     const a = entry as RawCatalogAttribute;
     const code = fieldKey(asString(a.code));
     if (!FIELD_SHAPE.test(code)) continue;
-    fields.push({ code, title: asString(a.title_short), unit: asString(a.unit) });
+    fields.push({ code, title: catalogText(a.title_short), unit: catalogText(a.unit) });
   }
   return fields;
 }
@@ -138,7 +149,7 @@ export function parseIndicators(raw: unknown): Indicator[] {
   for (const theme of catalog) {
     if (theme === null || typeof theme !== "object") continue;
     const t = theme as RawCatalogTheme;
-    const themeTitle = asString(t.title);
+    const themeTitle = catalogText(t.title);
     const children = Array.isArray(t.children) ? t.children : [];
     for (const child of children) {
       // An entry without a well-formed code, and a year key that is not a plain
@@ -161,8 +172,8 @@ export function parseIndicators(raw: unknown): Indicator[] {
         code,
         table: tableForCode(code),
         theme: themeTitle,
-        titleShort: asString(c.title_short),
-        titleLong: asString(c.title_long),
+        titleShort: catalogText(c.title_short),
+        titleLong: catalogText(c.title_long),
         years,
         levels,
         fields: parseFields(c.attributes),
@@ -183,7 +194,7 @@ export function parseThemes(raw: unknown): Theme[] {
   return catalog
     .filter((t): t is RawCatalogTheme => t !== null && typeof t === "object")
     .map((t) => ({
-      title: asString(t.title),
+      title: catalogText(t.title),
       // Count what `indicators` lists: entries with a well-formed code.
       indicatorCount: Array.isArray(t.children)
         ? t.children.filter((c) => indicatorCode(c) !== undefined).length

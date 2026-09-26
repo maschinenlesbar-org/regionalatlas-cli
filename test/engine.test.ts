@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine } from "../src/client/engine.js";
+import { RequestEngine, sanitizeServerText } from "../src/client/engine.js";
 import {
   RegionalatlasApiError,
   RegionalatlasNetworkError,
@@ -213,4 +213,9 @@ test("requestUrl rejects a non-http(s) scheme at the engine level, before the tr
   );
   // The transport was never invoked in either case.
   assert.equal(mt.calls.length, 0);
+});
+
+test("sanitizeServerText drops bidi controls and folds line breaks to one line", () => {
+  assert.equal(sanitizeServerText("a‮b⁦c‏d"), "abcd");
+  assert.equal(sanitizeServerText("  one\nError: forged\r\n\ttwo three  "), "one Error: forged two three");
 });

@@ -154,6 +154,24 @@ export function parseHeaderValue(value: string): string {
   return value;
 }
 
+/**
+ * Drop the characters a terminal may act on from text bound for stderr: C0 controls
+ * other than tab and newline (ESC, BEL, CR, …), DEL and C1 (U+009B is the 8-bit CSI).
+ * Server and catalogue text is sanitised where it enters a message, but messages
+ * also quote the user's own arguments (`Unknown indicator "…"`), which may come from
+ * pasted or scripted data. Checked by char code so the source stays free of control
+ * bytes.
+ */
+export function stripTerminalControls(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09 && c !== 0x0a) || (c >= 0x7f && c <= 0x9f)) continue;
+    out += text[i];
+  }
+  return out;
+}
+
 export interface GlobalOptions {
   baseUrl?: string;
   catalogUrl?: string;

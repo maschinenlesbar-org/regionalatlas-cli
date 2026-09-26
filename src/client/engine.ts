@@ -57,31 +57,49 @@ export interface EngineOptions {
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 
 /**
- * Strip control characters out of a string that originates in an
- * attacker-controlled response — the ArcGIS `error` detail and the non-JSON body
- * snippet — before it flows into a `RegionalatlasApiError.message` that run.ts
- * prints raw to stderr. `JSON.parse` decodes an escaped ESC (a backslash-u-001b
- * sequence) in an error body into a real ESC byte, so without this a hostile or
- * MITM'd endpoint could inject
- * ANSI/OSC terminal escape sequences (screen clears, title changes, output
- * spoofing) when the message reaches the user's terminal. The CLI's JSON output is
- * escaped separately (`escapeControlChars` in cli/shared.ts), as `JSON.stringify`
- * alone leaves DEL and the C1 range raw. Removes all C0 controls (except
- * tab/newline), DEL, and the C1 range; implemented via char codes so this source
- * file never contains a raw control byte.
+ * True for the Unicode bidirectional formatting characters: ALM (U+061C), LRM/RLM
+ * (U+200E/U+200F), the embeddings and overrides U+202A–U+202E and the isolates
+ * U+2066–U+2069. A terminal applies them to the text that follows, so an override
+ * in server text can reorder what the user sees ("Trojan Source" spoofing).
+ */
+export function isBidiControl(code: number): boolean {
+  return (
+    code === 0x061c ||
+    code === 0x200e ||
+    code === 0x200f ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  );
+}
+
+/**
+ * Make a string that originates in a response — the ArcGIS `error` detail, the
+ * non-JSON body snippet, and every text of the catalogue (titles, units, theme
+ * names), which reach stderr in error messages — safe to print:
+ *
+ * - C0 and C1 controls and DEL are dropped. `JSON.parse` decodes an escaped ESC (a
+ *   backslash-u-001b sequence) into a real ESC byte; printed raw, a hostile or
+ *   MITM'd host could drive ANSI/OSC sequences into the terminal (screen clears,
+ *   title changes, output spoofing).
+ * - Bidi formatting characters (`isBidiControl`) are dropped, so server text cannot
+ *   reorder the visible message.
+ * - Every run of whitespace — newlines, tabs, U+2028/U+2029 included — becomes one
+ *   space and the ends are trimmed, so the text stays on one line and cannot forge
+ *   an `Error:` line of its own.
+ *
+ * The CLI's JSON output is escaped separately (`escapeControlChars` in
+ * cli/shared.ts). Written as a char-code filter so no raw control byte appears in
+ * this source.
  */
 export function sanitizeServerText(text: string): string {
   let out = "";
   for (const ch of text) {
     const n = ch.codePointAt(0) ?? 0;
-    if (n === 0x09 || n === 0x0a) {
-      out += ch;
-      continue;
-    }
-    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    const whitespaceControl = n >= 0x09 && n <= 0x0d;
+    if (!whitespaceControl && (n <= 0x1f || (n >= 0x7f && n <= 0x9f) || isBidiControl(n))) continue;
     out += ch;
   }
-  return out;
+  return out.replace(/\s+/g, " ").trim();
 }
 
 const realSleep = (ms: number): Promise<void> =>

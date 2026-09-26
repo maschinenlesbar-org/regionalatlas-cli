@@ -163,7 +163,12 @@ typ/year (no `;`, `--`, or quotes).
   live — a malformed query returns HTTP 200, not a 4xx). The client **sniffs for a
   top-level `error` key in the 2xx body** and throws `RegionalatlasApiError`
   (`arcgisCode` set) — it does not rely on the HTTP status alone. The `error.message`
-  is run through `sanitizeServerText` (control-char strip) before it can reach stderr.
+  is run through `sanitizeServerText` before it can reach stderr: control and bidi
+  characters dropped, whitespace folded to one line. The catalogue is a second trust
+  domain (`--catalog-url`), so its texts (titles, units, theme names) go through the
+  same function when parsed — they appear in error messages such as the list of
+  `Available:` columns. As a last net, run.ts strips C0 (except tab/newline), DEL and
+  C1 from everything written to stderr, which covers arguments quoted back as typed.
 - The data query uses `spatialReference.wkid = 25832` (ETRS89 / UTM 32N) in the layer,
   and `returnGeometry=false` (we only need attributes).
 
