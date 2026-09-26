@@ -159,15 +159,21 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 
 /**
  * commander value-parser for a value that ends up in an HTTP header (User-Agent).
- * Rejects control characters — a CR/LF (or other C0/DEL byte) would otherwise reach
- * Node's HTTP layer and throw an opaque `ERR_INVALID_CHAR`. Tab (0x09) is allowed;
- * checked by char code so the source stays free of control bytes.
+ * Rejects a blank value (it would send an empty User-Agent, which WAFs block) and
+ * what Node's HTTP layer refuses with an opaque `ERR_INVALID_CHAR`: control
+ * characters (a CR/LF, another C0 byte, DEL) and characters above U+00FF. Tab
+ * (0x09) and Latin-1 (ü) are allowed; checked by char code so the source stays
+ * free of control bytes.
  */
 export function parseHeaderValue(value: string): string {
+  parseNonEmpty(value);
   for (let i = 0; i < value.length; i++) {
     const c = value.charCodeAt(i);
     if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
       throw new InvalidArgumentError("Value contains control characters.");
+    }
+    if (c > 0xff) {
+      throw new InvalidArgumentError("Value contains characters outside Latin-1 (above U+00FF).");
     }
   }
   return value;

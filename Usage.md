@@ -14,7 +14,7 @@ regionalatlas [global options] <command> [command options]
 | `--base-url <url>` | ArcGIS data host base URL (default `https://www.gis-idmz.nrw.de`) |
 | `--catalog-url <url>` | indicator catalogue URL (default the statistikportal.de `services.json`) |
 | `--timeout <ms>` | time limit per request in ms, whole response included (0 = no timeout; at most 2147483647) |
-| `--user-agent <ua>` | User-Agent header value |
+| `--user-agent <ua>` | User-Agent header value (not blank; no control characters or characters above U+00FF) |
 | `--max-retries <n>` | retries for transient 429/503 responses (0..10) |
 | `--max-response-bytes <n>` | cap the response body size in bytes (0 = unlimited; default 100 MiB) |
 | `--compact` | print JSON on a single line (for piping to `jq`) |

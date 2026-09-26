@@ -504,3 +504,19 @@ test("a repeated --fields adds to the list instead of keeping only the last one"
   const rows = JSON.parse(cli.out.join("\n")) as { values: Record<string, number> }[];
   assert.deepEqual(rows[0]!.values, { ai0201: 167.8, ai0201v: 0.1 });
 });
+
+test("a blank or non-Latin-1 --user-agent is a usage error; tab and Latin-1 pass", async () => {
+  for (const [ua, message] of [
+    ["", /Expected a non-empty value\./],
+    ["   ", /Expected a non-empty value\./],
+    ["agent ☃", /outside Latin-1 \(above U\+00FF\)/],
+  ] as const) {
+    const cli = makeRoutingCli();
+    assert.equal(await run(["--user-agent", ua, "themes"], cli.deps), 2, JSON.stringify(ua));
+    assert.match(cli.err.join("\n"), message);
+    assert.equal(cli.mt.calls.length, 0);
+  }
+  const ok = makeRoutingCli();
+  assert.equal(await run(["--user-agent", "mü\tagent", "themes"], ok.deps), 0);
+  assert.equal(ok.mt.last().headers?.["User-Agent"], "mü\tagent");
+});
