@@ -95,3 +95,14 @@ test("enforces maxResponseBytes", async () => {
     },
   );
 });
+
+test("a header Node refuses is a RegionalatlasNetworkError, not a raw TypeError", async () => {
+  await assert.rejects(
+    nodeHttpTransport({ method: "GET", url: "http://127.0.0.1:9/", headers: { "User-Agent": "a\r\nb" } }),
+    (err: unknown) => {
+      assert.ok(err instanceof RegionalatlasNetworkError, String(err));
+      assert.match((err as Error).message, /^Invalid request: /);
+      return true;
+    },
+  );
+});

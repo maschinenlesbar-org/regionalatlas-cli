@@ -13,6 +13,7 @@ export {
 export type { RegionalatlasClientOptions } from "./client.js";
 export {
   RequestEngine,
+  assertHeaderValue,
   DEFAULT_BASE_URL,
   MAX_RETRY_AFTER_MS,
   MAX_RETRIES,
@@ -51,6 +52,8 @@ export {
   fieldsProblem,
   yearProblem,
   YEAR_SHAPE,
+  headerValueProblem,
+  headerNameProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 export {

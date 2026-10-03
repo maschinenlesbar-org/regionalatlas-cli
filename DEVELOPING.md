@@ -188,6 +188,13 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   shape). `" 2020"`, `""`, `1.5`, `20` or `"02020"` would otherwise match nothing (a
   false empty list) or, for `""`, be skipped. `--year` uses the same rule for both
   commands.
+- **Header values** (`headerValueProblem`, `assertHeaderValue` in engine.ts), checked
+  when the client is built: `userAgent` and every `defaultHeaders` value must be
+  non-blank, without C0 controls (tab allowed) or DEL, and within Latin-1; a
+  `defaultHeaders` name must be an RFC 9110 token (`headerNameProblem`). Only an
+  omitted `userAgent` selects the default. The CLI's `--user-agent` parser uses the same
+  rule. As a last net, the default transport turns a header Node refuses into a
+  `RegionalatlasNetworkError` (`Invalid request: …`) instead of a raw `TypeError`.
 
 ## ArcGIS specifics
 

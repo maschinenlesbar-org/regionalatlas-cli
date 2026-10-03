@@ -146,3 +146,27 @@ test("parity: indicators --year 2020 filters the same on both sides (number and 
     assert.deepEqual(codes, ["AI001-2-5", "AI002-1-5", "AI002-2-5"]);
   }
 });
+
+// ---- Finding #4 (PAT-5): User-Agent header values ----
+
+const badUserAgents: Array<[string, RegExp]> = [
+  ["", /^Invalid userAgent: Expected a non-empty value\.$/],
+  ["   ", /^Invalid userAgent: Expected a non-empty value\.$/],
+  ["x\r\nX-Injected: 1", /^Invalid userAgent: Value contains control characters\.$/],
+  ["a\u0000b", /^Invalid userAgent: Value contains control characters\.$/],
+  ["a\u007fb", /^Invalid userAgent: Value contains control characters\.$/],
+  ["agentĀ", /^Invalid userAgent: Value contains characters outside Latin-1 \(above U\+00FF\)\.$/],
+  ["€", /^Invalid userAgent: Value contains characters outside Latin-1/],
+];
+
+for (const [ua, message] of badUserAgents) {
+  test(`parity: --user-agent ${JSON.stringify(ua)} is rejected by CLI and library alike`, async () => {
+    await assertBothReject(["--user-agent", ua, "themes"], (t) => new RegionalatlasClient({ transport: t, userAgent: ua }).themes(), message);
+  });
+}
+
+test("parity: an accepted User-Agent (tab, Latin-1, padding) is sent unchanged by both sides", async () => {
+  for (const ua of [" spaced ", "a\tb", "Müller"]) {
+    await assertSameResult(["--user-agent", ua, "themes"], (t) => new RegionalatlasClient({ transport: t, userAgent: ua }).themes());
+  }
+});

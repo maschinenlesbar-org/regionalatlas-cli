@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, parseRetryAfter, sanitizeServerText } from "../src/client/engine.js";
+import {
+  RequestEngine,
+  assertHeaderValue,
+  parseRetryAfter,
+  sanitizeServerText,
+  type EngineOptions,
+} from "../src/client/engine.js";
 import {
   RegionalatlasApiError,
   RegionalatlasNetworkError,
@@ -288,4 +294,28 @@ test("negative, fractional, NaN or oversized engine options are refused", () => 
   assert.doesNotThrow(
     () => new RequestEngine({ timeoutMs: 0, maxRetries: 10, retryDelayMs: 0, maxResponseBytes: 0 }),
   );
+});
+
+test("the constructor refuses an unsendable userAgent or defaultHeaders entry before any request", () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  const bad: EngineOptions[] = [
+    { userAgent: "" },
+    { userAgent: "a\r\nb" },
+    { userAgent: "€" },
+    { defaultHeaders: { "X-A": "v\r\nX-Injected: 1" } },
+    { defaultHeaders: { "X-A": "" } },
+    { defaultHeaders: { "Bad Name": "v" } },
+    { defaultHeaders: { "X-A\r\nX-B": "v" } },
+  ];
+  for (const options of bad) {
+    assert.throws(
+      () => new RequestEngine({ ...options, transport: mt.transport }),
+      RegionalatlasValidationError,
+      JSON.stringify(options),
+    );
+  }
+  assert.equal(mt.calls.length, 0);
+  assert.doesNotThrow(() => new RequestEngine({ userAgent: "é\tagent", defaultHeaders: { "X-Trace": "1" } }));
+  assert.equal(assertHeaderValue("userAgent", "ok"), "ok");
+  assert.throws(() => assertHeaderValue("userAgent", " "), /^RegionalatlasValidationError: Invalid userAgent: Expected a non-empty value\.$/);
 });

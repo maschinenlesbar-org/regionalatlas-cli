@@ -18,6 +18,7 @@ import {
   RegionalatlasValidationError,
   redactUrl,
 } from "./errors.js";
+import { assertValid, headerNameProblem, headerValueProblem } from "./validate.js";
 
 /** The ArcGIS MapServer host that answers the dynamicLayer data queries. */
 export const DEFAULT_BASE_URL = "https://www.gis-idmz.nrw.de";
@@ -208,6 +209,15 @@ function assertHttpScheme(url: string): void {
   }
 }
 
+/**
+ * Check a value bound for an HTTP header (headerValueProblem) and return it, or
+ * throw a RegionalatlasValidationError
+ * (`Invalid <name>: Value contains control characters.`).
+ */
+export function assertHeaderValue(name: string, value: string): string {
+  return assertValid(name, value, headerValueProblem);
+}
+
 export class RequestEngine {
   private readonly baseUrl: string;
   private readonly transport: Transport;
@@ -230,8 +240,15 @@ export class RequestEngine {
       );
     }
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    this.defaultHeaders = options.defaultHeaders ?? {};
+    // Only undefined selects the default; a blank or unsendable value is refused
+    // here rather than sent blank or failing late with Node's raw TypeError.
+    this.userAgent =
+      options.userAgent === undefined ? DEFAULT_USER_AGENT : assertHeaderValue("userAgent", options.userAgent);
+    this.defaultHeaders = { ...(options.defaultHeaders ?? {}) };
+    for (const [name, value] of Object.entries(this.defaultHeaders)) {
+      assertValid(`header name ${JSON.stringify(name)}`, name, headerNameProblem);
+      assertHeaderValue(`header ${JSON.stringify(name)}`, value);
+    }
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
     this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);
