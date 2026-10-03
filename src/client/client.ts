@@ -117,8 +117,9 @@ export class RegionalatlasClient {
   }
 
   /**
-   * Run a data query. Resolves the indicator against the catalogue allowlist, maps
-   * the level to a `typ`, validates/defaults the year, then builds the SQL from
+   * Run a data query. Maps the level to a `typ` (before any request), resolves the
+   * indicator against the catalogue allowlist, validates/defaults the year, then
+   * builds the SQL from
    * ONLY those validated pieces. `region` and `fields` are applied client-side and
    * never enter the request.
    */
@@ -133,15 +134,17 @@ export class RegionalatlasClient {
    * limit (`exceededTransferLimit`), which `query` cannot show.
    */
   async queryResult(opts: QueryOptions): Promise<QueryResult> {
-    // 0. The client-side filters, before any request: a blank region or a field
-    //    list without a name would otherwise return every row or every column.
+    // 1. Map level → typ (throws if unknown); an omitted level is DEFAULT_LEVEL. The
+    //    allowlist is fixed, so it is checked before any request: an unknown
+    //    indicator or a catalogue outage must not hide a bad level.
+    const level = resolveLevel(opts.level ?? DEFAULT_LEVEL);
+    // 1a. The client-side filters, before any request: a blank region or a field
+    //     list without a name would otherwise return every row or every column.
     if (opts.region !== undefined) assertValid("region", opts.region, nonEmptyProblem);
     if (opts.fields !== undefined) assertValid("fields", opts.fields, fieldsProblem);
-    // 1. Resolve the indicator against the catalogue allowlist (throws if unknown).
+    // 2. Resolve the indicator against the catalogue allowlist (throws if unknown).
     const indicators = await this.allIndicators();
     const indicator = resolveIndicator(indicators, opts.indicator);
-    // 2. Map level → typ (throws if unknown); an omitted level is DEFAULT_LEVEL.
-    const level = resolveLevel(opts.level ?? DEFAULT_LEVEL);
     // 3. Validate/default the year (throws if not an integer in the indicator's years).
     const year = resolveYear(indicator, opts.year);
     // 3a. Refuse a level the catalogue publishes no figures for in that year: the

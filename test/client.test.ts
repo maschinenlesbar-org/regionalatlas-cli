@@ -100,13 +100,15 @@ test("an injection-shaped indicator is rejected before any data request", async 
   assert.equal(mt.calls.some((c) => new URL(c.url).hostname.includes("gis-idmz")), false);
 });
 
-test("an unknown level is rejected and no data request is made", async () => {
+test("an unknown level is rejected before any request, the catalogue included", async () => {
   const { client, mt } = clientRouting();
   await assert.rejects(
     () => client.query({ indicator: "AI002-1-5", level: "galaxy" }),
     RegionalatlasValidationError,
   );
-  assert.equal(mt.calls.some((c) => new URL(c.url).hostname.includes("gis-idmz")), false);
+  // An unknown indicator does not hide the bad level: the level is checked first.
+  await assert.rejects(() => client.query({ indicator: "NOPE", level: "bogus" }), /Unknown geo level "bogus"/);
+  assert.equal(mt.calls.length, 0);
 });
 
 test("an out-of-range or non-integer year is rejected and no data request is made", async () => {

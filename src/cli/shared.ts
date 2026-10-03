@@ -5,7 +5,8 @@ import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { RegionalatlasClientOptions } from "../client/client.js";
-import { findLevel, GEO_LEVELS, LEVEL_ALIASES } from "../client/levels.js";
+import { resolveLevel } from "../client/levels.js";
+import { RegionalatlasValidationError } from "../client/errors.js";
 import {
   baseUrlProblem,
   fieldsProblem,
@@ -87,20 +88,19 @@ export function parseTextArg(value: string): string {
 }
 
 /**
- * commander value-parser for `--level`: resolves a friendly name/alias to the
- * canonical level name, rejecting an unknown level at parse time (exit 2) with a
- * clear message. The client re-resolves it (defence in depth) and only the fixed
- * integer `typ` ever enters SQL.
+ * commander value-parser for `--level`: the library's resolveLevel, which turns a
+ * friendly name/alias into the canonical level name; its RegionalatlasValidationError
+ * for an unknown level becomes a usage error (exit 2) with the same message. The
+ * client re-resolves it (defence in depth) and only the fixed integer `typ` ever
+ * enters SQL.
  */
 export function parseLevel(value: string): string {
-  const level = findLevel(value);
-  if (level === undefined) {
-    const names = GEO_LEVELS.map((l) => l.name).join(", ");
-    throw new InvalidArgumentError(
-      `Unknown geo level. Use one of: ${names} (aliases: ${LEVEL_ALIASES.join(", ")}).`,
-    );
+  try {
+    return resolveLevel(value).name;
+  } catch (err) {
+    if (err instanceof RegionalatlasValidationError) throw new InvalidArgumentError(err.message);
+    throw err;
   }
-  return level.name;
 }
 
 /**

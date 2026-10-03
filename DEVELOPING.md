@@ -135,6 +135,9 @@ no raw user text is ever interpolated:
    the fixed integers `{1,2,3,5}`; an unknown level (or a non-string one) → typed usage
    error. An omitted level is `DEFAULT_LEVEL` (`land`, exported from `levels.ts`), the
    library's default that `--level` shows as its own. Only the integer `typ` enters SQL.
+   The allowlist is fixed, so `queryResult` checks the level **first**, before the
+   catalogue request: an unknown indicator or a catalogue outage cannot hide a bad level.
+   `--level` calls the same `resolveLevel` and reports its message as a usage error.
 3. **Year** (`catalog.ts › resolveYear`). Omitted → the indicator's **latest** catalogue
    year (which the data host may not have loaded yet; the CLI then notes the empty result
    on stderr and names the previous year).

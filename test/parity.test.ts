@@ -231,3 +231,25 @@ test("parity: valid base and catalogue URLs (mirror path, userinfo, catalogue qu
     assert.equal(cli.out, JSON.stringify(lib.value));
   }
 });
+
+// ---- Finding #7 (PAT-23): the level check, its order and its message ----
+
+test("parity: an unknown level is rejected first, with one message, on both sides", async () => {
+  const message = /^Unknown geo level "bogus"\. Use one of: land, regierungsbezirk, kreis, gemeinde \(aliases: /;
+  // An unknown indicator too: the level error still wins, and no request is sent.
+  await assertBothReject(["query", "NOPE", "--level", "bogus"], (t) => client(t).queryResult({ indicator: "NOPE", level: "bogus" }), message);
+  await assertBothReject(["query", "AI002-1-5", "--level", "bogus"], (t) => client(t).queryResult({ indicator: "AI002-1-5", level: "bogus" }), message);
+  const { cli } = await parity(["query", "AI002-1-5", "--level", "bogus"], () => undefined, routes);
+  assert.match(cli.err, /argument 'bogus' is invalid\. Unknown geo level "bogus"\. Use one of: /);
+});
+
+test("parity: a known level with the catalogue down — both reject the level without a request", async () => {
+  const { cli, lib } = await parity(
+    ["query", "AI002-1-5", "--level", "bogus"],
+    (t) => client(t).queryResult({ indicator: "AI002-1-5", level: "bogus" }),
+    () => ({ status: 500, headers: { "content-type": "text/plain" }, body: Buffer.from("down") }),
+  );
+  assert.equal(cli.code, 2);
+  assert.ok(!lib.ok && lib.error instanceof RegionalatlasValidationError, String(!lib.ok && lib.error));
+  assert.equal(cli.requests.length + lib.requests.length, 0);
+});
