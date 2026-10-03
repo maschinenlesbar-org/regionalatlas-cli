@@ -132,8 +132,9 @@ no raw user text is ever interpolated:
    data request is made. The `<TABLE>` interpolated into SQL is **always** the matched
    `Indicator.table` (lowercase `[a-z0-9_]+`), never raw user text.
 2. **Level → typ** (`levels.ts › resolveLevel`). A friendly name/alias maps to one of
-   the fixed integers `{1,2,3,5}`; an unknown level → typed usage error. Only the
-   integer `typ` enters SQL.
+   the fixed integers `{1,2,3,5}`; an unknown level (or a non-string one) → typed usage
+   error. An omitted level is `DEFAULT_LEVEL` (`land`, exported from `levels.ts`), the
+   library's default that `--level` shows as its own. Only the integer `typ` enters SQL.
 3. **Year** (`catalog.ts › resolveYear`). Omitted → the indicator's **latest** catalogue
    year (which the data host may not have loaded yet; the CLI then notes the empty result
    on stderr and names the previous year).

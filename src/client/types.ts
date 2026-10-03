@@ -217,8 +217,11 @@ export interface QueryResult {
 export interface QueryOptions {
   /** Indicator code (`AI002-1-5`) or table form (`ai002_1_5`); resolved against the catalogue. */
   indicator: string;
-  /** Geo level: a friendly name (`land`, `kreis`, …) resolved to a `typ`. */
-  level: string;
+  /**
+   * Geo level: a friendly name (`land`, `kreis`, …) resolved to a `typ`. Defaults to
+   * `DEFAULT_LEVEL` (`land`) when omitted (`undefined` or `null`).
+   */
+  level?: string;
   /**
    * Year; defaults to the indicator's newest catalogue year. The data host may not have
    * loaded that year yet, in which case the query returns no rows.

@@ -30,7 +30,7 @@ import {
   resolveYear,
   type IndicatorFilter,
 } from "./catalog.js";
-import { resolveLevel } from "./levels.js";
+import { DEFAULT_LEVEL, resolveLevel } from "./levels.js";
 import { buildLayerParam } from "./sql.js";
 import { assertValid, fieldsProblem, nonEmptyProblem } from "./validate.js";
 import type {
@@ -134,8 +134,8 @@ export class RegionalatlasClient {
     // 1. Resolve the indicator against the catalogue allowlist (throws if unknown).
     const indicators = await this.allIndicators();
     const indicator = resolveIndicator(indicators, opts.indicator);
-    // 2. Map level → typ (throws if unknown).
-    const level = resolveLevel(opts.level);
+    // 2. Map level → typ (throws if unknown); an omitted level is DEFAULT_LEVEL.
+    const level = resolveLevel(opts.level ?? DEFAULT_LEVEL);
     // 3. Validate/default the year (throws if not an integer in the indicator's years).
     const year = resolveYear(indicator, opts.year);
     // 3a. Refuse a level the catalogue publishes no figures for in that year: the

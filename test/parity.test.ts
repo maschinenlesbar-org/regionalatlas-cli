@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { RegionalatlasClient } from "../src/client/client.js";
 import { RegionalatlasValidationError } from "../src/client/errors.js";
 import type { Transport } from "../src/client/http.js";
+import * as lib from "../src/index.js";
 import { parity, requestShapes, routeByHost } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
@@ -88,4 +89,21 @@ test("parity: non-blank filters give the same requests and result on both sides"
     ["query", "AI002-1-5", "--year", "2020", "--region", "Bremen", "--fields", "ai0201, ,"],
     (t) => client(t).query({ indicator: "AI002-1-5", level: "land", year: 2020, region: "Bremen", fields: ["ai0201", " ", ""] }),
   );
+});
+
+// ---- Finding #3 (PAT-15): the default level ----
+
+test("parity: query without a level uses the library's DEFAULT_LEVEL on both sides", async () => {
+  assert.equal(lib.DEFAULT_LEVEL, "land");
+  await assertSameResult(["query", "AI002-1-5", "--year", "2020"], (t) =>
+    client(t).query({ indicator: "AI002-1-5", year: 2020 }),
+  );
+});
+
+test("parity: an omitted, undefined or null level is the default, not a raw TypeError", async () => {
+  for (const level of [undefined, null]) {
+    await assertSameResult(["query", "AI002-1-5", "--year", "2020"], (t) =>
+      client(t).query({ indicator: "AI002-1-5", year: 2020, level: level as unknown as string }),
+    );
+  }
 });

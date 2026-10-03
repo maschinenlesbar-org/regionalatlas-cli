@@ -41,7 +41,7 @@ export {
   assertLevelPublished,
 } from "./catalog.js";
 export type { IndicatorFilter } from "./catalog.js";
-export { GEO_LEVELS, LEVEL_ALIASES, findLevel, resolveLevel, levelForTyp } from "./levels.js";
+export { GEO_LEVELS, LEVEL_ALIASES, DEFAULT_LEVEL, findLevel, resolveLevel, levelForTyp } from "./levels.js";
 export { buildSql, buildLayerParam } from "./sql.js";
 export { assertValid, isBlank, nonEmptyProblem, fieldsProblem } from "./validate.js";
 export type { Problem } from "./validate.js";

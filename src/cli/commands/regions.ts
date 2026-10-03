@@ -6,6 +6,7 @@
 import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
 import { resolveIndicator, resolveYear, type IndicatorFilter } from "../../client/catalog.js";
+import { DEFAULT_LEVEL } from "../../client/levels.js";
 import type { Indicator, QueryOptions } from "../../client/types.js";
 import {
   action,
@@ -81,7 +82,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
       "--level <level>",
       "geo level: land | regierungsbezirk | kreis | gemeinde",
       parseLevel,
-      "land",
+      DEFAULT_LEVEL,
     )
     .option("--year <yyyy>", "reporting year (defaults to the newest year in the catalogue)", parseYear)
     .option("--region <name|ags>", "keep only rows matching this name (substring) or AGS", parseTextArg)
@@ -92,10 +93,8 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     )
     .action(
       action(deps, async ({ client, global, opts }, [indicator]) => {
-        const query: QueryOptions = {
-          indicator: indicator!,
-          level: typeof opts["level"] === "string" ? opts["level"] : "land",
-        };
+        const query: QueryOptions = { indicator: indicator! };
+        if (typeof opts["level"] === "string") query.level = opts["level"];
         if (typeof opts["year"] === "number") query.year = opts["year"];
         if (typeof opts["region"] === "string") query.region = opts["region"];
         if (Array.isArray(opts["fields"])) query.fields = opts["fields"] as string[];
@@ -153,7 +152,7 @@ function emptyIndicatorsNote(filter: IndicatorFilter, all: Indicator[]): string 
  */
 function emptyResultNote(indicator: Indicator, query: QueryOptions, fetched: number): string {
   const year = resolveYear(indicator, query.year);
-  const where = `${indicator.code} at level ${query.level} in ${year}`;
+  const where = `${indicator.code} at level ${query.level ?? DEFAULT_LEVEL} in ${year}`;
   if (fetched > 0) {
     return (
       `Note: none of the ${fetched} rows for ${where} match --region ` +

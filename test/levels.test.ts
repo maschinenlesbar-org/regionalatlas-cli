@@ -31,3 +31,10 @@ test("levelForTyp maps a raw integer back to a level", () => {
   assert.equal(levelForTyp(1)?.name, "land");
   assert.equal(levelForTyp(5)?.name, "gemeinde");
 });
+
+test("a non-string level is unknown, a typed validation error rather than a raw TypeError", () => {
+  for (const input of [undefined, null, 1, {}]) {
+    assert.equal(findLevel(input), undefined, String(input));
+    assert.throws(() => resolveLevel(input), RegionalatlasValidationError, String(input));
+  }
+});

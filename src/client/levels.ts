@@ -41,8 +41,19 @@ const ALIASES: Readonly<Record<string, string>> = {
 /** Every alias a user may type for a level (for CLI help / completion). */
 export const LEVEL_ALIASES: readonly string[] = Object.keys(ALIASES);
 
-/** Look up a canonical level by friendly name/alias, or return undefined. */
-export function findLevel(input: string): GeoLevelInfo | undefined {
+/**
+ * The geo level a query uses when none is given: `land`, the coarsest level, which
+ * every indicator publishes. `query`/`queryResult` apply it to an omitted level, and
+ * the CLI's `--level` shows it as its default.
+ */
+export const DEFAULT_LEVEL = "land";
+
+/**
+ * Look up a canonical level by friendly name/alias, or return undefined. A
+ * non-string input (a plain-JS caller's `null` or number) is not a level either.
+ */
+export function findLevel(input: unknown): GeoLevelInfo | undefined {
+  if (typeof input !== "string") return undefined;
   const canonical = ALIASES[input.trim().toLowerCase()];
   if (canonical === undefined) return undefined;
   return GEO_LEVELS.find((l) => l.name === canonical);
@@ -53,12 +64,12 @@ export function findLevel(input: string): GeoLevelInfo | undefined {
  * an unknown level. The returned `typ` is one of the fixed integers 1/2/3/5 — the
  * only value that ends up in SQL.
  */
-export function resolveLevel(input: string): GeoLevelInfo {
+export function resolveLevel(input: unknown): GeoLevelInfo {
   const level = findLevel(input);
   if (level === undefined) {
     const names = GEO_LEVELS.map((l) => l.name).join(", ");
     throw new RegionalatlasValidationError(
-      `Unknown geo level "${input}". Use one of: ${names} (aliases: ${LEVEL_ALIASES.join(", ")}).`,
+      `Unknown geo level "${String(input)}". Use one of: ${names} (aliases: ${LEVEL_ALIASES.join(", ")}).`,
     );
   }
   return level;
