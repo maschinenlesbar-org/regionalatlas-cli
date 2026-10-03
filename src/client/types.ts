@@ -224,8 +224,11 @@ export interface QueryOptions {
    * loaded that year yet, in which case the query returns no rows.
    */
   year?: number;
-  /** Client-side region filter: an AGS (numeric) or a substring of the name. */
+  /** Client-side region filter: an AGS (numeric) or a substring of the name (not blank). */
   region?: string;
-  /** Client-side field projection: keep only these value fields. */
+  /**
+   * Client-side field projection: keep only these value fields. Needs at least one
+   * non-blank name; blank entries next to real names are dropped.
+   */
   fields?: string[];
 }

@@ -21,3 +21,28 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   if (reason !== undefined) throw new RegionalatlasValidationError(`Invalid ${name}: ${reason}`);
   return value;
 }
+
+/** True for an empty or whitespace-only string. */
+export function isBlank(value: string): boolean {
+  return value.trim() === "";
+}
+
+/**
+ * A blank filter ("" or whitespace only) is invalid: the library would otherwise
+ * skip it and return the unfiltered set (every indicator, every region row), which
+ * reads as a successful filtered answer.
+ */
+export const nonEmptyProblem: Problem<unknown> = (value) =>
+  typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;
+
+/**
+ * A `fields` projection needs at least one non-blank field name; blank entries next
+ * to real names are dropped. A list with no name at all would otherwise return the
+ * rows unprojected, every value column included.
+ */
+export const fieldsProblem: Problem<unknown> = (value) =>
+  Array.isArray(value) &&
+  value.every((f) => typeof f === "string") &&
+  value.some((f) => !isBlank(f as string))
+    ? undefined
+    : "Expected a comma-separated list of field names.";

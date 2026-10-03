@@ -148,7 +148,9 @@ no raw user text is ever interpolated:
    `outFields=*` and does region filtering + field projection **client-side**
    (`filterByRegion`, `projectFields`). Region: numeric → exact `ags` match ignoring
    leading zeros; else case-insensitive substring on the name. Fields: keep only the
-   named value fields (unknown names ignored).
+   named value fields (an unknown name is refused against the catalogue's field
+   dictionary). A blank `region`, or a `fields` list without a non-blank name, is
+   refused before any request instead of returning every row or every column.
 5. **Defence in depth** (`sql.ts`). Right before interpolation, `buildSql` re-asserts
    the table matches `^[a-z0-9_]+$`, the typ is one of `{1,2,3,5}`, and the year is a
    4-digit integer — so a future refactor cannot route unvalidated text into SQL.
@@ -171,6 +173,15 @@ call the same functions and report the reason as a usage error, and `run.ts` map
 `RegionalatlasValidationError` raised in an action, or while the client is built, to
 exit 2 (`Error: <message>`). `test/helpers.ts` has a `parity()` helper that drives one
 input through `run()` and through the library on one recording mock transport.
+
+What the library refuses with `RegionalatlasValidationError`, before any request:
+
+- **Blank filters** (`nonEmptyProblem`): `indicators({ theme, search })` and
+  `query`/`queryResult({ region })` with `""` or a whitespace-only value, and `fields`
+  without a non-blank name (`fieldsProblem`; blank entries next to real names are
+  dropped). A blank filter would otherwise be skipped and return the unfiltered set.
+  `filterIndicators` and `filterByRegion` apply the same rule. The CLI's `--theme`,
+  `--search`, `--region` and `--fields` parsers call the same functions.
 
 ## ArcGIS specifics
 

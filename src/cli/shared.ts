@@ -6,6 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { RegionalatlasClientOptions } from "../client/client.js";
 import { findLevel, GEO_LEVELS, LEVEL_ALIASES } from "../client/levels.js";
+import { fieldsProblem, nonEmptyProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a plain base-10 non-negative integer.
@@ -33,11 +34,10 @@ export function parseYear(value: string): number {
   return Number(value);
 }
 
-/** commander value-parser: a non-empty (after trimming) string. */
+/** commander value-parser: a non-empty (after trimming) string — the library's nonEmptyProblem. */
 export function parseNonEmpty(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
+  const reason = nonEmptyProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
   return value;
 }
 
@@ -65,10 +65,8 @@ export function parseTextArg(value: string): string {
         "this one was left without a value. Supply the intended term.",
     );
   }
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
-  return value;
+  // A blank filter is the library's rule (nonEmptyProblem), checked again by the client.
+  return parseNonEmpty(value);
 }
 
 /**
@@ -89,20 +87,17 @@ export function parseLevel(value: string): string {
 }
 
 /**
- * commander value-parser for a comma-separated field list. Splits on commas,
- * trims, and drops empty entries. Field names are validated/projected client-side
- * later, so this only produces a clean array. A repeated option adds to the list
- * (commander passes the previous value): `--fields a --fields b` is `--fields a,b`,
- * where it used to keep only the last one.
+ * commander value-parser for a comma-separated field list. Splits on commas and
+ * applies the library's fieldsProblem (at least one non-blank name), then trims and
+ * drops the empty entries. Field names are validated/projected client-side later.
+ * A repeated option adds to the list (commander passes the previous value):
+ * `--fields a --fields b` is `--fields a,b`, where it used to keep only the last one.
  */
 export function parseFieldList(value: string, previous?: string[]): string[] {
-  const fields = value
-    .split(",")
-    .map((f) => f.trim())
-    .filter((f) => f !== "");
-  if (fields.length === 0) {
-    throw new InvalidArgumentError("Expected a comma-separated list of field names.");
-  }
+  const parts = value.split(",");
+  const reason = fieldsProblem(parts);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
+  const fields = parts.map((f) => f.trim()).filter((f) => f !== "");
   return [...(previous ?? []), ...fields];
 }
 

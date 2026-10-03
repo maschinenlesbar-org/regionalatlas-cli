@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, type Problem } from "../src/client/validate.js";
+import { assertValid, fieldsProblem, isBlank, nonEmptyProblem, type Problem } from "../src/client/validate.js";
+import { filterIndicators, parseIndicators } from "../src/client/catalog.js";
+import { filterByRegion } from "../src/client/client.js";
 import { RegionalatlasError, RegionalatlasValidationError } from "../src/client/errors.js";
 import * as lib from "../src/index.js";
 import { run } from "../src/cli/run.js";
@@ -74,4 +76,36 @@ test("parity() drives the same input through run() and the library on one transp
   assert.ok(res.ok);
   assert.equal(cli.out, JSON.stringify(res.value));
   assert.deepEqual(cli.requests.map((r) => r.url), res.requests.map((r) => r.url));
+});
+
+test("isBlank / nonEmptyProblem: empty and whitespace-only strings are blank", () => {
+  for (const v of ["", " ", "   ", "\t", "\n", " \t\n "]) {
+    assert.equal(isBlank(v), true, JSON.stringify(v));
+    assert.equal(nonEmptyProblem(v), "Expected a non-empty value.", JSON.stringify(v));
+  }
+  for (const v of ["a", " a ", "-1-5", "Bremen"]) {
+    assert.equal(isBlank(v), false, JSON.stringify(v));
+    assert.equal(nonEmptyProblem(v), undefined, JSON.stringify(v));
+  }
+  assert.equal(nonEmptyProblem(undefined), "Expected a non-empty value.");
+  assert.equal(nonEmptyProblem(42), "Expected a non-empty value.");
+});
+
+test("fieldsProblem: a field list needs at least one non-blank name", () => {
+  const reason = "Expected a comma-separated list of field names.";
+  for (const v of [[], [""], [" "], ["", " ", "\t"], "ai0201", [42], ["ai0201", 42], undefined]) {
+    assert.equal(fieldsProblem(v), reason, JSON.stringify(v));
+  }
+  for (const v of [["ai0201"], ["ai0201", " "], ["", "AI-Z01"]]) {
+    assert.equal(fieldsProblem(v), undefined, JSON.stringify(v));
+  }
+});
+
+test("filterIndicators and filterByRegion refuse a blank filter instead of skipping it", () => {
+  const all = parseIndicators(fx.catalog);
+  for (const filter of [{ theme: "" }, { theme: "  " }, { search: "" }, { search: "\t" }]) {
+    assert.throws(() => filterIndicators(all, filter), RegionalatlasValidationError, JSON.stringify(filter));
+  }
+  assert.throws(() => filterByRegion([], "   "), /^RegionalatlasValidationError: Invalid region: Expected a non-empty value\.$/);
+  assert.deepEqual(filterByRegion([], "Bremen"), []);
 });

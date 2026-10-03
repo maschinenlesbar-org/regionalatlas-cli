@@ -18,6 +18,7 @@ import type {
 import { RegionalatlasParseError, RegionalatlasValidationError } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
+import { assertValid, nonEmptyProblem } from "./validate.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -202,14 +203,25 @@ export function parseThemes(raw: unknown): Theme[] {
     }));
 }
 
-/** Filters for listing indicators. */
+/** Filters for listing indicators. Omit a filter to skip it; a blank one is refused. */
 export interface IndicatorFilter {
-  /** Case-insensitive substring on the theme title. */
+  /** Case-insensitive substring on the theme title (not blank). */
   theme?: string;
   /** Membership: the indicator must offer this year. */
   year?: string | number;
-  /** Case-insensitive substring over code + short + long titles. */
+  /** Case-insensitive substring over code + short + long titles (not blank). */
   search?: string;
+}
+
+/**
+ * Check an indicator filter before the catalogue is fetched: a `theme` or `search`
+ * that is set must not be blank ("" or whitespace), because a blank filter would
+ * match every indicator. Throws `RegionalatlasValidationError`
+ * (`Invalid search: Expected a non-empty value.`).
+ */
+export function assertIndicatorFilter(filter: IndicatorFilter): void {
+  if (filter.theme !== undefined) assertValid("theme", filter.theme, nonEmptyProblem);
+  if (filter.search !== undefined) assertValid("search", filter.search, nonEmptyProblem);
 }
 
 /**
@@ -221,16 +233,20 @@ export function foldText(text: string): string {
   return text.normalize("NFC").toLowerCase();
 }
 
-/** Apply the (optional) filters to a flat indicator list. */
+/**
+ * Apply the (optional) filters to a flat indicator list. A blank `theme` or
+ * `search` throws `RegionalatlasValidationError` (`assertIndicatorFilter`).
+ */
 export function filterIndicators(indicators: Indicator[], filter: IndicatorFilter = {}): Indicator[] {
+  assertIndicatorFilter(filter);
   const theme = filter.theme === undefined ? undefined : foldText(filter.theme.trim());
   const search = filter.search === undefined ? undefined : foldText(filter.search.trim());
   const year = filter.year !== undefined ? String(filter.year) : undefined;
 
   return indicators.filter((ind) => {
-    if (theme && !foldText(ind.theme).includes(theme)) return false;
+    if (theme !== undefined && !foldText(ind.theme).includes(theme)) return false;
     if (year && !ind.years.includes(year)) return false;
-    if (search) {
+    if (search !== undefined) {
       const hay = foldText(`${ind.code} ${ind.titleShort} ${ind.titleLong}`);
       if (!hay.includes(search)) return false;
     }

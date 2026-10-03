@@ -21,6 +21,7 @@ import {
   assertKnownFields,
   assertLevelPublished,
   fieldKey,
+  assertIndicatorFilter,
   filterIndicators,
   foldText,
   parseIndicators,
@@ -31,6 +32,7 @@ import {
 } from "./catalog.js";
 import { resolveLevel } from "./levels.js";
 import { buildLayerParam } from "./sql.js";
+import { assertValid, fieldsProblem, nonEmptyProblem } from "./validate.js";
 import type {
   ArcGisQueryResponse,
   Indicator,
@@ -98,8 +100,13 @@ export class RegionalatlasClient {
     return parseThemes(await this.rawCatalog());
   }
 
-  /** The flat indicator list, optionally filtered by theme / year / search. */
+  /**
+   * The flat indicator list, optionally filtered by theme / year / search. A blank
+   * `theme` or `search` rejects with `RegionalatlasValidationError` before the
+   * catalogue is fetched.
+   */
   async indicators(filter: IndicatorFilter = {}): Promise<Indicator[]> {
+    assertIndicatorFilter(filter);
     return filterIndicators(await this.allIndicators(), filter);
   }
 
@@ -120,6 +127,10 @@ export class RegionalatlasClient {
    * limit (`exceededTransferLimit`), which `query` cannot show.
    */
   async queryResult(opts: QueryOptions): Promise<QueryResult> {
+    // 0. The client-side filters, before any request: a blank region or a field
+    //    list without a name would otherwise return every row or every column.
+    if (opts.region !== undefined) assertValid("region", opts.region, nonEmptyProblem);
+    if (opts.fields !== undefined) assertValid("fields", opts.fields, fieldsProblem);
     // 1. Resolve the indicator against the catalogue allowlist (throws if unknown).
     const indicators = await this.allIndicators();
     const indicator = resolveIndicator(indicators, opts.indicator);
@@ -132,7 +143,7 @@ export class RegionalatlasClient {
     assertLevelPublished(indicator, level.name, year);
     // 3b. Validate the requested value fields against the catalogue's field
     //     dictionary, before spending a request on rows that would project to {}.
-    if (opts.fields && opts.fields.length > 0) assertKnownFields(indicator, opts.fields);
+    if (opts.fields !== undefined) assertKnownFields(indicator, opts.fields);
 
     // 4. Build the SQL from validated pieces only.
     const layer = buildLayerParam(indicator.table, level.typ, year);
@@ -158,9 +169,9 @@ export class RegionalatlasClient {
     );
 
     // 5. Client-side region filter + field projection (no user text upstream).
-    const filtered = opts.region ? filterByRegion(rows, opts.region) : rows;
+    const filtered = opts.region !== undefined ? filterByRegion(rows, opts.region) : rows;
     return {
-      rows: opts.fields && opts.fields.length > 0 ? projectFields(filtered, opts.fields) : filtered,
+      rows: opts.fields !== undefined ? projectFields(filtered, opts.fields) : filtered,
       fetched: rows.length,
       // The MapServer stops at its maxRecordCount and says so only in this flag; the
       // rows are then a silent prefix of the level. Only a literal `true` counts.
@@ -368,11 +379,11 @@ export function parseRow(
 /**
  * Client-side region filter. A numeric input is matched as an exact `ags` (ignoring
  * leading zeros on both sides); otherwise a case-insensitive substring of the name,
- * compared in NFC (`foldText`) so a decomposed umlaut matches.
+ * compared in NFC (`foldText`) so a decomposed umlaut matches. A blank region
+ * throws `RegionalatlasValidationError` rather than matching every row.
  */
 export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
-  const trimmed = region.trim();
-  if (trimmed === "") return rows;
+  const trimmed = assertValid("region", region, nonEmptyProblem).trim();
   if (/^\d+$/.test(trimmed)) {
     const target = String(Number(trimmed)); // strip leading zeros
     return rows.filter((r) => String(Number(r.ags.replace(/\D/g, "") || "0")) === target);

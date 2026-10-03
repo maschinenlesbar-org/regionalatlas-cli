@@ -30,6 +30,7 @@ export {
   parseThemes,
   parseIndicators,
   filterIndicators,
+  assertIndicatorFilter,
   foldText,
   resolveIndicator,
   resolveYear,
@@ -42,7 +43,7 @@ export {
 export type { IndicatorFilter } from "./catalog.js";
 export { GEO_LEVELS, LEVEL_ALIASES, findLevel, resolveLevel, levelForTyp } from "./levels.js";
 export { buildSql, buildLayerParam } from "./sql.js";
-export { assertValid } from "./validate.js";
+export { assertValid, isBlank, nonEmptyProblem, fieldsProblem } from "./validate.js";
 export type { Problem } from "./validate.js";
 export {
   RegionalatlasError,
