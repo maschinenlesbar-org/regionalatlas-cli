@@ -31,6 +31,7 @@ export {
   parseIndicators,
   filterIndicators,
   assertIndicatorFilter,
+  normaliseYearFilter,
   foldText,
   resolveIndicator,
   resolveYear,
@@ -43,7 +44,14 @@ export {
 export type { IndicatorFilter } from "./catalog.js";
 export { GEO_LEVELS, LEVEL_ALIASES, DEFAULT_LEVEL, findLevel, resolveLevel, levelForTyp } from "./levels.js";
 export { buildSql, buildLayerParam } from "./sql.js";
-export { assertValid, isBlank, nonEmptyProblem, fieldsProblem } from "./validate.js";
+export {
+  assertValid,
+  isBlank,
+  nonEmptyProblem,
+  fieldsProblem,
+  yearProblem,
+  YEAR_SHAPE,
+} from "./validate.js";
 export type { Problem } from "./validate.js";
 export {
   RegionalatlasError,

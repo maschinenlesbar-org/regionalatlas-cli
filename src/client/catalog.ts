@@ -18,7 +18,7 @@ import type {
 import { RegionalatlasParseError, RegionalatlasValidationError } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
-import { assertValid, nonEmptyProblem } from "./validate.js";
+import { assertValid, nonEmptyProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -52,9 +52,6 @@ function catalogText(value: unknown): string {
  * internal error.
  */
 const CODE_SHAPE = /^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/;
-
-/** A catalogue year key: exactly four digits, no leading zero (it enters SQL as an integer). */
-const YEAR_SHAPE = /^[1-9][0-9]{3}$/;
 
 /** A value-column name after `fieldKey`: lower-case letters, digits, underscores. */
 const FIELD_SHAPE = /^[a-z0-9_]+$/;
@@ -207,7 +204,7 @@ export function parseThemes(raw: unknown): Theme[] {
 export interface IndicatorFilter {
   /** Case-insensitive substring on the theme title (not blank). */
   theme?: string;
-  /** Membership: the indicator must offer this year. */
+  /** Membership: the indicator must offer this year (a 4-digit year, number or string). */
   year?: string | number;
   /** Case-insensitive substring over code + short + long titles (not blank). */
   search?: string;
@@ -216,12 +213,24 @@ export interface IndicatorFilter {
 /**
  * Check an indicator filter before the catalogue is fetched: a `theme` or `search`
  * that is set must not be blank ("" or whitespace), because a blank filter would
- * match every indicator. Throws `RegionalatlasValidationError`
- * (`Invalid search: Expected a non-empty value.`).
+ * match every indicator, and a `year` must be a 4-digit year (`normaliseYearFilter`).
+ * Throws `RegionalatlasValidationError` (`Invalid search: Expected a non-empty value.`).
  */
 export function assertIndicatorFilter(filter: IndicatorFilter): void {
   if (filter.theme !== undefined) assertValid("theme", filter.theme, nonEmptyProblem);
+  if (filter.year !== undefined) normaliseYearFilter(filter.year);
   if (filter.search !== undefined) assertValid("search", filter.search, nonEmptyProblem);
+}
+
+/**
+ * The canonical form of a year filter: the year as the 4-digit string the catalogue
+ * keys use. Accepts an integer (`2020`) or an unpadded 4-digit string (`"2020"`);
+ * anything else (`" 2020"`, `""`, `1.5`, `20`, `"02020"`) throws
+ * `RegionalatlasValidationError` (`Invalid year: Expected a 4-digit year (e.g. 2020).`)
+ * instead of matching nothing or being skipped.
+ */
+export function normaliseYearFilter(year: string | number): string {
+  return String(assertValid("year", year, yearProblem));
 }
 
 /**
@@ -241,11 +250,11 @@ export function filterIndicators(indicators: Indicator[], filter: IndicatorFilte
   assertIndicatorFilter(filter);
   const theme = filter.theme === undefined ? undefined : foldText(filter.theme.trim());
   const search = filter.search === undefined ? undefined : foldText(filter.search.trim());
-  const year = filter.year !== undefined ? String(filter.year) : undefined;
+  const year = filter.year !== undefined ? normaliseYearFilter(filter.year) : undefined;
 
   return indicators.filter((ind) => {
     if (theme !== undefined && !foldText(ind.theme).includes(theme)) return false;
-    if (year && !ind.years.includes(year)) return false;
+    if (year !== undefined && !ind.years.includes(year)) return false;
     if (search !== undefined) {
       const hay = foldText(`${ind.code} ${ind.titleShort} ${ind.titleLong}`);
       if (!hay.includes(search)) return false;

@@ -1,7 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, fieldsProblem, isBlank, nonEmptyProblem, type Problem } from "../src/client/validate.js";
-import { filterIndicators, parseIndicators } from "../src/client/catalog.js";
+import {
+  assertValid,
+  fieldsProblem,
+  isBlank,
+  nonEmptyProblem,
+  yearProblem,
+  YEAR_SHAPE,
+  type Problem,
+} from "../src/client/validate.js";
+import { filterIndicators, normaliseYearFilter, parseIndicators } from "../src/client/catalog.js";
 import { filterByRegion } from "../src/client/client.js";
 import { RegionalatlasError, RegionalatlasValidationError } from "../src/client/errors.js";
 import * as lib from "../src/index.js";
@@ -108,4 +116,18 @@ test("filterIndicators and filterByRegion refuse a blank filter instead of skipp
   }
   assert.throws(() => filterByRegion([], "   "), /^RegionalatlasValidationError: Invalid region: Expected a non-empty value\.$/);
   assert.deepEqual(filterByRegion([], "Bremen"), []);
+});
+
+test("yearProblem / normaliseYearFilter: a 4-digit year, as a number or an unpadded string", () => {
+  const reason = "Expected a 4-digit year (e.g. 2020).";
+  for (const v of [2020, "2020", 1000, "9999"]) assert.equal(yearProblem(v), undefined, String(v));
+  for (const v of ["", "  ", " 2020", "2020 ", "02020", "0999", 999, 20, 0, -1, 1.5, Number.NaN, Infinity, "0x10", 10000, null, undefined, [2020]]) {
+    assert.equal(yearProblem(v), reason, JSON.stringify(v));
+  }
+  assert.equal(normaliseYearFilter(2020), "2020");
+  assert.equal(normaliseYearFilter("2024"), "2024");
+  assert.throws(() => normaliseYearFilter(" 2020"), /^RegionalatlasValidationError: Invalid year: Expected a 4-digit year/);
+  assert.ok(YEAR_SHAPE.test("2020") && !YEAR_SHAPE.test("0999"));
+  assert.equal(lib.YEAR_SHAPE, YEAR_SHAPE);
+  assert.equal(lib.normaliseYearFilter, normaliseYearFilter);
 });

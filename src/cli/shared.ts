@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { RegionalatlasClientOptions } from "../client/client.js";
 import { findLevel, GEO_LEVELS, LEVEL_ALIASES } from "../client/levels.js";
-import { fieldsProblem, nonEmptyProblem } from "../client/validate.js";
+import { fieldsProblem, nonEmptyProblem, yearProblem } from "../client/validate.js";
 
 /**
  * commander value-parser: a plain base-10 non-negative integer.
@@ -26,11 +26,13 @@ export function parseIntArg(value: string): number {
   return n;
 }
 
-/** commander value-parser: a 4-digit year (integer 1000..9999). */
+/**
+ * commander value-parser: a 4-digit year (1000..9999), checked with the library's
+ * yearProblem, as a number.
+ */
 export function parseYear(value: string): number {
-  if (!/^[0-9]{4}$/.test(value)) {
-    throw new InvalidArgumentError("Expected a 4-digit year (e.g. 2020).");
-  }
+  const reason = yearProblem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
   return Number(value);
 }
 

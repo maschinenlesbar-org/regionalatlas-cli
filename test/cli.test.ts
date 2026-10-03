@@ -402,7 +402,8 @@ test("a malformed catalogue entry is never reported as an unexpected error", asy
   const cases: [string[], number, RegExp][] = [
     [["query", "X1 UNION SELECT"], 2, /Unknown indicator/],
     [["query", "Y2"], 2, /has no years listed/],
-    [["query", "Y7", "--year", "0999"], 2, /Year 999 is not available .* Available: 2020\./],
+    // The catalogue's "0999" key is left out, and --year 0999 is not a 4-digit year.
+    [["query", "Y7", "--year", "0999"], 2, /Expected a 4-digit year/],
   ];
   for (const [argv, exit, message] of cases) {
     const cli = makeCli(routeByHost(catalog, fx.landData));

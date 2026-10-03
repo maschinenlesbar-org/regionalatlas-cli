@@ -46,3 +46,21 @@ export const fieldsProblem: Problem<unknown> = (value) =>
   value.some((f) => !isBlank(f as string))
     ? undefined
     : "Expected a comma-separated list of field names.";
+
+/**
+ * A 4-digit year, no leading zero: the shape of a catalogue year key, and of a
+ * year filter. Years enter SQL as integers, so "0999" is not 999.
+ */
+export const YEAR_SHAPE = /^[1-9][0-9]{3}$/;
+
+/**
+ * A year filter is an integer 1000..9999, or a string of exactly those four digits
+ * (no padding, no leading zero, no sign or decimal point). Anything else would only
+ * ever match nothing (a false empty list) or, for "", be skipped (the full list).
+ */
+export const yearProblem: Problem<unknown> = (value) => {
+  const ok =
+    (typeof value === "number" && Number.isSafeInteger(value) && YEAR_SHAPE.test(String(value))) ||
+    (typeof value === "string" && YEAR_SHAPE.test(value));
+  return ok ? undefined : "Expected a 4-digit year (e.g. 2020).";
+};

@@ -107,3 +107,42 @@ test("parity: an omitted, undefined or null level is the default, not a raw Type
     );
   }
 });
+
+// ---- Finding #2 (PAT-17): the indicators year filter ----
+
+const badYearCases: Array<[string, unknown]> = [
+  [" 2020", " 2020"],
+  ["2020 ", "2020 "],
+  ["20", 20],
+  ["0", 0],
+  ["1.5", 1.5],
+  ["02020", "02020"],
+  ["0999", 999],
+  ["0x10", "0x10"],
+  ["NaN", Number.NaN],
+  ["Infinity", Number.POSITIVE_INFINITY],
+  ["", ""],
+  ["   ", "   "],
+];
+
+for (const [arg, value] of badYearCases) {
+  test(`parity: indicators --year ${JSON.stringify(arg)} is rejected by CLI and library alike`, async () => {
+    await assertBothReject(
+      ["indicators", "--year", arg],
+      (t) => client(t).indicators({ year: value as string | number }),
+      /^Invalid year: Expected a 4-digit year \(e\.g\. 2020\)\.$/,
+    );
+  });
+}
+
+test("parity: indicators --year 2020 filters the same on both sides (number and string)", async () => {
+  for (const year of [2020, "2020"]) {
+    const { cli, lib } = await parity(["--compact", "indicators", "--year", "2020"], (t) => client(t).indicators({ year }), routes);
+    assert.equal(cli.code, 0);
+    assert.ok(lib.ok);
+    assert.deepEqual(requestShapes(cli.requests), requestShapes(lib.requests));
+    const codes = (JSON.parse(cli.out) as { code: string }[]).map((i) => i.code);
+    assert.deepEqual(codes, (lib.value as { code: string }[]).map((i) => i.code));
+    assert.deepEqual(codes, ["AI001-2-5", "AI002-1-5", "AI002-2-5"]);
+  }
+});

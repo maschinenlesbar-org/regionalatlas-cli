@@ -183,6 +183,11 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   dropped). A blank filter would otherwise be skipped and return the unfiltered set.
   `filterIndicators` and `filterByRegion` apply the same rule. The CLI's `--theme`,
   `--search`, `--region` and `--fields` parsers call the same functions.
+- **The `indicators` year filter** (`yearProblem`, `normaliseYearFilter`): an integer
+  1000..9999 or an unpadded 4-digit string (`YEAR_SHAPE`, the catalogue's year-key
+  shape). `" 2020"`, `""`, `1.5`, `20` or `"02020"` would otherwise match nothing (a
+  false empty list) or, for `""`, be skipped. `--year` uses the same rule for both
+  commands.
 
 ## ArcGIS specifics
 
