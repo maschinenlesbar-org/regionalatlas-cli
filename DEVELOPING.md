@@ -27,6 +27,7 @@ src/
   client/        # typed API client, usable independently of the CLI
     types.ts     # geo levels, catalogue types, ArcGIS query envelope, RegionRow
     query.ts     # dependency-free query-string builder
+    validate.ts  # the library's input rules (Problem functions + assertValid)
     http.ts      # Transport interface + default node:http/https transport
     engine.ts    # URL building (data host + absolute catalogue URL), GET, retry, decode
     errors.ts    # RegionalatlasError / …ApiError / …NetworkError / …ValidationError / …ParseError
@@ -157,6 +158,20 @@ data transport**; an out-of-range or non-integer year is rejected; an unknown le
 rejected; and the built SQL contains only the allowlisted table plus the integer
 typ/year (no `;`, `--`, or quotes).
 
+## Library input validation
+
+The library owns every rule about what a request may contain; the CLI only turns argv
+into typed values and maps errors to exit codes. The rules are pure functions in
+[`validate.ts`](src/client/validate.ts): a `Problem` returns the reason a value is
+invalid, or `undefined`, and `assertValid(name, value, problem)` turns a reason into a
+`RegionalatlasValidationError` with the message `Invalid <name>: <reason>`. Client
+methods check their input before any request (an async method rejects rather than
+throwing synchronously), so a rejected input sends nothing. The CLI's commander parsers
+call the same functions and report the reason as a usage error, and `run.ts` maps a
+`RegionalatlasValidationError` raised in an action, or while the client is built, to
+exit 2 (`Error: <message>`). `test/helpers.ts` has a `parity()` helper that drives one
+input through `run()` and through the library on one recording mock transport.
+
 ## ArcGIS specifics
 
 - **Logical errors are HTTP 200 with `{"error":{code,message,details}}`** (verified
@@ -204,6 +219,10 @@ host (catalogue vs data). Coverage highlights:
   bounded retries, option-shaped filter values).
 - `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
   the scheme guard, and JSON decoding/error mapping.
+- `validate.test.ts` — the input rules, `assertValid`, and how `run()` reports a
+  `RegionalatlasValidationError`.
+- `parity.test.ts` — the same input through the CLI and the library (`parity()`): both
+  reject without a request, or both send the identical requests.
 
 ## Conventions to keep
 

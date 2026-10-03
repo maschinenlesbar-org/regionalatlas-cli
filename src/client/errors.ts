@@ -110,7 +110,9 @@ export class RegionalatlasNetworkError extends RegionalatlasError {}
  * unknown indicator code, an unknown geo level, or a year outside an indicator's
  * available range. Crucially, the indicator/level/year values that enter the raw
  * SQL query are all validated against the catalogue here, so a rejected value
- * never reaches the transport.
+ * never reaches the transport. `assertValid` (validate.ts) throws it with the
+ * message `Invalid <name>: <reason>`. The CLI maps it to its usage-error exit
+ * code (2).
  */
 export class RegionalatlasValidationError extends RegionalatlasError {}
 

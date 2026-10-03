@@ -4,6 +4,9 @@
 
 import { mock } from "node:test";
 import type { Transport, HttpRequest, HttpResponse } from "../src/client/http.js";
+import { run } from "../src/cli/run.js";
+import { defaultDeps } from "../src/cli/program.js";
+import type { CliDeps } from "../src/cli/io.js";
 
 export function jsonResponse(body: unknown, status = 200): HttpResponse {
   return {
@@ -73,4 +76,61 @@ export function routeByHost(catalog: unknown, data: unknown): (req: HttpRequest)
     if (url.hostname.includes("statistikportal")) return jsonResponse(catalog);
     return jsonResponse(data);
   };
+}
+
+// ---- CLI ↔ library parity ----
+
+/** What the CLI did with one argv: exit code, captured output, requests sent. */
+export interface CliOutcome {
+  code: number;
+  out: string;
+  err: string;
+  requests: HttpRequest[];
+}
+
+/** What the library call did: its value or error, and the requests it sent. */
+export type LibOutcome =
+  | { ok: true; value: unknown; requests: HttpRequest[] }
+  | { ok: false; error: unknown; requests: HttpRequest[] };
+
+/**
+ * Drive one input through the CLI (`run(argv)` with the real `defaultDeps`, only the
+ * transport and the I/O swapped) and through a library call, on ONE recording mock
+ * transport, and return both outcomes. A synchronous throw in `call` (a constructor
+ * rejecting an option) is captured like a rejected promise. Parity means: both
+ * reject and neither sent a request, or both sent the identical requests.
+ *
+ *   const { cli, lib } = await parity(["--compact", "indicators", "--search", " "],
+ *     (transport) => new RegionalatlasClient({ transport }).indicators({ search: " " }));
+ */
+export async function parity(
+  argv: string[],
+  call: (transport: Transport) => unknown,
+  responder: (req: HttpRequest) => HttpResponse | Promise<HttpResponse> = () => jsonResponse({}),
+): Promise<{ cli: CliOutcome; lib: LibOutcome }> {
+  const mt = makeMockTransport(responder);
+  const out: string[] = [];
+  const err: string[] = [];
+  const deps: CliDeps = {
+    ...defaultDeps,
+    io: { ...defaultDeps.io, out: (s) => out.push(s), err: (s) => err.push(s) },
+    createClient: (opts) => defaultDeps.createClient({ ...opts, transport: mt.transport }),
+  };
+  const code = await run(argv, deps);
+  const cli: CliOutcome = { code, out: out.join("\n"), err: err.join("\n"), requests: mt.calls.slice() };
+
+  const before = mt.calls.length;
+  let lib: LibOutcome;
+  try {
+    const value: unknown = await call(mt.transport);
+    lib = { ok: true, value, requests: mt.calls.slice(before) };
+  } catch (error) {
+    lib = { ok: false, error, requests: mt.calls.slice(before) };
+  }
+  return { cli, lib };
+}
+
+/** The method + URL + headers of each request, for comparing the two sides. */
+export function requestShapes(requests: HttpRequest[]): { method: string; url: string; headers: unknown }[] {
+  return requests.map((r) => ({ method: r.method, url: r.url, headers: r.headers }));
 }
