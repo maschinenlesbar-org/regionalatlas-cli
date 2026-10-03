@@ -7,7 +7,7 @@ description: >
   population / elections / environment?", "find the code for Bevölkerungsstand",
   "which years does this indicator cover?", or wants to discover the themes and
   indicator codes before pulling data. Lists the 21 themes and the 71 indicators
-  with their codes, titles and year ranges, and resolves a topic to an indicator code.
+  with their codes, titles and years, and resolves a topic to an indicator code.
 compatibility: >
   Requires the `regionalatlas` CLI (npm package
   @maschinenlesbar.org/regionalatlas-cli) on PATH, installed by the user; the
@@ -34,7 +34,7 @@ This skill also filters JSON with `jq`. **Validate it too** — run `command -v 
 | Command | Output |
 |---|---|
 | `regionalatlas themes` | `[{ title, indicatorCount }, …]` — the 21 subject areas |
-| `regionalatlas indicators` | `[{ code, table, theme, titleShort, titleLong, years, fields }, …]` — the indicators |
+| `regionalatlas indicators` | `[{ code, table, theme, titleShort, titleLong, years, levels, fields }, …]` — the indicators |
 
 Indicator fields:
 
@@ -45,7 +45,8 @@ Indicator fields:
 | `theme` | the Themenbereich (subject area) |
 | `titleShort` | short title of the indicator |
 | `titleLong` | long title, e.g. `Regionalatlas Deutschland Themenbereich "Wahlen" Indikatoren zu "Bundestagswahl"`; `--search` matches it too |
-| `years` | **first–last** catalogue year only, e.g. `1998–2025` — it hides gaps (see Traps) |
+| `years` | every year the catalogue offers, ascending, e.g. `["1998", "2002", …, "2025"]` — gaps are real (see Traps) |
+| `levels` | per year, the geo levels with figures, e.g. `{ "2025": ["land"] }`; `query` refuses any other level for that year |
 | `fields` | the indicator's value columns: `{ code, title, unit }` each, in the order `query` returns them. This is what a `values` key means; pass a `code` to `query --fields` |
 
 ## Recipes
@@ -80,12 +81,10 @@ regionalatlas indicators --search AI005 --year 2024 --compact
   code and the indicator's titles, not the column titles in `fields`, so a column topic
   such as `wahlbeteiligung` returns `[]`. Search the indicator's topic, then read its
   `fields` (`AI005` lists "Wahlbeteiligung, Bundestagswahl" there).
-- **The `years` range hides gaps.** It shows only the first and last year: `AI005` says
-  `1998–2025` but offers only the election years (1998, 2002, 2005, 2009, 2013, 2017, 2021,
-  2025), and `AI002-1-5` says `2000–2024` but skips 2001–2004. Check a year with
-  `--year` here (an empty result means not offered), or read the `Available:` list that
-  `regionalatlas query <code> --year <y>` prints when it rejects a year (exit 2).
-- **The newest catalogue year may not be loaded yet.** `AI013-1` listed `2000–2026` on
+- **Years have gaps.** `years` lists only the years with figures: `AI005` offers just the
+  election years (1998, 2002, 2005, 2009, 2013, 2017, 2021, 2025), and `AI002-1-5` skips
+  2001–2004. Pick a year from the list, and a level from `levels` for that year.
+- **The newest catalogue year may not be loaded yet.** `AI013-1` listed years up to 2026 on
   2026-09-15, but `query` returned `[]` for 2026 (with a `Note:` on stderr naming 2025).
   A year listed here is not a guarantee of data.
 - **`values` keys are bare column codes — `indicators` says what they mean.** Each

@@ -40,8 +40,9 @@ part is sent as Basic auth and shown as `***@` in error messages. The library ch
 | `--year <yyyy>` | only indicators offering this year |
 | `--search <substr>` | filter over code + short + long title (case-insensitive; a decomposed umlaut matches too, as for `--theme` and `--region`) |
 
-`regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years, fields }, …]`,
-where `years` is a compact range (e.g. `2000–2024`) and `fields` lists the value columns a
+`regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years, levels, fields }, …]`,
+where `years` lists every year offered (e.g. `["2000", "2005", …]`, gaps included), `levels` maps
+each year to the geo levels with figures, and `fields` lists the value columns a
 `query` returns as `{ code, title, unit }`, `code` being the key in `values`. `titleLong` is the catalogue's long
 title, which `--search` also matches (it contains the theme name).
 

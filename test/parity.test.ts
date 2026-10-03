@@ -253,3 +253,13 @@ test("parity: a known level with the catalogue down — both reject the level wi
   assert.ok(!lib.ok && lib.error instanceof RegionalatlasValidationError, String(!lib.ok && lib.error));
   assert.equal(cli.requests.length + lib.requests.length, 0);
 });
+
+// ---- Finding #6 (PAT-19): `indicators` prints the library's records unchanged ----
+
+test("indicators prints what client.indicators() returns: years as an array, levels included", async () => {
+  await assertSameResult(["indicators"], (t) => client(t).indicators());
+  await assertSameResult(["indicators", "--search", "altersgruppen"], (t) => client(t).indicators({ search: "altersgruppen" }));
+  await assertSameResult(["indicators", "--theme", "bevölkerung", "--year", "2020"], (t) =>
+    client(t).indicators({ theme: "bevölkerung", year: 2020 }),
+  );
+});

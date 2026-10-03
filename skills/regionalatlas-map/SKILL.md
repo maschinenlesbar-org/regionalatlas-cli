@@ -76,8 +76,8 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   (`AI002-1-5`) or `table` (`ai002_1_5`). An unknown code is a usage error (exit 2) — it
   is validated against the catalogue before any query runs.
 - **`--year` must be one the indicator offers** (else exit 2, and the error lists the
-  `Available:` years). The `years` range from `regionalatlas indicators` shows only
-  first–last and hides gaps (`AI005` `1998–2025` has only election years).
+  `Available:` years). `regionalatlas indicators` lists every offered year in `years` and
+  the levels with figures per year in `levels` (`AI005` has only election years).
 - **Leaving out `--year` uses the newest catalogue year, which may not be loaded yet.**
   The CLI then prints `[]`, exits 0 and writes a `Note:` on stderr naming the previous
   year (on 2026-09-15 `AI013-1` gave `[]` for 2026 and all 400 Kreise with `--year 2025`).

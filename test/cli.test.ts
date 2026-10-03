@@ -273,7 +273,8 @@ test("indicators includes the long title that --search also matches", async () =
       theme: "Bevölkerung",
       titleShort: "Bevölkerung nach Altersgruppen",
       titleLong: "Themenbereich Bevölkerung — Altersgruppen",
-      years: "2019–2020",
+      years: ["2019", "2020"],
+      levels: {},
       fields: [{ code: "ai0203", title: "Anteil unter 18-Jährige", unit: "Prozent" }],
     },
   ]);
