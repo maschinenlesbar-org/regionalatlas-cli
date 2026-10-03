@@ -88,3 +88,33 @@ export const headerNameProblem: Problem<unknown> = (value) =>
   typeof value === "string" && /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(value)
     ? undefined
     : "Expected an HTTP header name (letters, digits and !#$%&'*+.^_`|~-).";
+
+/**
+ * The shared URL rules, in order: non-blank, no surrounding whitespace, no
+ * whitespace or control character inside (new URL() would silently trim or strip
+ * them, but the engine concatenates the raw string, and a custom transport gets it
+ * as is), parsable, `http:`/`https:` only — and for a base URL no query or
+ * fragment, because request paths are appended to it as a string. Userinfo is
+ * allowed (Node sends it as Basic auth; messages redact it).
+ */
+function urlProblem(value: unknown, base: boolean): string | undefined {
+  const label = base ? "A base URL" : "A URL";
+  if (typeof value !== "string" || isBlank(value)) return "Expected a non-empty value.";
+  if (value !== value.trim()) return `${label} cannot have surrounding whitespace.`;
+  if (/[\s\u0000-\u001f\u007f]/.test(value)) return `${label} cannot contain whitespace or control characters.`;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "Expected a valid URL (e.g. https://host/path).";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http: and https: URLs are supported.";
+  if (base && /[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  return undefined;
+}
+
+/** An absolute `http:`/`https:` URL, such as the catalogue URL (`catalogUrl`). */
+export const httpUrlProblem: Problem<unknown> = (value) => urlProblem(value, false);
+
+/** The data host's base URL (`baseUrl`): httpUrlProblem, plus no query or fragment. */
+export const baseUrlProblem: Problem<unknown> = (value) => urlProblem(value, true);

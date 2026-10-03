@@ -170,3 +170,64 @@ test("parity: an accepted User-Agent (tab, Latin-1, padding) is sent unchanged b
     await assertSameResult(["--user-agent", ua, "themes"], (t) => new RegionalatlasClient({ transport: t, userAgent: ua }).themes());
   }
 });
+
+// ---- Finding #5 (PAT-1, PAT-2): base and catalogue URLs ----
+
+const badBaseUrls: Array<[string, RegExp]> = [
+  ["", /^Invalid baseUrl: Expected a non-empty value\.$/],
+  [" ", /^Invalid baseUrl: Expected a non-empty value\.$/],
+  [" https://h.test", /^Invalid baseUrl: A base URL cannot have surrounding whitespace\.$/],
+  ["https://h.test ", /^Invalid baseUrl: A base URL cannot have surrounding whitespace\.$/],
+  ["https://h.test/a\tb", /^Invalid baseUrl: A base URL cannot contain whitespace or control characters\.$/],
+  ["not a url", /^Invalid baseUrl: /],
+  ["nourl", /^Invalid baseUrl: Expected a valid URL \(e\.g\. https:\/\/host\/path\)\.$/],
+  ["ftp://h", /^Invalid baseUrl: Only http: and https: URLs are supported\.$/],
+  ["https://h/?a=1", /^Invalid baseUrl: A base URL cannot have a query \(\?\) or fragment \(#\)\.$/],
+  ["https://h/#f", /^Invalid baseUrl: A base URL cannot have a query/],
+];
+
+for (const [url, message] of badBaseUrls) {
+  test(`parity: --base-url ${JSON.stringify(url)} is rejected by CLI and library alike`, async () => {
+    await assertBothReject(
+      ["--base-url", url, "query", "AI002-1-5", "--year", "2020"],
+      (t) => new RegionalatlasClient({ transport: t, baseUrl: url }).query({ indicator: "AI002-1-5", year: 2020 }),
+      message,
+    );
+  });
+}
+
+const badCatalogUrls: Array<[string, RegExp]> = [
+  ["", /^Invalid catalogUrl: Expected a non-empty value\.$/],
+  [" ", /^Invalid catalogUrl: Expected a non-empty value\.$/],
+  [" https://c.test/services.json", /^Invalid catalogUrl: A URL cannot have surrounding whitespace\.$/],
+  ["https://c.test/services.json ", /^Invalid catalogUrl: A URL cannot have surrounding whitespace\.$/],
+  ["file:///etc/passwd", /^Invalid catalogUrl: Only http: and https: URLs are supported\.$/],
+  ["nourl", /^Invalid catalogUrl: Expected a valid URL/],
+];
+
+for (const [url, message] of badCatalogUrls) {
+  test(`parity: --catalog-url ${JSON.stringify(url)} is rejected by CLI and library alike`, async () => {
+    await assertBothReject(
+      ["--catalog-url", url, "themes"],
+      (t) => new RegionalatlasClient({ transport: t, catalogUrl: url }).themes(),
+      message,
+    );
+  });
+}
+
+test("parity: valid base and catalogue URLs (mirror path, userinfo, catalogue query) send the same requests", async () => {
+  for (const [baseUrl, catalogUrl] of [
+    ["https://mirror.example/gis/", "https://regionalatlas.statistikportal.de/taskrunner/services.json?v=1"],
+    ["https://user:pw@gis-idmz.example", "http://statistikportal.example/services.json"],
+  ] as const) {
+    const { cli, lib } = await parity(
+      ["--compact", "--base-url", baseUrl, "--catalog-url", catalogUrl, "query", "AI002-1-5", "--year", "2020"],
+      (t) => new RegionalatlasClient({ transport: t, baseUrl, catalogUrl }).query({ indicator: "AI002-1-5", year: 2020 }),
+      (req) => (req.url.includes("services.json") ? routes({ ...req, url: "https://statistikportal/" }) : routes(req)),
+    );
+    assert.equal(cli.code, 0, cli.err);
+    assert.ok(lib.ok);
+    assert.deepEqual(requestShapes(cli.requests), requestShapes(lib.requests));
+    assert.equal(cli.out, JSON.stringify(lib.value));
+  }
+});

@@ -6,7 +6,22 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { RegionalatlasClientOptions } from "../client/client.js";
 import { findLevel, GEO_LEVELS, LEVEL_ALIASES } from "../client/levels.js";
-import { fieldsProblem, headerValueProblem, nonEmptyProblem, yearProblem } from "../client/validate.js";
+import {
+  baseUrlProblem,
+  fieldsProblem,
+  headerValueProblem,
+  httpUrlProblem,
+  nonEmptyProblem,
+  yearProblem,
+  type Problem,
+} from "../client/validate.js";
+
+/** Run a library rule as a commander value-parser: the reason becomes a usage error. */
+function check<T>(value: T, problem: Problem<T>): T {
+  const reason = problem(value);
+  if (reason !== undefined) throw new InvalidArgumentError(reason);
+  return value;
+}
 
 /**
  * commander value-parser: a plain base-10 non-negative integer.
@@ -104,44 +119,23 @@ export function parseFieldList(value: string, previous?: string[]): string[] {
 }
 
 /**
- * commander value-parser for `--base-url` / `--catalog-url`: a non-empty,
- * well-formed URL whose scheme is `http:` or `https:`. Validating here (parse time)
- * rejects a bad scheme (`file:`, `ftp:`, ...) as a usage error (exit 2) with a clear
- * message, rather than letting it reach the transport and surface as a network error
- * (exit 6). The transport re-checks the scheme as defence in depth.
+ * commander value-parser for `--catalog-url`: the library's httpUrlProblem (a
+ * non-blank `http:`/`https:` URL without whitespace), reported as a usage error
+ * (exit 2) rather than a network error later. The client checks `catalogUrl` the
+ * same way when it is built.
  */
 export function parseHttpUrl(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
-  let url: URL;
-  try {
-    url = new URL(trimmed);
-  } catch {
-    throw new InvalidArgumentError("Expected a valid URL (e.g. https://host/path).");
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new InvalidArgumentError("Only http: and https: URLs are supported.");
-  }
-  return value;
+  return check(value, httpUrlProblem);
 }
 
 /**
- * commander value-parser for `--base-url`: `parseHttpUrl`, plus no query or
- * fragment and no surrounding whitespace. The client appends the data path to the
- * base URL as a string, so `?token=abc` or `#frag` would swallow the path.
- * Userinfo is allowed (Node sends it as Basic auth) and redacted in messages.
+ * commander value-parser for `--base-url`: the library's baseUrlProblem —
+ * httpUrlProblem plus no query or fragment, since the client appends the data path
+ * to the base URL as a string. Userinfo is allowed (Node sends it as Basic auth) and
+ * redacted in messages.
  */
 export function parseBaseUrl(value: string): string {
-  parseHttpUrl(value);
-  if (/[?#]/.test(value)) {
-    throw new InvalidArgumentError("A base URL cannot have a query (?) or fragment (#).");
-  }
-  if (value !== value.trim()) {
-    throw new InvalidArgumentError("A base URL cannot have surrounding whitespace.");
-  }
-  return value;
+  return check(value, baseUrlProblem);
 }
 
 /** Build a commander value-parser for an integer constrained to [min, max]. */

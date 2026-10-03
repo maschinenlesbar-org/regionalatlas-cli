@@ -14,6 +14,7 @@ export type { RegionalatlasClientOptions } from "./client.js";
 export {
   RequestEngine,
   assertHeaderValue,
+  validateHttpUrl,
   DEFAULT_BASE_URL,
   MAX_RETRY_AFTER_MS,
   MAX_RETRIES,
@@ -54,6 +55,8 @@ export {
   YEAR_SHAPE,
   headerValueProblem,
   headerNameProblem,
+  httpUrlProblem,
+  baseUrlProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 export {

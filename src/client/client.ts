@@ -15,7 +15,7 @@
 //   await c.indicators({ search: "bevölkerung" });       // matching indicators
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
-import { RequestEngine, describeArcGisError, type EngineOptions } from "./engine.js";
+import { RequestEngine, describeArcGisError, validateHttpUrl, type EngineOptions } from "./engine.js";
 import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
 import {
   assertKnownFields,
@@ -53,7 +53,10 @@ const DATA_PATH =
 
 /** Options for the client (engine options plus the catalogue URL — no auth). */
 export interface RegionalatlasClientOptions extends EngineOptions {
-  /** Full URL of the indicator catalogue (services.json). Defaults to statistikportal.de. */
+  /**
+   * Full URL of the indicator catalogue (services.json): an `http:`/`https:` URL
+   * without whitespace. Defaults to statistikportal.de.
+   */
   catalogUrl?: string;
 }
 
@@ -70,7 +73,10 @@ export class RegionalatlasClient {
 
   constructor(options: RegionalatlasClientOptions = {}) {
     this.engine = new RequestEngine(options);
-    this.catalogUrl = options.catalogUrl ?? DEFAULT_CATALOG_URL;
+    // Checked here, not on first use: a bad catalogue URL is a configuration error
+    // (RegionalatlasValidationError), not a network failure after a wasted request.
+    this.catalogUrl =
+      options.catalogUrl === undefined ? DEFAULT_CATALOG_URL : validateHttpUrl("catalogUrl", options.catalogUrl);
   }
 
   /** Fetch and cache the raw services.json (an array of themes). */

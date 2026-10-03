@@ -210,8 +210,11 @@ test("requestUrl rejects a non-http(s) scheme at the engine level, before the tr
   const mt = makeMockTransport(() => jsonResponse(fx.landData));
   // Data host with a file: base URL — a library consumer injecting a custom
   // transport would otherwise never hit a scheme check.
-  const e1 = new RequestEngine({ transport: mt.transport, baseUrl: "file:///etc/passwd" });
-  await assert.rejects(() => e1.getJson("/x/query"), RegionalatlasNetworkError);
+  // A file: base URL is refused when the engine is built.
+  assert.throws(
+    () => new RequestEngine({ transport: mt.transport, baseUrl: "file:///etc/passwd" }),
+    RegionalatlasValidationError,
+  );
   // Absolute (catalogue) URL with an ftp: scheme.
   const e2 = new RequestEngine({ transport: mt.transport });
   await assert.rejects(
@@ -259,14 +262,14 @@ test("parseRetryAfter reads delta-seconds and an IMF-fixdate only", () => {
   }
 });
 
-test("the engine refuses a base URL with a query or fragment, redacting userinfo", () => {
+test("the engine refuses a base URL with a query or fragment, without echoing userinfo", () => {
   assert.throws(
     () => new RequestEngine({ baseUrl: "http://u:secret@h.example/m?token=1" }),
     (err: unknown) =>
-      err instanceof RegionalatlasNetworkError &&
-      err.message === "Base URL must not contain a query or fragment: http://***@h.example/m?token=1",
+      err instanceof RegionalatlasValidationError &&
+      err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#).",
   );
-  assert.throws(() => new RequestEngine({ baseUrl: "http://h.example/m#f" }), RegionalatlasNetworkError);
+  assert.throws(() => new RequestEngine({ baseUrl: "http://h.example/m#f" }), RegionalatlasValidationError);
   assert.doesNotThrow(() => new RequestEngine({ baseUrl: "http://h.example/mirror/" }));
 });
 

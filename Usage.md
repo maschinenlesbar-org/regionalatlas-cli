@@ -20,10 +20,11 @@ regionalatlas [global options] <command> [command options]
 | `--compact` | print JSON on a single line (for piping to `jq`) |
 | `-V, --version` / `-h, --help` | version / help |
 
-`--base-url` and `--catalog-url` accept only `http:`/`https:` URLs. `--base-url` must
-not have a query (`?`) or fragment (`#`) or surrounding whitespace (the CLI appends the
-data path to it); a path prefix for a mirror is fine. A `user:password@` part is sent as
-Basic auth and shown as `***@` in error messages.
+`--base-url` and `--catalog-url` accept only `http:`/`https:` URLs without whitespace
+(around or inside them). `--base-url` must not have a query (`?`) or fragment (`#`) (the
+CLI appends the data path to it); a path prefix for a mirror is fine. A `user:password@`
+part is sent as Basic auth and shown as `***@` in error messages. The library checks
+`baseUrl` and `catalogUrl` by the same rules when the client is built.
 
 ## Commands
 

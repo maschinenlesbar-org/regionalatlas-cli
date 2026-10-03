@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertValid,
+  baseUrlProblem,
   fieldsProblem,
+  httpUrlProblem,
   isBlank,
   nonEmptyProblem,
   yearProblem,
@@ -130,4 +132,19 @@ test("yearProblem / normaliseYearFilter: a 4-digit year, as a number or an unpad
   assert.ok(YEAR_SHAPE.test("2020") && !YEAR_SHAPE.test("0999"));
   assert.equal(lib.YEAR_SHAPE, YEAR_SHAPE);
   assert.equal(lib.normaliseYearFilter, normaliseYearFilter);
+});
+
+test("httpUrlProblem / baseUrlProblem: the URL rules, in order", () => {
+  assert.equal(httpUrlProblem("https://c.test/services.json?v=1"), undefined);
+  assert.equal(baseUrlProblem("https://u:pw@h.test/mirror/"), undefined);
+  assert.equal(httpUrlProblem(""), "Expected a non-empty value.");
+  assert.equal(httpUrlProblem(" https://c.test"), "A URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem("https://h.test "), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem("https://h.test/a\nb"), "A base URL cannot contain whitespace or control characters.");
+  assert.equal(httpUrlProblem("https://c.test/a b"), "A URL cannot contain whitespace or control characters.");
+  assert.equal(httpUrlProblem("nourl"), "Expected a valid URL (e.g. https://host/path).");
+  assert.equal(httpUrlProblem("ftp://h"), "Only http: and https: URLs are supported.");
+  assert.equal(httpUrlProblem("https://c.test/?q=1#x"), undefined);
+  assert.equal(baseUrlProblem("https://h/?q=1"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(httpUrlProblem(42), "Expected a non-empty value.");
 });

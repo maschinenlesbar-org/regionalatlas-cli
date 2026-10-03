@@ -18,7 +18,13 @@ import {
   RegionalatlasValidationError,
   redactUrl,
 } from "./errors.js";
-import { assertValid, headerNameProblem, headerValueProblem } from "./validate.js";
+import {
+  assertValid,
+  baseUrlProblem,
+  headerNameProblem,
+  headerValueProblem,
+  httpUrlProblem,
+} from "./validate.js";
 
 /** The ArcGIS MapServer host that answers the dynamicLayer data queries. */
 export const DEFAULT_BASE_URL = "https://www.gis-idmz.nrw.de";
@@ -210,6 +216,18 @@ function assertHttpScheme(url: string): void {
 }
 
 /**
+ * Check a configured URL and return it unchanged, or throw a
+ * RegionalatlasValidationError (`Invalid <name>: <reason>`): blank, surrounding or
+ * interior whitespace or control characters, unparsable, or not `http:`/`https:`;
+ * with `base: true` also a query or fragment (`baseUrlProblem`, else
+ * `httpUrlProblem`). The client checks `baseUrl` and `catalogUrl` with it when it is
+ * built; the CLI's `--base-url`/`--catalog-url` parsers use the same rules.
+ */
+export function validateHttpUrl(name: string, value: string, options: { base?: boolean } = {}): string {
+  return assertValid(name, value, options.base === true ? baseUrlProblem : httpUrlProblem);
+}
+
+/**
  * Check a value bound for an HTTP header (headerValueProblem) and return it, or
  * throw a RegionalatlasValidationError
  * (`Invalid <name>: Value contains control characters.`).
@@ -230,15 +248,13 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    // Request paths are appended to the base URL as a string, so a `?` or `#` in it
-    // would swallow every path: `http://h/m?token=abc` requests
-    // `/m?token=abc/arcgis/...` and `http://h/m#f` requests `/m` with no parameters.
-    if (/[?#]/.test(this.baseUrl)) {
-      throw new RegionalatlasNetworkError(
-        `Base URL must not contain a query or fragment: ${redactUrl(this.baseUrl)}`,
-      );
-    }
+    // The raw value is checked, before the trailing-slash strip: request paths are
+    // appended to it as a string, so whitespace would land in the path, and a `?` or
+    // `#` would swallow every path (`http://h/m?token=abc` requests
+    // `/m?token=abc/arcgis/...`). Only undefined selects the default.
+    const baseUrl =
+      options.baseUrl === undefined ? DEFAULT_BASE_URL : validateHttpUrl("baseUrl", options.baseUrl, { base: true });
+    this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.transport = options.transport ?? nodeHttpTransport;
     // Only undefined selects the default; a blank or unsendable value is refused
     // here rather than sent blank or failing late with Node's raw TypeError.

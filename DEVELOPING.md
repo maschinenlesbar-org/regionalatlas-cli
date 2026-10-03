@@ -195,6 +195,14 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   omitted `userAgent` selects the default. The CLI's `--user-agent` parser uses the same
   rule. As a last net, the default transport turns a header Node refuses into a
   `RegionalatlasNetworkError` (`Invalid request: …`) instead of a raw `TypeError`.
+- **URLs** (`httpUrlProblem`, `baseUrlProblem`, `validateHttpUrl` in engine.ts), checked
+  when the client is built: `baseUrl` and `catalogUrl` must be non-blank `http:`/`https:`
+  URLs without surrounding or interior whitespace or control characters; `baseUrl` also
+  without a query or fragment. Userinfo is allowed (sent as Basic auth, redacted in
+  messages). A bad value used to be accepted and fail later, after the catalogue request,
+  as a `RegionalatlasNetworkError`. The engine keeps its per-request scheme check
+  (`assertHttpScheme`) as defence in depth for absolute URLs. `--base-url` and
+  `--catalog-url` use the same rules.
 
 ## ArcGIS specifics
 
