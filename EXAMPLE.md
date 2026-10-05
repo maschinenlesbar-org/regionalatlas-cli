@@ -3,8 +3,9 @@
 Real examples for the Claude Code skills of the `regionalatlas` plugin, one per skill: a request,
 the `regionalatlas` commands the skill ran, and the answer Claude gave.
 
-Every example ran against the live API on 15 September 2026 with `regionalatlas` 0.0.4, except
-regionalatlas-catalog, re-run on 26 September 2026 with 0.2.0.
+Every example ran against the live API on 6 October 2026, around 01:30, with `regionalatlas` 0.4.0.
+The data queries went to the live data host; the indicator catalogue (about 2 MB) was downloaded
+once that night and read from that copy, to spare the host repeated downloads.
 The data changes, so your results will differ; the ids and keys shown work for trying the
 requests yourself. Long lists are shortened.
 
@@ -21,8 +22,9 @@ regionalatlas themes --compact | jq -r '.[] | "\(.title)\t\(.indicatorCount)"'
 regionalatlas indicators --search kita --compact   # [] + "Note: none of the 71 catalogue indicators match --search "kita"."
 regionalatlas indicators --search betreu --compact | jq '.[] | {code, theme, titleShort, years}'
 regionalatlas indicators --search betreu --year 2025 --compact | jq -r '.[].code'
-regionalatlas indicators --search Betreuungsquote --compact | jq '.[].fields'   # what the columns mean
-regionalatlas query AI003-3 --level land --year 2025 --region Schleswig --compact
+regionalatlas indicators --search Betreuungsquote --compact \
+  | jq '.[] | {fields, levels2025: .levels["2025"]}'   # what the columns mean; 2025 has land, rb, kreis
+regionalatlas query AI003-3 --level land --year 2025 --region Schleswig-Holstein --compact
 ```
 
 "Kita" matched nothing, so the skill searched for the stem `betreu`. It found four indicators under three different themes, so searching by theme alone would have missed some.
@@ -37,7 +39,8 @@ The catalogue has 21 themes and 71 indicators. Four of them cover childcare, and
 | `AI-N-05` | Nachhaltigkeit | Ganztagsbetreuung von Kindern | 2009–2025 |
 
 For "what share of children are in care", use `AI003-3` (Betreuungsquote). `indicators` names its
-two value columns, so no probing query is needed to read them:
+two value columns, so no probing query is needed to read them, and its `levels` show that 2025
+has figures per Land, Regierungsbezirk and Kreis (a listed year can have none):
 
 | Column | Unit | Measures |
 |---|---|---|
@@ -54,13 +57,17 @@ Next steps offered: pull `AI003-3` for every Kreis (regionalatlas-map) or set a 
 > How does disposable income per inhabitant compare between the cities of Munich and Leipzig, Görlitz and Gelsenkirchen? Where do they rank among all Kreise?
 
 ```bash
-regionalatlas indicators --search kopf --compact                    # AI-S-01 Verfügbares Einkommen pro Kopf, 2000–2022
-regionalatlas query AI-S-01 --level kreis --region München --compact  # 2 rows: Landkreis and Stadt
-regionalatlas query AI-S-01 --level kreis --fields ai1601 --compact \
-  | jq '[.[] | select(.name|test("München|Gelsenkirchen|Leipzig|Görlitz"))] | map({ags, name, v: .values.ai1601})'
+regionalatlas indicators --search kopf --compact                    # AI-S-01 Verfügbares Einkommen pro Kopf, 2000–2022, unit EUR
+regionalatlas query AI-S-01 --level kreis --region München --compact  # 1 row, 09162 München; Note: left out 09184 München, Landkreis
+regionalatlas query AI-S-01 --level kreis --fields ai1601 --compact > kreise.json   # one fetch, 400 rows
+jq '[.[] | select(.ags|IN("09162","14713","14626","05513","09184","14729"))] | map({ags, name, v: .values.ai1601})' kreise.json
+jq '(map(select(.values.ai1601 == null)) | length) as $none
+        | map(select(.values.ai1601 != null)) | sort_by(.values.ai1601)
+        | {lowest: (.[0] | {name, v: .values.ai1601}), highest: (.[-1] | {name, v: .values.ai1601}),
+           with_figure: length, without_figure: $none}' kreise.json
 ```
 
-Both "München" and "Leipzig" match a city and a Landkreis of the same name, so the name filter returned six rows. The skill kept the cities by AGS (`09162`, `14713`) and listed the two Landkreise separately. It fetched the whole level once, so ranking all Kreise needed no extra requests. Every row is 2022, and none is `null`.
+`--region München` returned the city alone, by its exact name, and a note on stderr named the Landkreis it left out (`09184 München, Landkreis`); Leipzig has the same pair (`14713` / `14729`). So the skill picked the four places by AGS and listed the two Landkreise separately. It fetched the whole level once and filtered the saved answer, so ranking all Kreise needed no extra request. Every row is 2022, and none is `null`.
 
 Verfügbares Einkommen pro Kopf (`AI-S-01`, field `ai1601`), 2022, 400 Kreise:
 
@@ -75,7 +82,7 @@ Verfügbares Einkommen pro Kopf (`AI-S-01`, field `ai1601`), 2022, 400 Kreise:
 
 Highest: Starnberg (09188) 40,205 · Miesbach (09182) 38,621. Lowest: Gelsenkirchen 18,522 ·
 Duisburg (05112) 19,325 · Bremerhaven (04012) 20,059. The unweighted mean over the 400 Kreise is 25,631.
-Munich has almost twice Gelsenkirchen's figure. The output gives no unit.
+Munich has almost twice Gelsenkirchen's figure. The unit is EUR, from the indicator's `fields`.
 Data © Statistische Ämter des Bundes und der Länder, dl-de/by-2.0.
 
 ## regionalatlas-map
@@ -84,13 +91,13 @@ Data © Statistische Ämter des Bundes und der Länder, dl-de/by-2.0.
 
 ```bash
 regionalatlas indicators --search pkw --compact                     # AI013-1 Pkw-Dichte, 2000–2026 (also AI-N-08-01)
-regionalatlas query AI013-1 --level kreis --fields ai1301 --compact # [] exit 0: latest catalogue year 2026 has no rows
-regionalatlas query AI013-1 --level kreis --year 2025 --compact | jq '.[0]'
-regionalatlas query AI013-1 --level kreis --year 2025 --fields ai1301 --compact \
-  | jq -r '.[] | "\(.ags)\t\(.name)\t\(.values.ai1301)"'
+regionalatlas query AI013-1 --level kreis --fields ai1301 --compact # [] exit 0 + Note: 2026 may not be loaded yet; try --year 2025
+regionalatlas query AI013-1 --level kreis --year 2025 --fields ai1301 --compact > pkw-2025.json
+jq -r '.[] | "\(.ags)\t\(.name)\t\(.values.ai1301)"' pkw-2025.json
+jq 'map(select(.values.ai1301 != null)) | sort_by(.values.ai1301) | reverse | .[:6] | .[] | {name, ai1301: .values.ai1301}' pkw-2025.json
 ```
 
-Leaving out `--year` should give the latest year. The catalogue lists 2026 as latest, but there is no data for it yet, and the query returned an empty list with exit 0. The skill retried with 2025. That returned all 400 Kreise with no `null` values. Berlin comes back as a single Kreis row with AGS `11`.
+Leaving out `--year` should give the latest year. The catalogue lists 2026 as latest (its `levels` even claim Kreis figures for it), but the data host has none yet: the query returned an empty list with exit 0, and the note on stderr named 2025. The skill retried with 2025. That returned all 400 Kreise with no `null` values. Berlin comes back as a single Kreis row with AGS `11`.
 
 Pkw-Dichte (`AI013-1`, field `ai1301`), 2025, 400 Kreise and kreisfreie Städte. Median 638.15, range 334.5–955.9:
 
