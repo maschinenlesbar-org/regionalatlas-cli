@@ -130,3 +130,20 @@ test("library: no error of the catalogue or the data host carries the password",
   });
   assert.ok((await ok.query({ indicator: "AI002-1-5", year: 2020 })).length > 0);
 });
+
+test("P4 for --catalog-url: a '%' that isn't an escape in the userinfo is a usage error before any request", async () => {
+  for (const url of ["https://alice:100%@cat.example/c.json", "https://al%ice:pw@cat.example/c.json"]) {
+    let requests = 0;
+    const out: string[] = [];
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+      createClient: (opts) => new RegionalatlasClient({ ...opts, transport: async () => (requests++, json(200, [])) }),
+    };
+    assert.equal(await run(["--catalog-url", url, "themes"], deps), 2, err.join("\n"));
+    assert.equal(requests, 0);
+    assert.match(err.join("\n"), /%25/);
+    assert.throws(() => new RegionalatlasClient({ catalogUrl: url }), /%25/);
+  }
+  assert.doesNotThrow(() => new RegionalatlasClient({ catalogUrl: "https://alice:100%25@cat.example/c.json" }));
+});

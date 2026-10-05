@@ -25,7 +25,8 @@ regionalatlas [global options] <command> [command options]
 CLI appends the data path to it); a path prefix for a mirror is fine. A `user:password@`
 part is sent as Basic auth and shown as `***@` in everything the CLI prints — its own error
 messages, commander's usage errors (which quote a rejected value), help — whatever
-characters the password contains. The library checks `baseUrl` and `catalogUrl` by the
+characters the password contains. A `%` in the user name or password must start an escape
+(write a literal `%` as `%25`); a bare one is a usage error (exit 2). The library checks `baseUrl` and `catalogUrl` by the
 same rules when the client is built.
 
 ## Commands

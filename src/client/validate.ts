@@ -95,7 +95,8 @@ export const headerNameProblem: Problem<unknown> = (value) =>
  * them, but the engine concatenates the raw string, and a custom transport gets it
  * as is), parsable, `http:`/`https:` only — and for a base URL no query or
  * fragment, because request paths are appended to it as a string. Userinfo is
- * allowed (Node sends it as Basic auth; messages redact it).
+ * allowed (Node sends it as Basic auth; messages redact it), but a `%` in it must start
+ * a valid escape (`%25` for a literal one). The reasons never repeat the value.
  */
 function urlProblem(value: unknown, base: boolean): string | undefined {
   const label = base ? "A base URL" : "A URL";
@@ -110,6 +111,15 @@ function urlProblem(value: unknown, base: boolean): string | undefined {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http: and https: URLs are supported.";
   if (base && /[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // Node decodes the userinfo for the Basic-auth header and fails at request time on a
+  // "%" that starts no escape; refuse it here, as a usage error, without echoing it.
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   return undefined;
 }
 

@@ -202,7 +202,8 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   when the client is built: `baseUrl` and `catalogUrl` must be non-blank `http:`/`https:`
   URLs without surrounding or interior whitespace or control characters; `baseUrl` also
   without a query or fragment. Userinfo is allowed (sent as Basic auth, redacted in
-  messages). The CLI also redacts on output: `run.ts` (`withRedactedOutput`) takes the
+  messages), but a `%` in it must start a valid escape (`%25` for a literal one): Node
+  decodes it for the Basic-auth header and would fail only at request time. The CLI also redacts on output: `run.ts` (`withRedactedOutput`) takes the
   exact userinfo of every argument (`credentialsIn`, exported) and replaces it with `***`
   in everything it prints — commander's usage errors, which echo a rejected
   `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
