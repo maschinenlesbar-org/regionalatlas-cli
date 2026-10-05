@@ -13,7 +13,6 @@ import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
   nodeHttpTransport,
-  sizeLimitMessage,
   type HttpRequest,
   type HttpResponse,
   type Transport,
@@ -24,9 +23,11 @@ import {
   RegionalatlasError,
   RegionalatlasNetworkError,
   RegionalatlasParseError,
+  RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   credentialsIn,
   cutForMessage,
+  type Download,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -524,7 +525,7 @@ export class RequestEngine {
    * are NOT followed — the canonical host answers directly, so a 3xx surfaces as
    * an error.
    */
-  private async requestUrl(url: string, accept: string): Promise<RawResponse> {
+  private async requestUrl(url: string, accept: string, download: Download): Promise<RawResponse> {
     // Enforce http(s) at the engine boundary too. The CLI validates
     // --base-url/--catalog-url at parse time and the default transport re-checks,
     // but a library consumer injecting a custom Transport would otherwise inherit no
@@ -557,6 +558,10 @@ export class RequestEngine {
           await this.sleep(this.retryDelayMs * attempt);
           continue;
         }
+        // Say which download was too big (the transport doesn't know).
+        if (cause instanceof RegionalatlasSizeLimitError && cause.download === undefined) {
+          throw new RegionalatlasSizeLimitError(cause.limit, download, { cause });
+        }
         throw this.transportError(cause);
       }
 
@@ -573,7 +578,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new RegionalatlasNetworkError(sizeLimitMessage(this.maxResponseBytes));
+        throw new RegionalatlasSizeLimitError(this.maxResponseBytes, download);
       }
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {
@@ -599,7 +604,7 @@ export class RequestEngine {
 
   /** GET a path on the data host with query params. */
   async request(path: string, query?: QueryParams, accept = "application/json"): Promise<RawResponse> {
-    return this.requestUrl(this.buildUrl(path, query), accept);
+    return this.requestUrl(this.buildUrl(path, query), accept, "data");
   }
 
   /** GET a path on the data host and parse the JSON reply into `T`. */
@@ -612,7 +617,7 @@ export class RequestEngine {
     const url = this.buildAbsoluteUrl(absoluteUrl, query);
     // Its userinfo is as secret as the base URL's: scrub it from every message too.
     for (const form of credentialForms(url)) this.#credentials.add(form);
-    return this.decodeJson<T>(await this.requestUrl(url, "application/json"), redactUrl(url));
+    return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), redactUrl(url));
   }
 
   /** Parse a JSON body; `source` names it in the error (a path, or a redacted URL). */

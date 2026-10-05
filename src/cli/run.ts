@@ -10,6 +10,7 @@ import {
   RegionalatlasApiError,
   RegionalatlasError,
   RegionalatlasNetworkError,
+  RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   credentialsIn,
   redactCredentials,
@@ -129,7 +130,13 @@ export async function run(argv: string[], rawDeps: CliDeps = defaultDeps): Promi
     }
     if (err instanceof RegionalatlasNetworkError) {
       deps.io.err(`Error: ${err.message}`);
-      if (/maxResponseBytes/.test(err.message)) {
+      if (err instanceof RegionalatlasSizeLimitError && err.download === "catalogue") {
+        // themes, indicators and every query read the catalogue first; no --level helps.
+        deps.io.err(
+          "Hint: the indicator catalogue (about 2 MB) is larger than the size cap. Raise " +
+            "--max-response-bytes <n> (0 = unlimited).",
+        );
+      } else if (/maxResponseBytes/.test(err.message)) {
         deps.io.err(
           "Hint: the response exceeded the size cap. Narrow the query (a coarser --level) or " +
             "raise --max-response-bytes <n> (0 = unlimited).",

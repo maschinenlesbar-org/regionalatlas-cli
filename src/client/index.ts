@@ -72,6 +72,8 @@ export {
   RegionalatlasNetworkError,
   RegionalatlasValidationError,
   RegionalatlasParseError,
+  RegionalatlasSizeLimitError,
+  sizeLimitMessage,
   redactUrl,
   cutForMessage,
   MAX_MESSAGE_VALUE_LENGTH,
@@ -80,4 +82,5 @@ export {
   shortenUrl,
 } from "./errors.js";
 
+export type { Download } from "./errors.js";
 export * from "./types.js";

@@ -316,7 +316,10 @@ host (catalogue vs data). Coverage highlights:
   request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and
   the call rejects then with a `RegionalatlasNetworkError` whether the transport stops or
   not — and checks the size of the body it gets back against `maxResponseBytes`
-  (`sizeLimitMessage` names both the option and `--max-response-bytes`). A transport may
+  (`sizeLimitMessage` names both the option and `--max-response-bytes`). The error is a
+  `RegionalatlasSizeLimitError` (a `RegionalatlasNetworkError`) whose `download` says
+  which one was too big, `"catalogue"` or `"data"`, so the CLI's hint fits: raise the cap
+  for the catalogue, a coarser `--level` or a higher cap for a data reply. A transport may
   return the body as a Buffer, any `ArrayBuffer` view (fetch's `Uint8Array`, from any
   realm) or an `ArrayBuffer`, and the headers as a plain record in any case, a `Headers`
   object or a `Map` (`plainHeaders`; `Retry-After` is read either way). Whatever it throws

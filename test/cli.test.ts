@@ -542,3 +542,33 @@ test("P11: --level with a decomposed umlaut works like the composed alias (findi
     assert.ok(sent.some((u) => decodeURIComponent(u).includes("typ = 1")), sent.join("\n"));
   }
 });
+
+test("the size-cap hint fits the download: the catalogue, or a data reply (finding 07#1)", async () => {
+  const { run } = await import("../src/cli/run.js");
+  const { RegionalatlasClient } = await import("../src/client/client.js");
+  const fx = await import("./fixtures.js");
+  const big = { ...fx.landData, padding: "x".repeat(5000) };
+  for (const [argv, catalogBody, wantHint] of [
+    [["--max-response-bytes", "1000", "themes"], [...fx.catalog, { title: "x".repeat(5000), children: [] }], /indicator catalogue \(about 2 MB\).*Raise --max-response-bytes/],
+    [["--max-response-bytes", "1000", "indicators"], [...fx.catalog, { title: "x".repeat(5000), children: [] }], /indicator catalogue \(about 2 MB\)/],
+    [["--max-response-bytes", "4000", "query", "AI002-1-5", "--year", "2020"], fx.catalog, /coarser --level/],
+  ] as const) {
+    const err: string[] = [];
+    const code = await run([...argv], {
+      io: { out: () => {}, err: (s) => err.push(s) },
+      createClient: (opts) =>
+        new RegionalatlasClient({
+          ...opts,
+          transport: async (req) => ({
+            status: 200,
+            headers: { "content-type": "application/json" },
+            body: Buffer.from(JSON.stringify(new URL(req.url).hostname.includes("statistikportal") ? catalogBody : big)),
+          }),
+        }),
+    });
+    assert.equal(code, 6, err.join("\n"));
+    assert.match(err.join("\n"), wantHint);
+    const args: readonly string[] = argv;
+    if (args.includes("themes") || args.includes("indicators")) assert.doesNotMatch(err.join("\n"), /--level/);
+  }
+});

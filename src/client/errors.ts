@@ -165,6 +165,32 @@ export class RegionalatlasApiError extends RegionalatlasError {
 /** A transport-level failure (DNS, connection reset, timeout, ...). */
 export class RegionalatlasNetworkError extends RegionalatlasError {}
 
+/** Which download a size-limit error is about: the indicator catalogue or a data query. */
+export type Download = "catalogue" | "data";
+
+/** The message for a body over the size cap, naming the option on both sides. */
+export function sizeLimitMessage(maxBytes: number, download?: Download): string {
+  const what = download === "catalogue" ? "The indicator catalogue" : "Response";
+  return `${what} exceeded the size limit of ${maxBytes} bytes (maxResponseBytes; --max-response-bytes on the CLI)`;
+}
+
+/**
+ * A response body over `maxResponseBytes` (a `RegionalatlasNetworkError`, exit 6 on the
+ * CLI). `download` says which one, so the advice can fit: the catalogue (about 2 MB) only
+ * gets smaller with a higher limit, a data reply also with a coarser level. It is
+ * `undefined` when a transport raised the error outside the engine.
+ */
+export class RegionalatlasSizeLimitError extends RegionalatlasNetworkError {
+  readonly limit: number;
+  readonly download: Download | undefined;
+
+  constructor(limit: number, download?: Download, options?: { cause?: unknown }) {
+    super(sizeLimitMessage(limit, download), options);
+    this.limit = limit;
+    this.download = download;
+  }
+}
+
 /**
  * A client-side validation / not-found error made before any request — e.g. an
  * unknown indicator code, an unknown geo level, or a year outside an indicator's

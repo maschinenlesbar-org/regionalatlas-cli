@@ -16,7 +16,7 @@ regionalatlas [global options] <command> [command options]
 | `--timeout <ms>` | time limit per request in ms, whole response included (0 = no timeout; at most 2147483647) |
 | `--user-agent <ua>` | User-Agent header value (not blank; no control characters or characters above U+00FF) |
 | `--max-retries <n>` | retries for transient 429/503 responses and reset connections (0..10); a refused connection, a DNS failure and a timeout are not retried. Each retry waits a linear backoff (200 ms, 400 ms, …), or the server's `Retry-After` when that is longer (capped at 30 s) — never less, so `Retry-After: 0` still waits the backoff |
-| `--max-response-bytes <n>` | cap the response body size in bytes (0 = unlimited; default 100 MiB) |
+| `--max-response-bytes <n>` | cap the response body size in bytes (0 = unlimited; default 100 MiB). Every command reads the indicator catalogue (about 2 MB) first, so a cap below that fails even `themes`; the error says which download was too big |
 | `--compact` | print JSON on a single line (for piping to `jq`) |
 | `-V, --version` / `-h, --help` | version / help |
 

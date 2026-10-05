@@ -8,7 +8,9 @@
 
 import http from "node:http";
 import https from "node:https";
-import { RegionalatlasNetworkError, redactUrl } from "./errors.js";
+import { RegionalatlasNetworkError, RegionalatlasSizeLimitError, redactUrl, sizeLimitMessage } from "./errors.js";
+
+export { sizeLimitMessage };
 
 export interface HttpRequest {
   method: string;
@@ -37,10 +39,6 @@ export interface HttpResponse {
 
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 
-/** The message for a body over the size cap, naming the option on both sides. */
-export function sizeLimitMessage(maxBytes: number): string {
-  return `Response exceeded the size limit of ${maxBytes} bytes (maxResponseBytes; --max-response-bytes on the CLI)`;
-}
 
 /**
  * The longest delay Node's timers support (2^31 - 1 ms, about 24.8 days). A longer one
@@ -111,7 +109,7 @@ export const nodeHttpTransport: Transport = (request) =>
             if (maxBytes !== undefined && received > maxBytes) {
               aborted = true;
               res.destroy();
-              fail(new RegionalatlasNetworkError(sizeLimitMessage(maxBytes)));
+              fail(new RegionalatlasSizeLimitError(maxBytes));
               return;
             }
             chunks.push(chunk);
