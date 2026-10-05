@@ -330,7 +330,7 @@ test("a --region that matches nothing notes the region, no note when rows remain
   // The host returned rows, so the year is not the suspect: no "try --year" hint.
   assert.deepEqual(none.err, [
     'Note: none of the 2 rows for AI002-1-5 at level land in 2024 match --region "Bayern" ' +
-      "(a name substring or an AGS).",
+      "(a name, a part of one, or an AGS).",
   ]);
 
   const some = makeRoutingCli();

@@ -86,7 +86,8 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
 - **`--fields` are the value columns** (e.g. `ai0201`) — get the names from the
   `fields` list on the indicator (`regionalatlas indicators --search …`), not from a
   probing query. An unknown name is a usage error (exit 2) whose message lists the
-  valid columns. `--region` filters client-side (a name substring or an AGS).
+  valid columns. `--region` filters client-side (an AGS, or an exact name — else every
+  name containing the text; a `Note:` on stderr says when several regions match).
 - **`values` keys are bare column codes — `indicators` says what they mean.** Each
   indicator row carries a `fields` list of `{code, title, unit}` in the order the data
   host returns the columns. Read the label from there; never infer it from the code

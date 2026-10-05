@@ -7,7 +7,9 @@ import type { Command } from "commander";
 import type { CliDeps } from "../io.js";
 import { resolveIndicator, resolveYear, type IndicatorFilter } from "../../client/catalog.js";
 import { DEFAULT_LEVEL } from "../../client/levels.js";
-import type { Indicator, QueryOptions } from "../../client/types.js";
+import type { Indicator, QueryOptions, QueryResult, RegionRow } from "../../client/types.js";
+import { sanitizeServerText } from "../../client/engine.js";
+import { cutForMessage } from "../../client/errors.js";
 import {
   action,
   parseFieldList,
@@ -63,7 +65,11 @@ export function registerCommands(program: Command, deps: CliDeps): void {
       DEFAULT_LEVEL,
     )
     .option("--year <yyyy>", "reporting year (defaults to the newest year in the catalogue)", parseYear)
-    .option("--region <name|ags>", "keep only rows matching this name (substring) or AGS", parseTextArg)
+    .option(
+      "--region <name|ags>",
+      "keep only the region with this AGS or exact name (else every name containing it; a note says when several match)",
+      parseTextArg,
+    )
     .option(
       "--fields <a,b,c>",
       "keep only these value fields (comma-separated; repeatable)",
@@ -76,8 +82,12 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         if (typeof opts["year"] === "number") query.year = opts["year"];
         if (typeof opts["region"] === "string") query.region = opts["region"];
         if (Array.isArray(opts["fields"])) query.fields = opts["fields"] as string[];
-        const { rows, fetched, exceededTransferLimit } = await client.queryResult(query);
+        const { rows, fetched, exceededTransferLimit, region } = await client.queryResult(query);
         renderJson(deps, global, rows);
+        if (region !== undefined && query.region !== undefined) {
+          const note = regionNote(query.region, region, rows);
+          if (note !== undefined) deps.io.err(note);
+        }
         if (exceededTransferLimit) {
           deps.io.err(
             `Note: the data host stopped at its record limit after ${fetched} rows ` +
@@ -92,6 +102,43 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         }
       }),
     );
+}
+
+/** Up to five regions as `ags name`, then how many more. */
+function regionList(rows: ReadonlyArray<{ ags: string; name: string }>): string {
+  const shown = rows.slice(0, 5).map((r) => sanitizeServerText(`${r.ags} ${r.name}`));
+  return rows.length > 5 ? `${shown.join(", ")} and ${rows.length - 5} more` : shown.join(", ");
+}
+
+/**
+ * The stderr note for how `--region` matched, or undefined when there is nothing to say
+ * (one row by its key, or one row by a name nothing else contains). The library prefers a
+ * whole-name match over substring hits (`matchRegion`), so `Sachsen` is Sachsen alone; the
+ * note names what that left out and says when several rows matched (a shared name, or a
+ * substring), so neither a user nor a
+ * script takes the first row of an ambiguous answer for the region it asked about.
+ */
+export function regionNote(
+  input: string,
+  match: NonNullable<QueryResult["region"]>,
+  rows: readonly RegionRow[],
+): string | undefined {
+  const asked = JSON.stringify(cutForMessage(input.trim()));
+  if (rows.length > 1) {
+    const how = match.by === "name" ? "share that exact name" : "contain it in their name (no name equals it)";
+    return (
+      `Note: --region ${asked} is ambiguous: ${rows.length} rows ${how}: ${regionList(rows)}. ` +
+      "Pick one region by its AGS (--region <ags>)."
+    );
+  }
+  if (match.by === "name" && match.others.length > 0) {
+    return (
+      `Note: --region ${asked} matched the name exactly; left out ${match.others.length} ` +
+      `${match.others.length > 1 ? "rows that only contain" : "row that only contains"} it: ${regionList(match.others)} ` +
+      "(pick one of those by its AGS)."
+    );
+  }
+  return undefined;
 }
 
 /**
@@ -134,7 +181,7 @@ function emptyResultNote(indicator: Indicator, query: QueryOptions, fetched: num
   if (fetched > 0) {
     return (
       `Note: none of the ${fetched} rows for ${where} match --region ` +
-      `${JSON.stringify(query.region)} (a name substring or an AGS).`
+      `${JSON.stringify(query.region)} (a name, a part of one, or an AGS).`
     );
   }
   let note =

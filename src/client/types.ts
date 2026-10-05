@@ -197,9 +197,37 @@ export interface RegionRow {
 }
 
 /** A data query's rows plus what the client saw before filtering them. */
+/**
+ * How a `region` picked its rows (`matchRegion`):
+ * - `ags`: a numeric region equal to a row's key (leading zeros ignored);
+ * - `name`: rows whose whole name equals the text (case-insensitive, NFC);
+ * - `substring`: no name is equal, so every row whose name contains the text;
+ * - `none`: nothing matched.
+ */
+export type RegionMatchKind = "ags" | "name" | "substring" | "none";
+
+/** The result of `matchRegion`: the rows a region picked, and how. */
+export interface RegionMatch {
+  /** How the rows were picked. */
+  by: RegionMatchKind;
+  /** The matching rows (what `filterByRegion` returns). */
+  rows: RegionRow[];
+  /**
+   * With `by: "name"`: the rows whose name only contains the text, left out because a name
+   * matched exactly (`Sachsen` leaves out Niedersachsen and Sachsen-Anhalt). Empty otherwise.
+   */
+  others: RegionRow[];
+}
+
 export interface QueryResult {
   /** The rows, after the client-side `region` filter and `fields` projection. */
   rows: RegionRow[];
+  /**
+   * With a `region`: how it matched (`by`) and the rows left out because a name matched
+   * exactly (`others`, as `{ ags, name }`). Several `rows` for a region mean it was
+   * ambiguous: the name is shared, or no name equals it and several contain it.
+   */
+  region?: { by: RegionMatchKind; others: Array<{ ags: string; name: string }> };
   /**
    * How many rows the data host returned, before the `region` filter. 0 means the
    * host had nothing for the indicator, level and year; more than 0 with no `rows`
@@ -227,7 +255,12 @@ export interface QueryOptions {
    * loaded that year yet, in which case the query returns no rows.
    */
   year?: number;
-  /** Client-side region filter: an AGS (numeric) or a substring of the name (not blank). */
+  /**
+   * Client-side region filter (not blank): an AGS (numeric; leading zeros ignored), or a
+   * name — rows whose whole name
+   * equals it when there are any, else every row whose name contains it. See
+   * `matchRegion`, and `QueryResult.region` for how it matched.
+   */
   region?: string;
   /**
    * Client-side field projection: keep only these value fields. Needs at least one

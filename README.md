@@ -49,7 +49,9 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
 - **`query <code>`** fetches the data rows for an indicator at a geo level (`--level`,
   default `land`), for a year (`--year`, default the newest catalogue year, which may not
   be loaded yet: an empty result says so on stderr). `--region`
-  and `--fields` filter and project **client-side**.
+  and `--fields` filter and project **client-side**; `--region` takes an AGS or an exact
+  name (else every name containing the text) and says on stderr when several regions
+  match.
 
 Global flags: `--base-url`, `--catalog-url`, `--timeout`, `--user-agent`,
 `--max-retries`, `--max-response-bytes`, `--compact`. See [Usage.md](Usage.md).
@@ -63,8 +65,10 @@ const c = new RegionalatlasClient();
 await c.themes();                                                 // the subject areas
 await c.indicators({ search: "bevölkerung" });                    // matching indicators
 const rows = await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 });
-// queryResult() adds `fetched`: the rows the host returned before the region filter
-const { rows: hits, fetched } = await c.queryResult({ indicator: "AI002-1-5", level: "land", region: "Bremen" });
+// queryResult() adds `fetched` (the rows the host returned before the region filter) and
+// `region` (how it matched: by "ags", whole "name", "substring"; `others` it left out)
+const { rows: hits, fetched, region } = await c.queryResult({ indicator: "AI002-1-5", level: "land", region: "Sachsen" });
+// hits: Sachsen alone; region.others: Niedersachsen, Sachsen-Anhalt
 ```
 
 ## Two hosts

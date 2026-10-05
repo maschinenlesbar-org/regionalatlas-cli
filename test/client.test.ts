@@ -415,9 +415,9 @@ test("queryResult() reports the rows fetched before the region filter", async ()
   assert.equal(hit.fetched, 2);
   assert.deepEqual(hit.rows.map((r) => r.name), ["Bremen"]);
   const miss = await clientRouting().client.queryResult({ ...q, region: "Nowhere" });
-  assert.deepEqual(miss, { rows: [], fetched: 2, exceededTransferLimit: false });
+  assert.deepEqual(miss, { rows: [], fetched: 2, exceededTransferLimit: false, region: { by: "none", others: [] } });
   const empty = await clientRouting({ features: [] }).client.queryResult({ ...q, region: "Bremen" });
-  assert.deepEqual(empty, { rows: [], fetched: 0, exceededTransferLimit: false });
+  assert.deepEqual(empty, { rows: [], fetched: 0, exceededTransferLimit: false, region: { by: "none", others: [] } });
 });
 
 test("queryResult() passes on the host's exceededTransferLimit, only for a literal true", async () => {

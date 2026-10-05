@@ -41,6 +41,7 @@ import type {
   QueryOptions,
   QueryResult,
   RawFeatureAttributes,
+  RegionMatch,
   RegionRow,
   Theme,
 } from "./types.js";
@@ -199,9 +200,13 @@ export class RegionalatlasClient {
     );
 
     // 5. Client-side region filter + field projection (no user text upstream).
-    const filtered = opts.region !== undefined ? filterByRegion(rows, opts.region) : rows;
+    const match = opts.region !== undefined ? matchRegion(rows, opts.region) : undefined;
+    const filtered = match !== undefined ? match.rows : rows;
     return {
       rows: opts.fields !== undefined ? projectFields(filtered, opts.fields) : filtered,
+      ...(match === undefined
+        ? {}
+        : { region: { by: match.by, others: match.others.map((r) => ({ ags: r.ags, name: r.name })) } }),
       fetched: rows.length,
       // The MapServer stops at its maxRecordCount and says so only in this flag; the
       // rows are then a silent prefix of the level. Only a literal `true` counts.
@@ -409,19 +414,49 @@ export function parseRow(
 }
 
 /**
- * Client-side region filter. A numeric input is matched as an exact `ags` (ignoring
- * leading zeros on both sides); otherwise a case-insensitive substring of the name,
- * compared in NFC (`foldText`) so a decomposed umlaut matches. A blank region
- * throws `RegionalatlasValidationError` rather than matching every row.
+ * Pick the rows a region names, and say how (`RegionMatch.by`).
+ *
+ * - A numeric region is a key: the rows whose `ags` equals it, leading zeros ignored on
+ *   both sides (`by: "ags"`).
+ * - Otherwise a name, compared case-insensitively in NFC (`foldText`): the rows whose
+ *   whole name equals it (`by: "name"`), with the rows that only contain it in `others`;
+ *   when no name equals it, every row whose name contains it (`by: "substring"`). A
+ *   substring alone picked the wrong place first: `Sachsen` gave Niedersachsen, Sachsen and
+ *   Sachsen-Anhalt in that order, `Gera` Groß-Gerau before Gera, `Berlin` at gemeinde
+ *   level Berlingen. Several rows can still match — a name two regions share (two
+ *   Gemeinden called Halle; `Hannover` twice in the Kreis rows of 2000), or a text that
+ *   is no whole name (`Neustadt` at gemeinde level: 21 rows) — so check `rows.length`,
+ *   and pick one region by its `ags`.
+ *
+ * A blank region throws `RegionalatlasValidationError` rather than matching every row.
  */
-export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
+export function matchRegion(rows: RegionRow[], region: string): RegionMatch {
   const trimmed = assertValid("region", region, nonEmptyProblem).trim();
   if (/^\d+$/.test(trimmed)) {
     const target = String(Number(trimmed)); // strip leading zeros
-    return rows.filter((r) => String(Number(r.ags.replace(/\D/g, "") || "0")) === target);
+    const exact = rows.filter((r) => String(Number(r.ags.replace(/\D/g, "") || "0")) === target);
+    return exact.length > 0 ? { by: "ags", rows: exact, others: [] } : { by: "none", rows: [], others: [] };
   }
   const needle = foldText(trimmed);
-  return rows.filter((r) => foldText(r.name).includes(needle));
+  const exact: RegionRow[] = [];
+  const contains: RegionRow[] = [];
+  for (const r of rows) {
+    const name = foldText(r.name);
+    if (name === needle) exact.push(r);
+    else if (name.includes(needle)) contains.push(r);
+  }
+  if (exact.length > 0) return { by: "name", rows: exact, others: contains };
+  return contains.length > 0 ? { by: "substring", rows: contains, others: [] } : { by: "none", rows: [], others: [] };
+}
+
+/**
+ * Client-side region filter: the rows `matchRegion` picks. A numeric input is an exact
+ * `ags` (leading zeros ignored); otherwise the rows whose whole name equals the input when there are
+ * any, else every row whose name contains it — case-insensitive, in NFC. A blank region
+ * throws `RegionalatlasValidationError` rather than matching every row.
+ */
+export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
+  return matchRegion(rows, region).rows;
 }
 
 /**

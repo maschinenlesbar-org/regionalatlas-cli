@@ -6,6 +6,7 @@ export {
   QUERY_OPTION_KEYS,
   parseRow,
   filterByRegion,
+  matchRegion,
   projectFields,
   specialValueReason,
   SPECIAL_VALUES,

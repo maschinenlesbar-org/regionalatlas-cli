@@ -59,7 +59,7 @@ title, which `--search` also matches (it contains the theme name).
 |---|---|
 | `--level <level>` | geo level: `land` \| `regierungsbezirk` \| `kreis` \| `gemeinde` (default `land`) |
 | `--year <yyyy>` | reporting year (default: the newest year in the catalogue, which may not be loaded yet — see below) |
-| `--region <name\|ags>` | keep only rows matching a name substring or an AGS |
+| `--region <name\|ags>` | keep only the region with this AGS, or this exact name — else every region whose name contains the text (see below) |
 | `--fields <a,b,c>` | keep only these value fields (comma-separated; repeating the option adds to the list); names are checked against the indicator's columns |
 
 The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the table
@@ -94,6 +94,22 @@ years that do have figures at the requested one — the data host would otherwis
 row for every region with every value `null`. `--region` and `--fields` are applied **client-side** (they
 never enter the upstream request), but a `--fields` name is validated against the
 indicator's value columns first — `indicators` lists them with their titles and units.
+
+`--region` picks rows like this:
+
+- **A number is a key** (AGS): the row whose `ags` equals it, leading zeros ignored
+  (`9`, `09`).
+- **Text is a name**, compared case-insensitively: the rows whose **whole name** equals it
+  when there are any — `Sachsen` is Sachsen alone, not Niedersachsen and Sachsen-Anhalt
+  too; `Gera` is Gera, not Groß-Gerau; `München` at `kreis` is the city (`09162`), not
+  `München, Landkreis` — and a `Note:` on stderr names the rows that only contain the
+  text. Without a whole-name match, every row whose name contains the text
+  (`--region Neustadt` at `gemeinde`: 21 rows).
+- **Several rows can still match** — a name two regions share (two Gemeinden called
+  Halle; `Hannover` twice in the Kreis rows of 2000) or a part of a name. All are
+  printed, and a `Note:` on stderr says the region is ambiguous and lists them; pick one
+  by its `ags`. A script that wants one region should give the AGS, or check that it got
+  exactly one row.
 
 An empty result prints `[]`, exits 0 and explains itself on stderr, by cause: either the
 data host returned no rows for the indicator, level and year, or it did and no row matched

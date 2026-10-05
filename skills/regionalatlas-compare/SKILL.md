@@ -25,13 +25,16 @@ This skill drives the `regionalatlas` command. **Before anything else, validate 
 
 This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
-**No API key is required.** `regionalatlas query <code> --level <land|regierungsbezirk|kreis|gemeinde> [--year …] [--region …] [--fields …]` returns one row per region; `--region` picks a region by name substring or AGS. `--compact` for `jq`. Data © Statistische Ämter des Bundes und der Länder under Datenlizenz Deutschland – Namensnennung 2.0 (dl-de/by-2.0, attribution required) — see DATA_LICENSE.md.
+**No API key is required.** `regionalatlas query <code> --level <land|regierungsbezirk|kreis|gemeinde> [--year …] [--region …] [--fields …]` returns one row per region; `--region` picks a region by AGS or exact name (else every name containing the text). `--compact` for `jq`. Data © Statistische Ämter des Bundes und der Länder under Datenlizenz Deutschland – Namensnennung 2.0 (dl-de/by-2.0, attribution required) — see DATA_LICENSE.md.
 
 ## How to compare
 
-`--region` selects **one** region per call (a name substring, or an AGS — numeric
-matches ignore leading zeros). To compare **several** regions, either run one call per
-region, or fetch the whole level once and filter with `jq` (fewer requests):
+`--region` selects **one** region per call: an AGS (numeric matches ignore leading
+zeros), or a name — the region whose whole name it is (`Sachsen`, not Niedersachsen),
+else every region whose name contains it. When several rows match, the CLI prints them
+all and a `Note:` on stderr saying the region is ambiguous; **read stderr and check you got
+one row** before reporting a figure. To compare **several** regions, either run one call
+per region, or fetch the whole level once and filter with `jq` (fewer requests):
 
 | Field to compare on | Where it is |
 |---|---|
@@ -42,8 +45,9 @@ region, or fetch the whole level once and filter with `jq` (fewer requests):
 ## Recipes
 
 ```bash
-# One region
-regionalatlas query AI002-1-5 --level land --region Bayern --compact | jq '.[0].values'
+# One region — fails loudly unless exactly one row matched (then use the AGS from the note)
+regionalatlas query AI002-1-5 --level land --region Sachsen --compact \
+  | jq 'if length == 1 then .[0] | {ags, name, values} else error("\(length) rows matched --region; pick one by ags") end'
 
 # A few named regions, side by side (one fetch, filter with jq)
 regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
@@ -53,8 +57,8 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
 regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   | jq 'sort_by(.values.ai0201) | {lowest: .[0]|{name, v:.values.ai0201}, highest: .[-1]|{name, v:.values.ai0201}}'
 
-# Kreise by AGS: a city name also matches its Landkreis ("München" gives 09162 München
-# and 09184 München, Landkreis), so pick the exact keys
+# Kreise by AGS: the exact keys, never a name pattern ("München" in a jq test() also
+# matches 09184 München, Landkreis)
 regionalatlas query AI-S-01 --level kreis --compact \
   | jq '[.[] | select(.ags|IN("09162","14713"))] | map({ags, name, values})'
 
@@ -79,10 +83,13 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   rows, 440 Kreise with two named Hannover), so compare by `ags` across years.
 - **`--region` is one selector per call** — for many regions, fetch the level once and
   filter with `jq` rather than N requests.
-- **A city name also matches its Landkreis.** `--region München` at `--level kreis`
-  returns `09162 München` and `09184 München, Landkreis` (same for Leipzig: `14713` /
-  `14729`), and a `test("…")` jq filter does the same. At Kreis and Gemeinde level, check
-  the names you got, then compare by `ags`.
+- **A name can stand for several regions.** `--region München` at `--level kreis` is the
+  city (`09162`) — its whole name — and the `Note:` names `09184 München, Landkreis`,
+  which it left out; ask the user which one they mean when it isn't clear. A name two
+  regions share (two Gemeinden called Halle) or a part of a name (`Neustadt`) returns every
+  match with an "ambiguous" `Note:` — never take `.[0]` of that; pick by `ags`. A
+  `test("…")` jq filter has no exact-name rule at all, so filter Kreise and Gemeinden by
+  `ags`.
 - **Pick a value field** (`--fields ai0201`) so the comparison is on a single number.
   Get the column names and what they measure from `indicators` (each row carries a
   `fields` list of `{code, title, unit}`) — the codes do not follow the indicator code

@@ -152,8 +152,14 @@ no raw user text is ever interpolated:
    without usable `geom_levels` is not checked.
 4. **`--region` / `--fields` never touch the request.** The client always requests
    `outFields=*` and does region filtering + field projection **client-side**
-   (`filterByRegion`, `projectFields`). Region: numeric → exact `ags` match ignoring
-   leading zeros; else case-insensitive substring on the name. Fields: keep only the
+   (`filterByRegion`/`matchRegion`, `projectFields`). Region: numeric → exact `ags` match
+   ignoring leading zeros; else the rows whose whole name equals it (case-insensitive,
+   NFC) when there are any — the substring hits are then reported as `others` — else every
+   row whose name contains it. `queryResult` returns how it matched (`region.by`,
+   `region.others`), and the CLI prints a `Note:` when an exact name left rows out or when
+   several rows matched (`regionNote`). A bare substring match used to put the wrong
+   region first (`Sachsen` → Niedersachsen, `Gera` → Groß-Gerau, `Berlin` at gemeinde →
+   Berlingen), and `jq '.[0]'` took it. Fields: keep only the
    named value fields (an unknown name is refused against the catalogue's field
    dictionary). A blank `region`, or a `fields` list without a non-blank name, is
    refused before any request instead of returning every row or every column.
