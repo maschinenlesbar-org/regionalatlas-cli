@@ -280,8 +280,10 @@ host (catalogue vs data). Coverage highlights:
   network → 6; other → 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
   from the data host that means a base-URL misconfiguration → usage).
 - **Retry/backoff:** `429`/`503` and reset connections are retried up to `maxRetries`
-  (default 2); a refused connection, a DNS failure and a timeout are not. A 429/503 retry honours
-  a `Retry-After` header in either documented form — delta-seconds (digits only) or an
+  (default 2); a refused connection, a DNS failure and a timeout are not. Each retry waits
+  the linear backoff (`retryDelayMs × attempt`, 200 ms, 400 ms, …) at least — a
+  `Retry-After: 0` or a date in the past never makes a zero-delay burst. A 429/503 retry honours
+  a longer `Retry-After` header in either documented form — delta-seconds (digits only) or an
   HTTP-date in IMF-fixdate form (`Sat, 26 Sep 2026 10:00:00 GMT`) — clamped to 30 s so a
   server-set `Retry-After: 86400` cannot park the CLI for a day. A missing or malformed
   header (`1.5`, `-5`, any other date format) falls back to linear backoff

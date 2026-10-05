@@ -78,7 +78,10 @@ export interface EngineOptions {
    * DNS failure and a timeout are not retried.
    */
   maxRetries?: number;
-  /** Base backoff between retries in milliseconds (grows linearly), at most `MAX_RETRY_AFTER_MS`. */
+  /**
+   * Base backoff between retries in milliseconds (grows linearly), at most
+   * `MAX_RETRY_AFTER_MS`. A `Retry-After` can make a wait longer, never shorter.
+   */
   retryDelayMs?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
@@ -532,14 +535,13 @@ export class RequestEngine {
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {
         attempt += 1;
-        // Honour a Retry-After header (delta-seconds or HTTP-date) when present,
-        // clamped to MAX_RETRY_AFTER_MS; otherwise fall back to linear backoff.
+        // Back off linearly (retryDelayMs * attempt). A Retry-After header (delta-seconds
+        // or HTTP-date) can make the wait longer, never shorter: `Retry-After: 0` or a date
+        // in the past turned the retries into a zero-delay burst against a server that had
+        // just asked for less load. A longer one is clamped to MAX_RETRY_AFTER_MS.
+        const backoff = this.retryDelayMs * attempt;
         const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
-        const delay =
-          retryAfter !== undefined
-            ? Math.min(retryAfter, MAX_RETRY_AFTER_MS)
-            : this.retryDelayMs * attempt;
-        await this.sleep(delay);
+        await this.sleep(retryAfter === undefined ? backoff : Math.max(Math.min(retryAfter, MAX_RETRY_AFTER_MS), backoff));
         continue;
       }
 
