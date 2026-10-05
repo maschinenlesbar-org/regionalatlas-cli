@@ -3,6 +3,7 @@
 export {
   RegionalatlasClient,
   DEFAULT_CATALOG_URL,
+  QUERY_OPTION_KEYS,
   parseRow,
   filterByRegion,
   projectFields,
@@ -33,6 +34,7 @@ export {
   parseIndicators,
   filterIndicators,
   assertIndicatorFilter,
+  INDICATOR_FILTER_KEYS,
   assertIndicatorInput,
   assertYearInput,
   normaliseYearFilter,
@@ -50,6 +52,7 @@ export { GEO_LEVELS, LEVEL_ALIASES, DEFAULT_LEVEL, findLevel, resolveLevel, leve
 export { buildSql, buildLayerParam } from "./sql.js";
 export {
   assertValid,
+  assertKnownKeys,
   isBlank,
   nonEmptyProblem,
   fieldsProblem,

@@ -18,7 +18,7 @@ import type {
 import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
-import { assertValid, nonEmptyProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
+import { assertKnownKeys, assertValid, nonEmptyProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -200,6 +200,9 @@ export function parseThemes(raw: unknown): Theme[] {
     }));
 }
 
+/** The keys an {@link IndicatorFilter} takes; any other key is refused. */
+export const INDICATOR_FILTER_KEYS: readonly string[] = Object.freeze(["theme", "year", "search"]);
+
 /** Filters for listing indicators. Omit a filter to skip it; a blank one is refused. */
 export interface IndicatorFilter {
   /** Case-insensitive substring on the theme title (not blank). */
@@ -211,7 +214,8 @@ export interface IndicatorFilter {
 }
 
 /**
- * Check an indicator filter before the catalogue is fetched: a `theme` or `search`
+ * Check an indicator filter before the catalogue is fetched: an object with no key but
+ * `theme`, `year` and `search` (`assertKnownKeys`), a `theme` or `search`
  * that is set must not be blank ("" or whitespace), because a blank filter would
  * match every indicator, and a `year` must be a 4-digit year (`normaliseYearFilter`).
  * Throws `RegionalatlasValidationError` (`Invalid search: Expected a non-empty value.`).
@@ -220,6 +224,7 @@ export function assertIndicatorFilter(filter: IndicatorFilter): void {
   if (filter === null || typeof filter !== "object" || Array.isArray(filter)) {
     throw new RegionalatlasValidationError("Invalid indicator filter: expected an object (theme, year, search).");
   }
+  assertKnownKeys("indicator filter", filter, INDICATOR_FILTER_KEYS);
   if (filter.theme !== undefined) assertValid("theme", filter.theme, nonEmptyProblem);
   if (filter.year !== undefined) normaliseYearFilter(filter.year);
   if (filter.search !== undefined) assertValid("search", filter.search, nonEmptyProblem);

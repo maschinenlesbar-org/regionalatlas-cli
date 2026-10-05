@@ -34,7 +34,7 @@ import {
 } from "./catalog.js";
 import { DEFAULT_LEVEL, resolveLevel } from "./levels.js";
 import { buildLayerParam } from "./sql.js";
-import { assertValid, fieldsProblem, nonEmptyProblem } from "./validate.js";
+import { assertKnownKeys, assertValid, fieldsProblem, nonEmptyProblem } from "./validate.js";
 import type {
   ArcGisQueryResponse,
   Indicator,
@@ -52,6 +52,12 @@ export const DEFAULT_CATALOG_URL =
 /** The ArcGIS MapServer path for the dynamicLayer data query (on `baseUrl`). */
 const DATA_PATH =
   "/arcgis/rest/services/stba/regionalatlas/MapServer/dynamicLayer/query";
+
+/**
+ * The keys `query`/`queryResult` take; any other key (`levle`, `regoin`, `__proto__`) is
+ * a RegionalatlasValidationError before any request, not silently ignored.
+ */
+export const QUERY_OPTION_KEYS: readonly string[] = Object.freeze(["indicator", "level", "year", "region", "fields"]);
 
 /** Options for the client (engine options plus the catalogue URL — no auth). */
 export interface RegionalatlasClientOptions extends EngineOptions {
@@ -146,6 +152,7 @@ export class RegionalatlasClient {
     if (opts === null || typeof opts !== "object" || Array.isArray(opts)) {
       throw new RegionalatlasValidationError("Invalid query options: expected an object with an indicator.");
     }
+    assertKnownKeys("query options", opts, QUERY_OPTION_KEYS);
     assertIndicatorInput(opts.indicator);
     if (opts.year !== undefined) assertYearInput(opts.year);
     // 1. Map level → typ (throws if unknown); an omitted level is DEFAULT_LEVEL. The

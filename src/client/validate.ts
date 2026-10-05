@@ -22,6 +22,41 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   return value;
 }
 
+/** The edit distance of two short strings (for a "did you mean" hint). */
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min((prev[j] ?? 0) + 1, (cur[j - 1] ?? 0) + 1, (prev[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length] ?? 0;
+}
+
+/**
+ * Refuse an options object with a key the call doesn't take: `{ serach: "x" }` or
+ * `{ levle: "kreis" }` used to be ignored silently, so the call answered with the whole
+ * catalogue or the default level, which reads as a filtered answer. Own keys only, so a
+ * `__proto__` or `constructor` key (from JSON.parse) is caught too. Throws
+ * `RegionalatlasValidationError` (`Invalid <name>: unknown key "serach" (did you mean
+ * "search"?); known keys: theme, year, search.`). Nothing is sent for these keys —
+ * regionalatlas filters on the client — so there is no opt-out: an unknown key can only
+ * be a mistake.
+ */
+export function assertKnownKeys(name: string, value: object, known: readonly string[]): void {
+  for (const key of Object.keys(value)) {
+    if (known.includes(key)) continue;
+    const near = known.find((k) => k.toLowerCase() === key.toLowerCase() || editDistance(k, key) <= 2);
+    const shown = JSON.stringify(key.length > 100 ? `${key.slice(0, 100)}…` : key);
+    throw new RegionalatlasValidationError(
+      `Invalid ${name}: unknown key ${shown}${near === undefined ? "" : ` (did you mean "${near}"?)`}; ` +
+        `known keys: ${known.join(", ")}.`,
+    );
+  }
+}
+
 /** True for an empty or whitespace-only string. */
 export function isBlank(value: string): boolean {
   return value.trim() === "";

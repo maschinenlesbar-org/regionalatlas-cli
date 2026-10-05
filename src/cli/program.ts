@@ -16,6 +16,7 @@ import {
   parseBoundedInt,
   parseHeaderValue,
   parseHttpUrl,
+  forbidRepeatedOptions,
 } from "./shared.js";
 import { registerCommands } from "./commands/regions.js";
 
@@ -88,6 +89,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     .showHelpAfterError();
 
   registerCommands(program, deps);
+  forbidRepeatedOptions(program);
 
   return program;
 }

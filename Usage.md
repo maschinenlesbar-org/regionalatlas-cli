@@ -20,6 +20,10 @@ regionalatlas [global options] <command> [command options]
 | `--compact` | print JSON on a single line (for piping to `jq`) |
 | `-V, --version` / `-h, --help` | version / help |
 
+Every option takes one value, except `--fields`, which is repeatable (`--fields a --fields b`
+is `--fields a,b`); giving any other option twice is a usage error (exit 2), where the last
+value used to win silently.
+
 `--base-url` and `--catalog-url` accept only `http:`/`https:` URLs without whitespace
 (around or inside them). `--base-url` must not have a query (`?`) or fragment (`#`) (the
 CLI appends the data path to it); a path prefix for a mirror is fine. A `user:password@`

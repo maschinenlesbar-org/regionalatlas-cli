@@ -313,6 +313,15 @@ host (catalogue vs data). Coverage highlights:
   becomes a `RegionalatlasNetworkError`, and a malformed response (no status, NaN) too; a
   reset reported as Node's `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's
   `UND_ERR_SOCKET` anywhere in the `cause` chain is retried like a 503 (linear backoff).
+- **Unknown option keys are refused** (`assertKnownKeys`): `query`/`queryResult` take
+  `indicator`, `level`, `year`, `region`, `fields` (`QUERY_OPTION_KEYS`), `indicators`
+  takes `theme`, `year`, `search` (`INDICATOR_FILTER_KEYS`). Any other own key —
+  `serach`, `levle`, `__proto__` from JSON — is a `RegionalatlasValidationError` with a
+  "did you mean", before any request; it used to be ignored, so the call answered with the
+  whole catalogue or the default level. These filters work on the client, so nothing
+  would be sent for an unknown key and there is no `allowUnknownFilters` opt-out. The CLI
+  makes a single-value option given twice a usage error (`forbidRepeatedOptions`);
+  `--fields` collects.
 - **Wrong-typed input is a validation error, before any request:** `query(null)`,
   `{ indicator: 2020 }`, `{ year: "2020" }`, `indicators(null)`, a non-function
   `transport`/`sleep`, a non-object `defaultHeaders` or options object all throw

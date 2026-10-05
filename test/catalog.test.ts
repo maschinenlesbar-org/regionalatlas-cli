@@ -338,3 +338,23 @@ test("--search and --theme match a decomposed (NFD) umlaut", () => {
   assert.equal(filterIndicators(indicators, { theme: nfd }).length, 2);
   assert.equal(filterIndicators(indicators, { theme: "Fläche" }).length, 1);
 });
+
+test("P10: an indicator filter with an unknown key is refused before the catalogue request", async () => {
+  const { RegionalatlasClient } = await import("../src/client/client.js");
+  const { RegionalatlasValidationError } = await import("../src/client/errors.js");
+  for (const filter of [{ serach: "x" }, { Theme: "x" }, { search: "x", limit: 5 }, JSON.parse('{"__proto__": {"search": "x"}}')]) {
+    let requests = 0;
+    const client = new RegionalatlasClient({
+      transport: async () => {
+        requests++;
+        return { status: 200, headers: {}, body: Buffer.from("[]") };
+      },
+    });
+    await assert.rejects(client.indicators(filter as never), RegionalatlasValidationError, JSON.stringify(filter));
+    assert.equal(requests, 0);
+  }
+  await assert.rejects(
+    new RegionalatlasClient({ transport: async () => assert.fail("no request expected") }).indicators({ serach: "x" } as never),
+    /unknown key "serach" \(did you mean "search"\?\); known keys: theme, year, search\./,
+  );
+});
