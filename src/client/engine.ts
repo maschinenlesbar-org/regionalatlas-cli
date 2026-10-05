@@ -9,7 +9,14 @@
 // fully-qualified absolute URL (`requestAbsolute`) so the catalogue can be fetched
 // without changing the data `baseUrl`.
 
-import { MAX_TIMEOUT_MS, nodeHttpTransport, type HttpResponse, type Transport } from "./http.js";
+import {
+  MAX_TIMEOUT_MS,
+  nodeHttpTransport,
+  sizeLimitMessage,
+  type HttpRequest,
+  type HttpResponse,
+  type Transport,
+} from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import {
   RegionalatlasApiError,
@@ -48,7 +55,12 @@ export interface RawResponse {
 export interface EngineOptions {
   /** Base URL of the ArcGIS data host. Defaults to the gis-idmz.nrw.de MapServer host. */
   baseUrl?: string;
-  /** Swappable transport. Defaults to the built-in node http/https transport. */
+  /**
+   * Swappable transport. Defaults to the built-in node http/https transport. The engine
+   * enforces `timeoutMs` and `maxResponseBytes` for any transport, reads its headers in
+   * any case (a fetch `Headers` or a `Map` too) and its body as any ArrayBuffer view, and
+   * turns whatever it throws into a `RegionalatlasNetworkError`.
+   */
   transport?: Transport;
   /** Value of the User-Agent header. */
   userAgent?: string;
@@ -56,17 +68,23 @@ export interface EngineOptions {
   defaultHeaders?: Record<string, string>;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
-   * only idle gaps (0 disables; at most MAX_TIMEOUT_MS, 2^31 - 1 ms).
+   * only idle gaps (0 disables; at most MAX_TIMEOUT_MS, 2^31 - 1 ms). Enforced by the
+   * engine for every transport (the request's `signal` aborts then).
    */
   timeoutMs?: number;
-  /** Number of automatic retries for transient (429/503) responses, 0..`MAX_RETRIES` (10). */
+  /**
+   * Number of automatic retries for transient (429/503) responses and reset connections
+   * (`ECONNRESET`, `UND_ERR_SOCKET`, …), 0..`MAX_RETRIES` (10). A refused connection, a
+   * DNS failure and a timeout are not retried.
+   */
   maxRetries?: number;
   /** Base backoff between retries in milliseconds (grows linearly), at most `MAX_RETRY_AFTER_MS`. */
   retryDelayMs?: number;
   /**
    * Hard cap on response body size in bytes (defends against memory exhaustion
    * from a hostile/buggy endpoint). Defaults to 100 MiB; set to 0 for no limit.
-   * At most `Number.MAX_SAFE_INTEGER`.
+   * At most `Number.MAX_SAFE_INTEGER`. The default transport aborts as soon as the cap
+   * is passed; the engine also checks the body any transport returns.
    */
   maxResponseBytes?: number;
   /** Injectable sleep, primarily for deterministic tests. */
@@ -143,6 +161,70 @@ export function describeArcGisError(error: unknown): string | undefined {
     if (text !== "") seen.add(text);
   }
   return seen.size > 0 ? [...seen].join("; ") : undefined;
+}
+
+/** Why `value` is not a usable HttpResponse, or undefined when it is. */
+function responseProblem(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return "not an object";
+  const r = value as Partial<Record<"status" | "headers" | "body", unknown>>;
+  if (typeof r.status !== "number" || !Number.isInteger(r.status) || r.status < 100 || r.status > 599) {
+    return "status is not an HTTP status code";
+  }
+  if (typeof r.headers !== "object" || r.headers === null || Array.isArray(r.headers)) return "headers is not an object";
+  if (bodyBytes(r.body) === undefined) return "body is not a Buffer, Uint8Array, other ArrayBuffer view or ArrayBuffer";
+  return undefined;
+}
+
+/**
+ * The response body as a Buffer (a view, no copy): a Buffer, any ArrayBuffer view (a
+ * Uint8Array from fetch, a DataView) or an ArrayBuffer/SharedArrayBuffer — checked by internal
+ * slot, not `instanceof`, so a value from another realm (a vm context, a Jest test) counts.
+ * Undefined for anything else.
+ */
+function bodyBytes(value: unknown): Buffer | undefined {
+  if (Buffer.isBuffer(value)) return value;
+  if (ArrayBuffer.isView(value)) return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  const tag = Object.prototype.toString.call(value);
+  if (tag === "[object ArrayBuffer]" || tag === "[object SharedArrayBuffer]") return Buffer.from(value as ArrayBuffer);
+  return undefined;
+}
+
+/**
+ * The response headers as a plain record with lower-case names. A transport built on
+ * `fetch` naturally returns its `Headers` object, which has no plain properties, and a
+ * custom one may write `Retry-After` in any case: the engine then saw no Retry-After and
+ * backed off 200 ms instead of the server's wait. Such an object (anything with `get`
+ * and `forEach`, a `Headers` or a `Map`) is copied into a record; a plain record gets its
+ * names lower-cased.
+ */
+function plainHeaders(headers: object): Record<string, string | string[] | undefined> {
+  const h = headers as { get?: unknown; forEach?: unknown };
+  if (typeof h.get === "function" && typeof h.forEach === "function") {
+    const record: Record<string, string> = {};
+    (h.forEach as (cb: (value: unknown, name: unknown) => void) => void).call(headers, (value, name) => {
+      record[String(name).toLowerCase()] = String(value);
+    });
+    return record;
+  }
+  const record: Record<string, string | string[] | undefined> = {};
+  for (const [name, value] of Object.entries(headers as Record<string, string | string[] | undefined>)) {
+    record[name.toLowerCase()] = value;
+  }
+  return record;
+}
+
+/**
+ * Error codes of a connection that broke off mid-request: Node's (`socket hang up` is
+ * ECONNRESET) and undici's (`fetch failed` with cause UND_ERR_SOCKET, "other side closed").
+ */
+const TRANSIENT_NETWORK_CODES = new Set(["ECONNRESET", "EPIPE", "ECONNABORTED", "UND_ERR_SOCKET"]);
+
+/** True when `err` or an error in its `cause` chain has a transient connection code. */
+function hasTransientCode(err: unknown, depth = 0): boolean {
+  if (typeof err !== "object" || err === null || depth > 4) return false;
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === "string" && TRANSIENT_NETWORK_CODES.has(code)) return true;
+  return hasTransientCode((err as { cause?: unknown }).cause, depth + 1);
 }
 
 /** Most automatic retries a caller may ask for (the CLI's --max-retries shares it). */
@@ -349,6 +431,32 @@ export class RequestEngine {
   }
 
   /**
+   * Call the transport under the overall deadline (`timeoutMs`): the request gets an
+   * AbortSignal that fires at the deadline, and the call rejects then whether the transport
+   * stops or not — a custom transport (fetch, a node:http wrapper) that ignores `timeoutMs`
+   * can't hang the caller. A synchronous throw becomes a rejection.
+   */
+  private async callTransport(request: HttpRequest): Promise<HttpResponse> {
+    const call = (signal?: AbortSignal): Promise<HttpResponse> =>
+      Promise.resolve().then(() => this.transport(signal === undefined ? request : { ...request, signal }));
+    if (this.timeoutMs === 0) return call();
+    const controller = new AbortController();
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new RegionalatlasNetworkError(`Request exceeded the ${this.timeoutMs}ms deadline`);
+        controller.abort(err);
+        reject(err);
+      }, this.timeoutMs);
+    });
+    try {
+      return await Promise.race([call(controller.signal), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * Build a fully-qualified URL from a path (on the data host) and optional query. The
    * result carries the base URL's userinfo, if any: it is the URL a transport requests.
    */
@@ -386,7 +494,7 @@ export class RequestEngine {
     for (;;) {
       let response: HttpResponse;
       try {
-        response = await this.transport({
+        response = await this.callTransport({
           method: "GET",
           url,
           headers,
@@ -394,16 +502,39 @@ export class RequestEngine {
           ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
         });
       } catch (cause) {
+        // A connection the server (or a gateway) reset is retried like a 503, whichever
+        // transport reported it (Node's ECONNRESET, fetch's UND_ERR_SOCKET, anywhere in the
+        // cause chain). A refused connection, a DNS failure and a timeout are not: a slow
+        // or absent upstream should not be asked again at once.
+        if (hasTransientCode(cause) && attempt < this.maxRetries) {
+          attempt += 1;
+          await this.sleep(this.retryDelayMs * attempt);
+          continue;
+        }
         throw this.transportError(cause);
       }
 
+      // An injected transport may resolve with anything; a malformed HttpResponse would
+      // otherwise surface below as a raw TypeError, outside the RegionalatlasError contract.
+      const invalid = responseProblem(response);
+      if (invalid !== undefined) {
+        throw new RegionalatlasNetworkError(`The transport returned an invalid response (${invalid}).`);
+      }
       const status = response.status;
+      const responseHeaders = plainHeaders(response.headers);
+      // fetch gives a Uint8Array; view it as a Buffer (no copy), which the decoders expect.
+      const body = bodyBytes(response.body) as Buffer;
+      // The size cap holds whatever the transport did: the default one aborts early, a custom
+      // one may have read everything.
+      if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
+        throw new RegionalatlasNetworkError(sizeLimitMessage(this.maxResponseBytes));
+      }
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {
         attempt += 1;
         // Honour a Retry-After header (delta-seconds or HTTP-date) when present,
         // clamped to MAX_RETRY_AFTER_MS; otherwise fall back to linear backoff.
-        const retryAfter = parseRetryAfter(response.headers["retry-after"]);
+        const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
         const delay =
           retryAfter !== undefined
             ? Math.min(retryAfter, MAX_RETRY_AFTER_MS)
@@ -412,12 +543,12 @@ export class RequestEngine {
         continue;
       }
 
-      const contentType = String(response.headers["content-type"] ?? "");
+      const contentType = String(responseHeaders["content-type"] ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(url, status, response.body);
+        throw this.toApiError(url, status, body);
       }
 
-      return { data: response.body, contentType, status };
+      return { data: body, contentType, status };
     }
   }
 

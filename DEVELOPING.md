@@ -279,13 +279,25 @@ host (catalogue vs data). Coverage highlights:
 - **Exit codes** (`run.ts`): help/version → 0; usage/validation → 2; 404 → 4;
   network → 6; other → 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
   from the data host that means a base-URL misconfiguration → usage).
-- **Retry/backoff:** `429`/`503` are retried up to `maxRetries` (default 2), honouring
+- **Retry/backoff:** `429`/`503` and reset connections are retried up to `maxRetries`
+  (default 2); a refused connection, a DNS failure and a timeout are not. A 429/503 retry honours
   a `Retry-After` header in either documented form — delta-seconds (digits only) or an
   HTTP-date in IMF-fixdate form (`Sat, 26 Sep 2026 10:00:00 GMT`) — clamped to 30 s so a
   server-set `Retry-After: 86400` cannot park the CLI for a day. A missing or malformed
   header (`1.5`, `-5`, any other date format) falls back to linear backoff
   (`retryDelayMs × attempt`); `parseRetryAfter` never hands it to a bare `Date.parse`,
   which reads `"1.5"` as a date in 2001 and so retried at once.
+- **Custom transports:** the engine enforces `timeoutMs` itself for every transport — the
+  request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and
+  the call rejects then with a `RegionalatlasNetworkError` whether the transport stops or
+  not — and checks the size of the body it gets back against `maxResponseBytes`
+  (`sizeLimitMessage` names both the option and `--max-response-bytes`). A transport may
+  return the body as a Buffer, any `ArrayBuffer` view (fetch's `Uint8Array`, from any
+  realm) or an `ArrayBuffer`, and the headers as a plain record in any case, a `Headers`
+  object or a `Map` (`plainHeaders`; `Retry-After` is read either way). Whatever it throws
+  becomes a `RegionalatlasNetworkError`, and a malformed response (no status, NaN) too; a
+  reset reported as Node's `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's
+  `UND_ERR_SOCKET` anywhere in the `cause` chain is retried like a 503 (linear backoff).
 - **Engine options are checked** (`intOption` in engine.ts): `timeoutMs` 0..2^31−1,
   `maxRetries` 0..`MAX_RETRIES` (10, shared with `--max-retries`), `retryDelayMs`
   0..30 000, `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER`; anything else (negative,
