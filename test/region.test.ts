@@ -1,10 +1,11 @@
 // --region: an exact name wins over substring hits, an ambiguous answer is named on
-// stderr (finding 01#1 of the 2026-10-05 review; the names and keys are the live ones
+// stderr, and a zero-padded official key matches the shorter key a level carries
+// (findings 01#1 and 06#1 of the 2026-10-05 review; the names and keys are the live ones
 // from that review's saved replies).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { matchRegion, RegionalatlasClient } from "../src/client/client.js";
+import { matchRegion, filterByRegion, RegionalatlasClient } from "../src/client/client.js";
 import type { RegionRow } from "../src/client/types.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { run } from "../src/cli/run.js";
@@ -70,6 +71,32 @@ test("without a whole-name match every name containing the text matches; a share
   assert.equal(matchRegion(LAND, "Nowhere").by, "none");
 });
 
+test("a key: exact (leading zeros ignored), else the zero-padded official key of a coarser row", () => {
+  for (const [rows, input, by, want] of [
+    [KREIS, "16052", "ags", "16052 Gera"],
+    [KREIS, "9162", "ags", "09162 München"],
+    [KREIS, "11", "ags", "11 Berlin"],
+    [KREIS, "11000", "ags-filled", "11 Berlin"],
+    [KREIS, "02000", "ags-filled", "02 Hamburg"],
+    [KREIS, "2000", "ags-filled", "02 Hamburg"],
+    [GEMEINDE, "09162000", "ags-filled", "09162 München"],
+    [GEMEINDE, "9162000", "ags-filled", "09162 München"],
+    [GEMEINDE, "05315000", "ags-filled", "05315 Köln"],
+    [GEMEINDE, "11000000", "ags-filled", "11 Berlin"],
+    [GEMEINDE, "02000000", "ags-filled", "02 Hamburg"],
+    [GEMEINDE, "03241001", "ags", "03241001 Hannover"],
+  ] as const) {
+    const m = matchRegion([...rows], input);
+    assert.equal(m.by, by, input);
+    assert.deepEqual(names(m.rows), [want], input);
+  }
+  // A padded key with a non-zero rest, or one that pads nothing, matches nothing.
+  for (const input of ["09162001", "0", "00", "10", "11000001"]) {
+    assert.deepEqual(matchRegion(GEMEINDE, input).rows, [], input);
+  }
+  assert.deepEqual(names(filterByRegion(GEMEINDE, "09162000")), ["09162 München"]);
+});
+
 function cli(rows: Array<[string, string]>) {
   const data = {
     features: rows.map(([ags, gen], id) => ({ attributes: { id, typ: 1, ags, gen, jahr: 2020, ai0201: id } })),
@@ -110,10 +137,14 @@ test("CLI: an ambiguous region prints every row and says it is ambiguous", async
   ]);
 });
 
-test("CLI: an unambiguous name or key prints no note", async () => {
+test("CLI: an unambiguous name or key prints no note; a padded key says what it matched", async () => {
   for (const region of ["Bayern", "09", "9"]) {
     const c = cli(LAND_ROWS);
     assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", region], c.deps), 0);
     assert.deepEqual(c.err, [], region);
   }
+  const c = cli([["11", "Berlin"], ["09162", "München"]]);
+  assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020", "--region", "09162000"], c.deps), 0);
+  assert.deepEqual((JSON.parse(c.out.join("")) as RegionRow[]).map((r) => r.ags), ["09162"]);
+  assert.match(c.err.join("\n"), /^Note: no row at level land has the key "09162000"; matched 09162 München, which this level carries under the shorter key/);
 });

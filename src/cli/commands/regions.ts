@@ -85,7 +85,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         const { rows, fetched, exceededTransferLimit, region } = await client.queryResult(query);
         renderJson(deps, global, rows);
         if (region !== undefined && query.region !== undefined) {
-          const note = regionNote(query.region, region, rows);
+          const note = regionNote(query.region, query.level ?? DEFAULT_LEVEL, region, rows);
           if (note !== undefined) deps.io.err(note);
         }
         if (exceededTransferLimit) {
@@ -114,16 +114,23 @@ function regionList(rows: ReadonlyArray<{ ags: string; name: string }>): string 
  * The stderr note for how `--region` matched, or undefined when there is nothing to say
  * (one row by its key, or one row by a name nothing else contains). The library prefers a
  * whole-name match over substring hits (`matchRegion`), so `Sachsen` is Sachsen alone; the
- * note names what that left out and says when several rows matched (a shared name, or a
- * substring), so neither a user nor a
+ * note names what that left out, says when several rows matched (a shared name, or a
+ * substring), and when a zero-padded key matched a shorter one, so neither a user nor a
  * script takes the first row of an ambiguous answer for the region it asked about.
  */
 export function regionNote(
   input: string,
+  level: string,
   match: NonNullable<QueryResult["region"]>,
   rows: readonly RegionRow[],
 ): string | undefined {
   const asked = JSON.stringify(cutForMessage(input.trim()));
+  if (match.by === "ags-filled" && rows[0] !== undefined) {
+    return (
+      `Note: no row at level ${level} has the key ${asked}; matched ${regionList(rows)}, ` +
+      "which this level carries under the shorter key (a level fills in with coarser units)."
+    );
+  }
   if (rows.length > 1) {
     const how = match.by === "name" ? "share that exact name" : "contain it in their name (no name equals it)";
     return (

@@ -200,11 +200,14 @@ export interface RegionRow {
 /**
  * How a `region` picked its rows (`matchRegion`):
  * - `ags`: a numeric region equal to a row's key (leading zeros ignored);
+ * - `ags-filled`: a numeric region that no row carries, but that is a row's shorter key
+ *   padded with zeros — the official 8-digit key `09162000` of München matches the
+ *   `09162` row at gemeinde level, `11000` Berlin's `11` at kreis level;
  * - `name`: rows whose whole name equals the text (case-insensitive, NFC);
  * - `substring`: no name is equal, so every row whose name contains the text;
  * - `none`: nothing matched.
  */
-export type RegionMatchKind = "ags" | "name" | "substring" | "none";
+export type RegionMatchKind = "ags" | "ags-filled" | "name" | "substring" | "none";
 
 /** The result of `matchRegion`: the rows a region picked, and how. */
 export interface RegionMatch {
@@ -256,8 +259,9 @@ export interface QueryOptions {
    */
   year?: number;
   /**
-   * Client-side region filter (not blank): an AGS (numeric; leading zeros ignored), or a
-   * name — rows whose whole name
+   * Client-side region filter (not blank): an AGS (numeric; leading zeros ignored, and a
+   * key padded with zeros, such as the official 8-digit key of a kreisfreie Stadt,
+   * matches the shorter key the level carries), or a name — rows whose whole name
    * equals it when there are any, else every row whose name contains it. See
    * `matchRegion`, and `QueryResult.region` for how it matched.
    */

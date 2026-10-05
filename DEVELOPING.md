@@ -153,7 +153,9 @@ no raw user text is ever interpolated:
 4. **`--region` / `--fields` never touch the request.** The client always requests
    `outFields=*` and does region filtering + field projection **client-side**
    (`filterByRegion`/`matchRegion`, `projectFields`). Region: numeric → exact `ags` match
-   ignoring leading zeros; else the rows whose whole name equals it (case-insensitive,
+   ignoring leading zeros, or else the row whose shorter key the input pads with zeros
+   (`by: "ags-filled"`: `09162000` → the `09162` row of a kreisfreie Stadt at gemeinde,
+   `11000` → Berlin's `11` at kreis; the official keys used to match nothing); else the rows whose whole name equals it (case-insensitive,
    NFC) when there are any — the substring hits are then reported as `others` — else every
    row whose name contains it. `queryResult` returns how it matched (`region.by`,
    `region.others`), and the CLI prints a `Note:` when an exact name left rows out or when

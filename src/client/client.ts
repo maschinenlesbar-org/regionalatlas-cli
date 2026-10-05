@@ -413,11 +413,23 @@ export function parseRow(
     : { ags, name, typ, level, year, values, missing };
 }
 
+/** The lengths of official regional keys: Land, Regierungsbezirk, Kreis, Gemeinde. */
+const KEY_LENGTHS = [2, 3, 5, 8];
+
+/** A key's digits padded with leading zeros to the next official key length. */
+function officialKey(digits: string): string {
+  const length = KEY_LENGTHS.find((l) => l >= digits.length) ?? digits.length;
+  return digits.padStart(length, "0");
+}
+
 /**
  * Pick the rows a region names, and say how (`RegionMatch.by`).
  *
  * - A numeric region is a key: the rows whose `ags` equals it, leading zeros ignored on
- *   both sides (`by: "ags"`).
+ *   both sides (`by: "ags"`). When none does, a row whose shorter key the region pads
+ *   with zeros (`by: "ags-filled"`): a level fills in with coarser units, so at `gemeinde`
+ *   München is the row `09162` and Berlin `11`, and the official 8-digit keys `09162000`
+ *   and `11000000` (or `11000` at `kreis`) used to match nothing. The longest such key wins.
  * - Otherwise a name, compared case-insensitively in NFC (`foldText`): the rows whose
  *   whole name equals it (`by: "name"`), with the rows that only contain it in `others`;
  *   when no name equals it, every row whose name contains it (`by: "substring"`). A
@@ -433,9 +445,23 @@ export function parseRow(
 export function matchRegion(rows: RegionRow[], region: string): RegionMatch {
   const trimmed = assertValid("region", region, nonEmptyProblem).trim();
   if (/^\d+$/.test(trimmed)) {
+    const keyOf = (r: RegionRow): string => r.ags.replace(/\D/g, "");
     const target = String(Number(trimmed)); // strip leading zeros
-    const exact = rows.filter((r) => String(Number(r.ags.replace(/\D/g, "") || "0")) === target);
-    return exact.length > 0 ? { by: "ags", rows: exact, others: [] } : { by: "none", rows: [], others: [] };
+    const exact = rows.filter((r) => String(Number(keyOf(r) || "0")) === target);
+    if (exact.length > 0) return { by: "ags", rows: exact, others: [] };
+    const padded = officialKey(trimmed);
+    let best = 0;
+    let filled: RegionRow[] = [];
+    for (const r of rows) {
+      const key = officialKey(keyOf(r));
+      const fills = key !== "" && key.length < padded.length && padded.startsWith(key) && /^0+$/.test(padded.slice(key.length));
+      if (!fills) continue;
+      if (key.length > best) {
+        best = key.length;
+        filled = [r];
+      } else if (key.length === best) filled.push(r);
+    }
+    return filled.length > 0 ? { by: "ags-filled", rows: filled, others: [] } : { by: "none", rows: [], others: [] };
   }
   const needle = foldText(trimmed);
   const exact: RegionRow[] = [];
@@ -450,8 +476,9 @@ export function matchRegion(rows: RegionRow[], region: string): RegionMatch {
 }
 
 /**
- * Client-side region filter: the rows `matchRegion` picks. A numeric input is an exact
- * `ags` (leading zeros ignored); otherwise the rows whose whole name equals the input when there are
+ * Client-side region filter: the rows `matchRegion` picks. A numeric input is a key
+ * (an exact `ags`, leading zeros ignored, or a key padded with zeros that a coarser row
+ * carries shorter); otherwise the rows whose whole name equals the input when there are
  * any, else every row whose name contains it — case-insensitive, in NFC. A blank region
  * throws `RegionalatlasValidationError` rather than matching every row.
  */

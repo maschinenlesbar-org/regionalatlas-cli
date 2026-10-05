@@ -98,7 +98,10 @@ indicator's value columns first — `indicators` lists them with their titles an
 `--region` picks rows like this:
 
 - **A number is a key** (AGS): the row whose `ags` equals it, leading zeros ignored
-  (`9`, `09`).
+  (`9`, `09`). When no row has that key, the row whose shorter key it pads with zeros:
+  a level carries a filled-in unit under its own short key, so the official 8-digit key
+  `09162000` (München) matches the `09162` row at `gemeinde`, and `11000000` / `11000`
+  Berlin's `11` row at `gemeinde` / `kreis`; a `Note:` on stderr says so.
 - **Text is a name**, compared case-insensitively: the rows whose **whole name** equals it
   when there are any — `Sachsen` is Sachsen alone, not Niedersachsen and Sachsen-Anhalt
   too; `Gera` is Gera, not Groß-Gerau; `München` at `kreis` is the city (`09162`), not
