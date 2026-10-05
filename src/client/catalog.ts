@@ -15,7 +15,7 @@ import type {
   RawCatalogTheme,
   Theme,
 } from "./types.js";
-import { RegionalatlasParseError, RegionalatlasValidationError } from "./errors.js";
+import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
 import { assertValid, nonEmptyProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
@@ -217,6 +217,9 @@ export interface IndicatorFilter {
  * Throws `RegionalatlasValidationError` (`Invalid search: Expected a non-empty value.`).
  */
 export function assertIndicatorFilter(filter: IndicatorFilter): void {
+  if (filter === null || typeof filter !== "object" || Array.isArray(filter)) {
+    throw new RegionalatlasValidationError("Invalid indicator filter: expected an object (theme, year, search).");
+  }
   if (filter.theme !== undefined) assertValid("theme", filter.theme, nonEmptyProblem);
   if (filter.year !== undefined) normaliseYearFilter(filter.year);
   if (filter.search !== undefined) assertValid("search", filter.search, nonEmptyProblem);
@@ -270,17 +273,15 @@ export function filterIndicators(indicators: Indicator[], filter: IndicatorFilte
  * built. The returned indicator's `table` is the only value interpolated into SQL.
  */
 export function resolveIndicator(indicators: Indicator[], input: string): Indicator {
+  assertIndicatorInput(input);
   const trimmed = input.trim();
-  if (trimmed === "") {
-    throw new RegionalatlasValidationError("An indicator code is required (e.g. AI002-1-5).");
-  }
   const key = normalizeIndicatorKey(trimmed);
   // A code's normalized form equals its table form, so one key matches both the
   // code (case-insensitive, hyphen or underscore) and the table name.
   const match = indicators.find((ind) => ind.table === key);
   if (match === undefined) {
     throw new RegionalatlasValidationError(
-      `Unknown indicator "${input}". It is not in the catalogue — list indicators with ` +
+      `Unknown indicator "${cutForMessage(input)}". It is not in the catalogue — list indicators with ` +
         `\`regionalatlas indicators\` (accepts the code form AI002-1-5 or the table form ai002_1_5).`,
     );
   }
@@ -350,6 +351,30 @@ export function assertLevelPublished(indicator: Indicator, level: string, year: 
 }
 
 /**
+ * Check the indicator argument's type and content, before the catalogue is fetched: a
+ * non-empty string. A plain-JS caller's number, `null` or object threw a raw
+ * `TypeError` ("input.trim is not a function") after the catalogue request.
+ */
+export function assertIndicatorInput(input: unknown): asserts input is string {
+  if (typeof input !== "string") {
+    throw new RegionalatlasValidationError(
+      `Invalid indicator: expected the indicator code as a string (e.g. "AI002-1-5"), got ${input === null ? "null" : typeof input}.`,
+    );
+  }
+  if (input.trim() === "") {
+    throw new RegionalatlasValidationError("An indicator code is required (e.g. AI002-1-5).");
+  }
+}
+
+/** Check a query year's type before any request: an integer (its range is checked against the catalogue). */
+export function assertYearInput(year: unknown): asserts year is number {
+  if (typeof year !== "number" || !Number.isInteger(year)) {
+    const shown = typeof year === "string" ? JSON.stringify(year) : String(year);
+    throw new RegionalatlasValidationError(`Year must be an integer, got ${cutForMessage(shown)}.`);
+  }
+}
+
+/**
  * Validate and resolve the year for an indicator. When `year` is undefined, the
  * latest available year is used. A provided year must be an integer AND present in
  * the indicator's catalogue years. Only the validated integer enters SQL.
@@ -364,9 +389,7 @@ export function resolveYear(indicator: Indicator, year?: number): number {
     // Latest available year (years are 4-digit strings; compare numerically).
     return Math.max(...indicator.years.map((y) => Number(y)));
   }
-  if (!Number.isInteger(year)) {
-    throw new RegionalatlasValidationError(`Year must be an integer, got "${year}".`);
-  }
+  assertYearInput(year);
   if (!indicator.years.includes(String(year))) {
     throw new RegionalatlasValidationError(
       `Year ${year} is not available for indicator "${indicator.code}". ` +

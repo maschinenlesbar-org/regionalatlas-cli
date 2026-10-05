@@ -26,6 +26,7 @@ import {
   RegionalatlasParseError,
   RegionalatlasValidationError,
   credentialsIn,
+  cutForMessage,
   redactCredentials,
   redactUrl,
 } from "./errors.js";
@@ -242,9 +243,20 @@ export const MAX_RETRIES = 10;
 function intOption(name: string, value: number | undefined, fallback: number, max: number): number {
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || value < 0 || value > max) {
+    // A string is quoted, so `"5000"` doesn't read as the number it isn't.
+    const shown = typeof value === "string" ? JSON.stringify(value) : String(value);
     throw new RegionalatlasValidationError(
-      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
+      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${cutForMessage(shown)}.`,
     );
+  }
+  return value;
+}
+
+/** A function option (`transport`, `sleep`): `undefined` gives the default; anything else must be a function. */
+function functionOption<T>(name: string, value: T | undefined, fallback: T): T {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new RegionalatlasValidationError(`Invalid option ${name}: expected a function, got ${typeof value}.`);
   }
   return value;
 }
@@ -376,7 +388,12 @@ export class RequestEngine {
   private readonly maxResponseBytes: number;
   private readonly sleep: (ms: number) => Promise<void>;
 
-  constructor(options: EngineOptions = {}) {
+  constructor(options: EngineOptions | null = {}) {
+    // A plain-JS caller's `null` counts as no options; anything else must be an object.
+    if (options === null) options = {};
+    if (typeof options !== "object" || Array.isArray(options)) {
+      throw new RegionalatlasValidationError("Invalid options: expected an object.");
+    }
     // The raw value is checked, before the trailing-slash strip: request paths are
     // appended to it as a string, so whitespace would land in the path, and a `?` or
     // `#` would swallow every path (`http://h/m?token=abc` requests
@@ -385,11 +402,15 @@ export class RequestEngine {
       options.baseUrl === undefined ? DEFAULT_BASE_URL : validateHttpUrl("baseUrl", options.baseUrl, { base: true });
     this.#baseUrl = baseUrl.replace(/\/+$/, "");
     for (const form of credentialForms(this.#baseUrl)) this.#credentials.add(form);
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only undefined selects the default; a blank or unsendable value is refused
     // here rather than sent blank or failing late with Node's raw TypeError.
     this.userAgent =
       options.userAgent === undefined ? DEFAULT_USER_AGENT : assertHeaderValue("userAgent", options.userAgent);
+    const extra: unknown = options.defaultHeaders;
+    if (extra !== undefined && (typeof extra !== "object" || extra === null || Array.isArray(extra))) {
+      throw new RegionalatlasValidationError("Invalid option defaultHeaders: expected an object of header names and values.");
+    }
     this.defaultHeaders = { ...(options.defaultHeaders ?? {}) };
     for (const [name, value] of Object.entries(this.defaultHeaders)) {
       assertValid(`header name ${JSON.stringify(name)}`, name, headerNameProblem);
@@ -404,7 +425,7 @@ export class RequestEngine {
       DEFAULT_MAX_RESPONSE_BYTES,
       Number.MAX_SAFE_INTEGER,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**
@@ -634,7 +655,8 @@ export class RequestEngine {
     // `detail` came from the attacker-controlled response body; strip control
     // characters so a hostile endpoint cannot drive terminal escape sequences
     // into stderr via the error message.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    // Cut, too: a server can send a 200 kB detail.
+    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
     return new RegionalatlasApiError({ status, url, method: "GET", body: text, detail });
   }
 }

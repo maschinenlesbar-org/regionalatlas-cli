@@ -67,6 +67,18 @@ export function redactCredentials(text: string, credentials: readonly string[]):
   return out;
 }
 
+/**
+ * Longest echoed value or server text (in characters) an error message shows. A
+ * 20 000-character indicator argument or a 200 kB server `detail` would otherwise put the
+ * whole thing on one stderr line.
+ */
+export const MAX_MESSAGE_VALUE_LENGTH = 500;
+
+/** `text` cut to MAX_MESSAGE_VALUE_LENGTH characters, ending in "…" when cut. */
+export function cutForMessage(text: string): string {
+  return text.length > MAX_MESSAGE_VALUE_LENGTH ? `${text.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : text;
+}
+
 /** Longest query-parameter value an error message shows; a longer one becomes `…`. */
 const MAX_SHOWN_PARAM_LENGTH = 60;
 

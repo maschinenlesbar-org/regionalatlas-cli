@@ -16,12 +16,14 @@
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
 import { RequestEngine, describeArcGisError, validateHttpUrl, type EngineOptions } from "./engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError, redactUrl } from "./errors.js";
+import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, redactUrl } from "./errors.js";
 import {
   assertKnownFields,
   assertLevelPublished,
   fieldKey,
   assertIndicatorFilter,
+  assertIndicatorInput,
+  assertYearInput,
   filterIndicators,
   foldText,
   parseIndicators,
@@ -73,8 +75,10 @@ export class RegionalatlasClient {
   private indicatorsCache: Indicator[] | undefined;
   private rawCatalogCache: unknown;
 
-  constructor(options: RegionalatlasClientOptions = {}) {
+  constructor(options: RegionalatlasClientOptions | null = {}) {
+    // The engine refuses a non-object; `null` counts as no options.
     this.engine = new RequestEngine(options);
+    options ??= {};
     // Checked here, not on first use: a bad catalogue URL is a configuration error
     // (RegionalatlasValidationError), not a network failure after a wasted request.
     this.#catalogUrl =
@@ -136,6 +140,14 @@ export class RegionalatlasClient {
    * limit (`exceededTransferLimit`), which `query` cannot show.
    */
   async queryResult(opts: QueryOptions): Promise<QueryResult> {
+    // 0. The input's types, before any request: a plain-JS caller's `query(null)`,
+    //    `{ indicator: 2020 }` or `{ year: "2020" }` is a RegionalatlasValidationError,
+    //    not a raw TypeError after the catalogue request.
+    if (opts === null || typeof opts !== "object" || Array.isArray(opts)) {
+      throw new RegionalatlasValidationError("Invalid query options: expected an object with an indicator.");
+    }
+    assertIndicatorInput(opts.indicator);
+    if (opts.year !== undefined) assertYearInput(opts.year);
     // 1. Map level → typ (throws if unknown); an omitted level is DEFAULT_LEVEL. The
     //    allowlist is fixed, so it is checked before any request: an unknown
     //    indicator or a catalogue outage must not hide a bad level.
@@ -412,6 +424,7 @@ export function filterByRegion(rows: RegionRow[], region: string): RegionRow[] {
  * the data's `ai_z01`.
  */
 export function projectFields(rows: RegionRow[], fields: string[]): RegionRow[] {
+  assertValid("fields", fields, fieldsProblem);
   const wanted = new Set(fields.map(fieldKey).filter((f) => f !== ""));
   if (wanted.size === 0) return rows;
   return rows.map((r) => {

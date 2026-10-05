@@ -276,6 +276,12 @@ host (catalogue vs data). Coverage highlights:
   `RegionalatlasValidationError`.
 - `parity.test.ts` — the same input through the CLI and the library (`parity()`): both
   reject without a request, or both send the identical requests.
+- `conformance-p*.test.ts` — the workspace's shared conformance checks from the
+  2026-10-05 review (P1 credential redaction in CLI output, P2 in library objects, P4
+  base-URL validation, P5 transport contract, P6 retry policy, P7 pipes and exit codes,
+  P8/P9/P13 charset, body shape and error classes); copied across the `*-cli` repos, only
+  the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
+  and P4 for the second URL, `--catalog-url`.
 
 ## Conventions to keep
 
@@ -307,6 +313,13 @@ host (catalogue vs data). Coverage highlights:
   becomes a `RegionalatlasNetworkError`, and a malformed response (no status, NaN) too; a
   reset reported as Node's `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's
   `UND_ERR_SOCKET` anywhere in the `cause` chain is retried like a 503 (linear backoff).
+- **Wrong-typed input is a validation error, before any request:** `query(null)`,
+  `{ indicator: 2020 }`, `{ year: "2020" }`, `indicators(null)`, a non-function
+  `transport`/`sleep`, a non-object `defaultHeaders` or options object all throw
+  `RegionalatlasValidationError` (`assertIndicatorInput`, `assertYearInput`,
+  `assertIndicatorFilter`), never a raw `TypeError`; `null` options count as none. Echoed
+  values and server text in messages are cut at 500 characters (`cutForMessage`,
+  `MAX_MESSAGE_VALUE_LENGTH`, exported), and a string option value is quoted.
 - **Engine options are checked** (`intOption` in engine.ts): `timeoutMs` 0..2^31−1,
   `maxRetries` 0..`MAX_RETRIES` (10, shared with `--max-retries`), `retryDelayMs`
   0..30 000, `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER`; anything else (negative,
