@@ -287,7 +287,7 @@ host (catalogue vs data). Coverage highlights:
 
 ## Conventions to keep
 
-- **Zero runtime HTTP deps**; strict TS + ESM; passes on Node 20/22/24.
+- **Zero runtime HTTP deps**; strict TS + ESM; passes on Node 22/24 (`engines` `>=22.12`, commander 15's floor; CI runs 22 and 24).
 - **Exit codes** (`run.ts`): help/version → 0; usage/validation → 2; 404 → 4;
   network → 6; other → 1. The bin shim installs `handleOutputErrors()` (io.ts) before
   `run()`: an EPIPE on stdout (a reader that stops early, `| head`) exits 0 quietly, an

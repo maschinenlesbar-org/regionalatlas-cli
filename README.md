@@ -29,6 +29,8 @@ npm install -g @maschinenlesbar.org/regionalatlas-cli   # the `regionalatlas` co
 npm install @maschinenlesbar.org/regionalatlas-cli
 ```
 
+Requires **Node.js 22.12+**.
+
 ## CLI
 
 ```bash
