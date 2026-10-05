@@ -106,7 +106,11 @@ export interface Indicator {
   titleShort: string;
   /** Long, descriptive title. */
   titleLong: string;
-  /** Available years, ascending, as 4-digit strings (e.g. ["2000","2005",…]). */
+  /**
+   * Every year the catalogue offers, ascending, as 4-digit strings (e.g. ["2000","2005",…]).
+   * Not every one has figures: a year whose `levels` entry is `[]` has none at any level
+   * (`AI008-2` 2006, `AI002-3` 2003/2004 on 2026-10-05), and `query` refuses it.
+   */
   years: string[];
   /**
    * Per year, the geo levels (`land`, `regierungsbezirk`, `kreis`, `gemeinde`) the

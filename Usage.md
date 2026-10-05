@@ -44,7 +44,7 @@ same rules when the client is built.
 | Option | Description |
 |---|---|
 | `--theme <substr>` | filter by theme title (case-insensitive substring) |
-| `--year <yyyy>` | only indicators offering this year |
+| `--year <yyyy>` | only indicators offering this year (in `years`; a few offered years have no figures at any level — their `levels` entry is `[]`) |
 | `--search <substr>` | filter over code + short + long title (case-insensitive; a decomposed umlaut matches too, as for `--theme` and `--region`) |
 
 `regionalatlas indicators` → `[{ code, table, theme, titleShort, titleLong, years, levels, fields }, …]`,

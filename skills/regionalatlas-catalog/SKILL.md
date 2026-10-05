@@ -81,9 +81,13 @@ regionalatlas indicators --search AI005 --year 2024 --compact
   code and the indicator's titles, not the column titles in `fields`, so a column topic
   such as `wahlbeteiligung` returns `[]`. Search the indicator's topic, then read its
   `fields` (`AI005` lists "Wahlbeteiligung, Bundestagswahl" there).
-- **Years have gaps.** `years` lists only the years with figures: `AI005` offers just the
-  election years (1998, 2002, 2005, 2009, 2013, 2017, 2021, 2025), and `AI002-1-5` skips
-  2001–2004. Pick a year from the list, and a level from `levels` for that year.
+- **Years have gaps, and a listed year can still be empty.** `years` lists every year the
+  catalogue offers: `AI005` offers just the election years (1998, 2002, 2005, 2009, 2013,
+  2017, 2021, 2025), and `AI002-1-5` skips 2001–2004. But a few listed years have no
+  figures at any level — their `levels` entry is `[]` (on 2026-10-05: `AI002-3` 2003 and
+  2004, `AI008-2` 2006, `AIG-08-2`, `AI-N-07` 2006 and 2007), `indicators --year` still
+  lists them, and `query` refuses them (exit 2). Pick a year whose `levels` entry names the
+  level you want.
 - **The newest catalogue year may not be loaded yet.** `AI013-1` listed years up to 2026 on
   2026-09-15, but `query` returned `[]` for 2026 (with a `Note:` on stderr naming 2025).
   A year listed here is not a guarantee of data.
