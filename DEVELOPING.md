@@ -202,7 +202,12 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   when the client is built: `baseUrl` and `catalogUrl` must be non-blank `http:`/`https:`
   URLs without surrounding or interior whitespace or control characters; `baseUrl` also
   without a query or fragment. Userinfo is allowed (sent as Basic auth, redacted in
-  messages). A bad value used to be accepted and fail later, after the catalogue request,
+  messages). The CLI also redacts on output: `run.ts` (`withRedactedOutput`) takes the
+  exact userinfo of every argument (`credentialsIn`, exported) and replaces it with `***`
+  in everything it prints — commander's usage errors, which echo a rejected
+  `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
+  quotes, `#`, `?` or `/` is caught as well as an ordinary one. `redactUrl` falls back to
+  the same text-based cut for a value that doesn't parse as a URL. A bad value used to be accepted and fail later, after the catalogue request,
   as a `RegionalatlasNetworkError`. The engine keeps its per-request scheme check
   (`assertHttpScheme`) as defence in depth for absolute URLs. `--base-url` and
   `--catalog-url` use the same rules.

@@ -66,6 +66,8 @@ export {
   RegionalatlasValidationError,
   RegionalatlasParseError,
   redactUrl,
+  credentialsIn,
+  redactCredentials,
   shortenUrl,
 } from "./errors.js";
 

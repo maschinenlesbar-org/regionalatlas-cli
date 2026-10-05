@@ -23,8 +23,10 @@ regionalatlas [global options] <command> [command options]
 `--base-url` and `--catalog-url` accept only `http:`/`https:` URLs without whitespace
 (around or inside them). `--base-url` must not have a query (`?`) or fragment (`#`) (the
 CLI appends the data path to it); a path prefix for a mirror is fine. A `user:password@`
-part is sent as Basic auth and shown as `***@` in error messages. The library checks
-`baseUrl` and `catalogUrl` by the same rules when the client is built.
+part is sent as Basic auth and shown as `***@` in everything the CLI prints — its own error
+messages, commander's usage errors (which quote a rejected value), help — whatever
+characters the password contains. The library checks `baseUrl` and `catalogUrl` by the
+same rules when the client is built.
 
 ## Commands
 
