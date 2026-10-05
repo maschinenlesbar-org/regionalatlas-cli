@@ -238,6 +238,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   same function when parsed — they appear in error messages such as the list of
   `Available:` columns. As a last net, run.ts strips C0 (except tab/newline), DEL and
   C1 from everything written to stderr, which covers arguments quoted back as typed.
+- **Charset:** a JSON body (data and catalogue) is decoded by the charset its
+  Content-Type names, UTF-8 when it names none (`decodeBody`, `TextDecoder`): a Latin-1
+  reply from a mirror reads correctly, a BOM is dropped, and an unknown charset label is a
+  `RegionalatlasParseError`. Both live hosts send UTF-8.
 - **Error messages shorten the URL**: `shortenUrl` replaces every query-parameter value
   longer than 60 characters with `…` (in practice the `layer` parameter, ~750 characters
   of encoded SQL), so the reason is not buried at the end of an 800-character line.

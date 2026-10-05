@@ -322,3 +322,20 @@ test("the constructor refuses an unsendable userAgent or defaultHeaders entry be
   assert.equal(assertHeaderValue("userAgent", "ok"), "ok");
   assert.throws(() => assertHeaderValue("userAgent", " "), /^RegionalatlasValidationError: Invalid userAgent: Expected a non-empty value\.$/);
 });
+
+test("a JSON body is decoded by its declared charset; a BOM is dropped; an unknown charset is a parse error", async () => {
+  const text = '{"name":"Baden-Württemberg"}';
+  const cases: Array<[Buffer, string]> = [
+    [Buffer.from(text, "latin1"), "application/json; charset=ISO-8859-1"],
+    [Buffer.from(text, "utf8"), "application/json; charset=utf-8"],
+    [Buffer.from(text, "utf8"), "application/json"],
+    [Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(text, "utf8")]), "application/json"],
+  ];
+  for (const [body, contentType] of cases) {
+    const mt = makeMockTransport(() => rawResponse(body, contentType));
+    const e = new RequestEngine({ transport: mt.transport });
+    assert.deepEqual(await e.getJson("/q"), { name: "Baden-Württemberg" }, contentType);
+  }
+  const mt = makeMockTransport(() => rawResponse(text, "application/json; charset=x-klingon"));
+  await assert.rejects(new RequestEngine({ transport: mt.transport }).getJson("/q"), RegionalatlasParseError);
+});

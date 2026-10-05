@@ -9,6 +9,7 @@
 // fully-qualified absolute URL (`requestAbsolute`) so the catalogue can be fetched
 // without changing the data `baseUrl`.
 
+import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
   nodeHttpTransport,
@@ -335,6 +336,27 @@ function credentialForms(url: string): string[] {
   });
 }
 
+/**
+ * Decode a response body by the charset its Content-Type names (UTF-8 when it names
+ * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
+ * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into a
+ * parse error; a Latin-1 body from a mirror is no longer misread as UTF-8
+ * ("Baden-W\uFFFDrttemberg", and `--region Württemberg` then matching nothing). An
+ * unknown charset label is a RegionalatlasParseError.
+ */
+function decodeBody(body: Buffer, contentType: string, source: string): string {
+  const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
+  let decoder: TextDecoder;
+  try {
+    decoder = new TextDecoder(charset);
+  } catch {
+    throw new RegionalatlasParseError(
+      `Unsupported response charset "${sanitizeServerText(charset).slice(0, 100)}" from ${source}.`,
+    );
+  }
+  return decoder.decode(body);
+}
+
 export class RequestEngine {
   // A real private field (not TypeScript's `private`): util.inspect, console.log and
   // JSON.stringify of a client never show it, so a password in the base URL can't be
@@ -574,7 +596,7 @@ export class RequestEngine {
 
   /** Parse a JSON body; `source` names it in the error (a path, or a redacted URL). */
   private decodeJson<T>(res: RawResponse, source: string): T {
-    const text = res.data.toString("utf8");
+    const text = decodeBody(res.data, res.contentType, this.redact(source));
     if (res.status === 204 || text.trim().length === 0) {
       return null as T;
     }
