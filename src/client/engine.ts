@@ -9,13 +9,16 @@
 // fully-qualified absolute URL (`requestAbsolute`) so the catalogue can be fetched
 // without changing the data `baseUrl`.
 
-import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type HttpResponse, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import {
   RegionalatlasApiError,
+  RegionalatlasError,
   RegionalatlasNetworkError,
   RegionalatlasParseError,
   RegionalatlasValidationError,
+  credentialsIn,
+  redactCredentials,
   redactUrl,
 } from "./errors.js";
 import {
@@ -236,8 +239,27 @@ export function assertHeaderValue(name: string, value: string): string {
   return assertValid(name, value, headerValueProblem);
 }
 
+/** The userinfo of a URL, as written and percent-decoded, for scrubbing text that echoes it. */
+function credentialForms(url: string): string[] {
+  return credentialsIn(url).flatMap((raw) => {
+    try {
+      return [raw, decodeURIComponent(raw)];
+    } catch {
+      return [raw];
+    }
+  });
+}
+
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // A real private field (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show it, so a password in the base URL can't be
+  // logged by accident.
+  readonly #baseUrl: string;
+  /**
+   * The userinfo of the base URL and of every absolute URL requested (the catalogue),
+   * raw and percent-decoded, for scrubbing server and transport text.
+   */
+  readonly #credentials = new Set<string>();
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly defaultHeaders: Record<string, string>;
@@ -254,7 +276,8 @@ export class RequestEngine {
     // `/m?token=abc/arcgis/...`). Only undefined selects the default.
     const baseUrl =
       options.baseUrl === undefined ? DEFAULT_BASE_URL : validateHttpUrl("baseUrl", options.baseUrl, { base: true });
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.#baseUrl = baseUrl.replace(/\/+$/, "");
+    for (const form of credentialForms(this.#baseUrl)) this.#credentials.add(form);
     this.transport = options.transport ?? nodeHttpTransport;
     // Only undefined selects the default; a blank or unsendable value is refused
     // here rather than sent blank or failing late with Node's raw TypeError.
@@ -277,11 +300,62 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
-  /** Build a fully-qualified URL from a path (on the data host) and optional query. */
+  /**
+   * `text` without the credentials of the base URL or of any absolute URL this engine
+   * requested (the catalogue): server text (an error body that echoes the request URL) and
+   * transport text (fetch's "Failed to fetch <url>") can carry them. The client uses it for
+   * the errors it builds itself (the ArcGIS envelope).
+   */
+  redact(text: string): string {
+    return this.#credentials.size === 0 ? text : redactCredentials(text, [...this.#credentials]);
+  }
+
+  /**
+   * A transport failure as the `cause` of the error the engine raises: the original when its
+   * text carries no credentials, otherwise a copy with them scrubbed (message, `code` and the
+   * cause chain kept), so logging the error with its causes can't reveal a password.
+   */
+  private scrubCause(cause: unknown, depth = 0): unknown {
+    if (this.#credentials.size === 0 || depth > 5) return cause;
+    if (typeof cause === "string") return this.redact(cause);
+    if (!(cause instanceof Error)) return cause;
+    const inner = this.scrubCause(cause.cause, depth + 1);
+    const message = this.redact(cause.message);
+    if (message === cause.message && inner === cause.cause && !this.redact(cause.stack ?? "").includes("***@")) {
+      return cause;
+    }
+    const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+    copy.name = cause.name;
+    const code = (cause as { code?: unknown }).code;
+    if (code !== undefined) Object.assign(copy, { code });
+    return copy;
+  }
+
+  /**
+   * What the transport threw, as the error the engine raises. The default transport
+   * rejects with `RegionalatlasNetworkError` only; an injected one may throw anything (a
+   * string, a `TypeError` from fetch). Every failure becomes a `RegionalatlasNetworkError`
+   * — a `RegionalatlasError` a caller and the CLI can rely on — with the credentials
+   * scrubbed from its message and cause chain; any other `RegionalatlasError` passes
+   * through, and a clean `RegionalatlasNetworkError` stays as it is.
+   */
+  private transportError(cause: unknown): RegionalatlasError {
+    if (cause instanceof RegionalatlasError && !(cause instanceof RegionalatlasNetworkError)) return cause;
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    const message = sanitizeServerText(this.redact(reason));
+    const scrubbed = this.scrubCause(cause);
+    if (cause instanceof RegionalatlasNetworkError && message === cause.message && scrubbed === cause) return cause;
+    return new RegionalatlasNetworkError(message, { cause: scrubbed });
+  }
+
+  /**
+   * Build a fully-qualified URL from a path (on the data host) and optional query. The
+   * result carries the base URL's userinfo, if any: it is the URL a transport requests.
+   */
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /** Build a fully-qualified URL from an absolute base URL and optional query. */
@@ -310,13 +384,18 @@ export class RequestEngine {
 
     let attempt = 0;
     for (;;) {
-      const response = await this.transport({
-        method: "GET",
-        url,
-        headers,
-        timeoutMs: this.timeoutMs,
-        ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
-      });
+      let response: HttpResponse;
+      try {
+        response = await this.transport({
+          method: "GET",
+          url,
+          headers,
+          timeoutMs: this.timeoutMs,
+          ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
+        });
+      } catch (cause) {
+        throw this.transportError(cause);
+      }
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
@@ -355,9 +434,12 @@ export class RequestEngine {
   /** GET a fully-qualified absolute URL (e.g. the catalogue host) and parse JSON into `T`. */
   async getJsonAbsolute<T>(absoluteUrl: string, query?: QueryParams): Promise<T> {
     const url = this.buildAbsoluteUrl(absoluteUrl, query);
-    return this.decodeJson<T>(await this.requestUrl(url, "application/json"), url);
+    // Its userinfo is as secret as the base URL's: scrub it from every message too.
+    for (const form of credentialForms(url)) this.#credentials.add(form);
+    return this.decodeJson<T>(await this.requestUrl(url, "application/json"), redactUrl(url));
   }
 
+  /** Parse a JSON body; `source` names it in the error (a path, or a redacted URL). */
   private decodeJson<T>(res: RawResponse, source: string): T {
     const text = res.data.toString("utf8");
     if (res.status === 204 || text.trim().length === 0) {
@@ -366,12 +448,15 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new RegionalatlasParseError(`Failed to parse JSON response from ${source}`, { cause });
+      throw new RegionalatlasParseError(`Failed to parse JSON response from ${this.redact(source)}`, {
+        cause: this.scrubCause(cause),
+      });
     }
   }
 
   private toApiError(url: string, status: number, body: Buffer): RegionalatlasApiError {
-    const text = body.toString("utf8");
+    // The body is kept on the error (`body`) and may echo the request URL: scrub it.
+    const text = this.redact(body.toString("utf8"));
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as {

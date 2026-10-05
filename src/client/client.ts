@@ -16,7 +16,7 @@
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
 import { RequestEngine, describeArcGisError, validateHttpUrl, type EngineOptions } from "./engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError } from "./errors.js";
+import { RegionalatlasApiError, RegionalatlasParseError, redactUrl } from "./errors.js";
 import {
   assertKnownFields,
   assertLevelPublished,
@@ -67,7 +67,9 @@ export interface RegionalatlasClientOptions extends EngineOptions {
  */
 export class RegionalatlasClient {
   private readonly engine: RequestEngine;
-  private readonly catalogUrl: string;
+  // A real private field, like the engine's base URL: logging a client never shows the
+  // catalogue URL's userinfo.
+  readonly #catalogUrl: string;
   private indicatorsCache: Indicator[] | undefined;
   private rawCatalogCache: unknown;
 
@@ -75,17 +77,17 @@ export class RegionalatlasClient {
     this.engine = new RequestEngine(options);
     // Checked here, not on first use: a bad catalogue URL is a configuration error
     // (RegionalatlasValidationError), not a network failure after a wasted request.
-    this.catalogUrl =
+    this.#catalogUrl =
       options.catalogUrl === undefined ? DEFAULT_CATALOG_URL : validateHttpUrl("catalogUrl", options.catalogUrl);
   }
 
   /** Fetch and cache the raw services.json (an array of themes). */
   private async rawCatalog(): Promise<unknown> {
     if (this.rawCatalogCache === undefined) {
-      const raw = await this.engine.getJsonAbsolute<unknown>(this.catalogUrl);
+      const raw = await this.engine.getJsonAbsolute<unknown>(this.#catalogUrl);
       if (raw === null || raw === undefined) {
         throw new RegionalatlasParseError(
-          `The catalogue at ${this.catalogUrl} returned an empty body.`,
+          `The catalogue at ${redactUrl(this.#catalogUrl)} returned an empty body.`,
         );
       }
       this.rawCatalogCache = raw;
@@ -204,13 +206,15 @@ export class RegionalatlasClient {
     if (err) {
       const code =
         typeof err === "object" ? (err as { code?: unknown }).code : undefined;
+      const detail = describeArcGisError(err);
       throw new RegionalatlasApiError({
         url: this.engine.buildUrl(DATA_PATH, params),
         method: "GET",
-        body: JSON.stringify(res),
+        // Server text that may echo the request URL: scrubbed like the engine's own errors.
+        body: this.engine.redact(JSON.stringify(res)),
         arcgisCode: typeof code === "number" ? code : undefined,
         // Message and details, control characters stripped (sanitizeServerText).
-        detail: describeArcGisError(err),
+        detail: detail === undefined ? undefined : this.engine.redact(detail),
       });
     }
     return res as ArcGisQueryResponse;

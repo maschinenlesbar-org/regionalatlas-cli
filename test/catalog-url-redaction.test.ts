@@ -5,10 +5,12 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { inspect } from "node:util";
 import type { CliDeps } from "../src/cli/io.js";
-import type { HttpResponse } from "../src/client/http.js";
+import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { run } from "../src/cli/run.js";
 import { RegionalatlasClient } from "../src/client/client.js";
+import { catalog, landData } from "./fixtures.js";
 
 const PASSWORDS = ["s3cret-pw", "pa#ss-pw", "pa?ss-pw", "pa/ss-pw", "pa ss-pw", "o'brien-pw", "päss-pw", "p@ss-pw"];
 
@@ -59,3 +61,72 @@ for (const pw of PASSWORDS) {
     }
   });
 }
+
+// ---- the library (P2): logged clients and every error of both hosts -----------------
+
+
+const PW = "s3cret-Pw";
+const DATA = `https://alice:${PW}@data.example`;
+const CATALOG = `https://bob:${PW}@cat.example/services.json`;
+
+function everything(value: unknown): string {
+  let text = inspect(value, { depth: 10, showHidden: true });
+  try {
+    text += JSON.stringify(value);
+  } catch {
+    // circular: inspect covers it
+  }
+  if (value instanceof Error) {
+    text += value.message + String((value as { url?: unknown }).url ?? "");
+    for (let c: unknown = value.cause; c !== undefined && c !== null; c = (c as { cause?: unknown }).cause) {
+      text += inspect(c, { depth: 10 }) + (c instanceof Error ? c.message : String(c));
+    }
+  }
+  return text;
+}
+
+const json = (status: number, body: unknown): HttpResponse => ({
+  status,
+  headers: { "content-type": "application/json" },
+  body: Buffer.from(typeof body === "string" ? body : JSON.stringify(body)),
+});
+
+test("library: logging a client with both URLs credentialed never shows the password", () => {
+  const client = new RegionalatlasClient({ baseUrl: DATA, catalogUrl: CATALOG, transport: async () => json(200, []) });
+  assert.ok(!everything(client).includes(PW), everything(client));
+});
+
+test("library: no error of the catalogue or the data host carries the password", async () => {
+  type Responder = (req: HttpRequest) => Promise<HttpResponse>;
+  const onData = (respond: Responder): Responder => async (req) =>
+    req.url.startsWith("https://bob:") ? json(200, catalog) : respond(req);
+  const cases: Array<[string, Responder, (c: RegionalatlasClient) => Promise<unknown>]> = [
+    ["catalogue not JSON", async () => json(200, "<html>login</html>"), (c) => c.themes()],
+    ["catalogue empty", async () => json(200, ""), (c) => c.themes()],
+    ["catalogue null", async () => json(200, "null"), (c) => c.themes()],
+    ["catalogue 404 echoing the URL", async (req) => json(404, { message: `no ${req.url}` }), (c) => c.themes()],
+    ["catalogue transport error with the URL", async (req) => { throw new TypeError(`Failed to fetch ${req.url}`); }, (c) => c.themes()],
+    ["data 500 echoing the URL", onData(async (req) => json(500, { message: `boom ${req.url}` })), (c) => c.query({ indicator: "AI002-1-5", year: 2020 })],
+    ["data ArcGIS envelope echoing the URL", onData(async (req) => json(200, { error: { code: 400, message: `bad ${req.url}`, details: [req.url] } })), (c) => c.query({ indicator: "AI002-1-5", year: 2020 })],
+    ["data not JSON", onData(async (req) => json(200, `oops ${req.url}`)), (c) => c.query({ indicator: "AI002-1-5", year: 2020 })],
+    ["data transport cause chain", onData(async (req) => { throw new Error("fetch failed", { cause: new Error(`connect ${req.url}`) }); }), (c) => c.query({ indicator: "AI002-1-5", year: 2020 })],
+  ];
+  for (const [label, transport, call] of cases) {
+    const client = new RegionalatlasClient({ baseUrl: DATA, catalogUrl: CATALOG, transport, maxRetries: 0 });
+    let err: unknown;
+    try {
+      await call(client);
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error, `${label}: the call should have failed`);
+    assert.ok(!everything(err).includes(PW), `${label}: ${everything(err)}`);
+  }
+  // The success path still works with credentialed URLs.
+  const ok = new RegionalatlasClient({
+    baseUrl: DATA,
+    catalogUrl: CATALOG,
+    transport: async (req) => (req.url.startsWith("https://bob:") ? json(200, catalog) : json(200, landData)),
+  });
+  assert.ok((await ok.query({ indicator: "AI002-1-5", year: 2020 })).length > 0);
+});
