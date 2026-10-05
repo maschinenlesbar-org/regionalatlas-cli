@@ -114,11 +114,13 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 
 | Code | Meaning |
 |---|---|
-| `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr — from `query` and from `indicators` alike |
+| `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr — from `query` and from `indicators` alike; so does a run whose output reader stops early (`\| head`), quietly |
 | `1` | API/logical error (the ArcGIS `error` envelope), or a catch-all |
 | `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, a `--base-url` with a query, fragment or surrounding whitespace, redirecting base URL) |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |
+
+A failed run keeps its exit code when the reader of stderr has gone away (`2>&1 | true`).
 
 ## Notes
 

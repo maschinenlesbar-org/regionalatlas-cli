@@ -277,7 +277,10 @@ host (catalogue vs data). Coverage highlights:
 
 - **Zero runtime HTTP deps**; strict TS + ESM; passes on Node 20/22/24.
 - **Exit codes** (`run.ts`): help/version → 0; usage/validation → 2; 404 → 4;
-  network → 6; other → 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
+  network → 6; other → 1. The bin shim installs `handleOutputErrors()` (io.ts) before
+  `run()`: an EPIPE on stdout (a reader that stops early, `| head`) exits 0 quietly, an
+  EPIPE on stderr is ignored so the run's own code stands, and any other stdout error
+  prints one `Output error:` line and exits 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
   from the data host that means a base-URL misconfiguration → usage).
 - **Retry/backoff:** `429`/`503` and reset connections are retried up to `maxRetries`
   (default 2); a refused connection, a DNS failure and a timeout are not. Each retry waits
