@@ -277,6 +277,8 @@ host (catalogue vs data). Coverage highlights:
   data host), row parsing (trim `gen2`, keep `<field>v`, strict value coercion), the
   malformed-feature guards, client-side region/field, and
   the ArcGIS-error-in-200-body → typed error mapping (incl. control-char stripping).
+- `region.test.ts` — `--region` matching (`matchRegion`): an exact name over substring hits,
+  ambiguous names, the zero-padded official keys of filled-in rows, and the CLI's notes.
 - `cli.test.ts` — the three commands, `--level`/`--year` parse-time validation, the
   guard exit codes, and the hardening guards (control-char UA, empty/non-http URL,
   bounded retries, option-shaped filter values).
