@@ -133,7 +133,9 @@ no raw user text is ever interpolated:
    `Indicator.table` (lowercase `[a-z0-9_]+`), never raw user text.
 2. **Level → typ** (`levels.ts › resolveLevel`). A friendly name/alias maps to one of
    the fixed integers `{1,2,3,5}`; an unknown level (or a non-string one) → typed usage
-   error. An omitted level is `DEFAULT_LEVEL` (`land`, exported from `levels.ts`), the
+   error. The lookup goes through `normalizeInput` (trim, NFC; exported) and is
+   case-insensitive, so a decomposed umlaut in `bundesländer` resolves; indicator codes
+   and field names are normalised the same way. An omitted level is `DEFAULT_LEVEL` (`land`, exported from `levels.ts`), the
    library's default that `--level` shows as its own. Only the integer `typ` enters SQL.
    The allowlist is fixed, so `queryResult` checks the level **first**, before the
    catalogue request: an unknown indicator or a catalogue outage cannot hide a bad level.

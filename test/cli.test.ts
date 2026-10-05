@@ -522,3 +522,23 @@ test("a blank or non-Latin-1 --user-agent is a usage error; tab and Latin-1 pass
   assert.equal(await run(["--user-agent", "mü\tagent", "themes"], ok.deps), 0);
   assert.equal(ok.mt.last().headers?.["User-Agent"], "mü\tagent");
 });
+
+test("P11: --level with a decomposed umlaut works like the composed alias (finding 02#1)", async () => {
+  const { run } = await import("../src/cli/run.js");
+  const { RegionalatlasClient } = await import("../src/client/client.js");
+  const { routeByHost } = await import("./helpers.js");
+  const fx = await import("./fixtures.js");
+  for (const level of ["bundesländer", "länder"]) {
+    const out: string[] = [];
+    const err: string[] = [];
+    const sent: string[] = [];
+    const respond = routeByHost(fx.catalog, fx.landData);
+    const code = await run(["--compact", "query", "AI002-1-5", "--year", "2020", "--level", level], {
+      io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+      createClient: (opts) =>
+        new RegionalatlasClient({ ...opts, transport: async (req) => (sent.push(req.url), respond(req)) }),
+    });
+    assert.equal(code, 0, err.join("\n"));
+    assert.ok(sent.some((u) => decodeURIComponent(u).includes("typ = 1")), sent.join("\n"));
+  }
+});

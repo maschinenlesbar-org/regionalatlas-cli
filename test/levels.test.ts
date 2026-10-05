@@ -38,3 +38,14 @@ test("a non-string level is unknown, a typed validation error rather than a raw 
     assert.throws(() => resolveLevel(input), RegionalatlasValidationError, String(input));
   }
 });
+
+test("P11: an alias typed with a decomposed umlaut (NFD) resolves like the composed one", () => {
+  for (const alias of ["bundesländer", "länder"]) {
+    const nfd = alias.normalize("NFD");
+    assert.notEqual(nfd, alias);
+    assert.equal(findLevel(nfd)?.name, "land", JSON.stringify(nfd));
+    assert.equal(findLevel(` ${nfd.toUpperCase()} `)?.name, "land");
+  }
+  // Prototype keys are not aliases.
+  for (const key of ["constructor", "__proto__", "toString"]) assert.equal(findLevel(key), undefined);
+});

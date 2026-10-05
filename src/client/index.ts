@@ -53,6 +53,7 @@ export { buildSql, buildLayerParam } from "./sql.js";
 export {
   assertValid,
   assertKnownKeys,
+  normalizeInput,
   isBlank,
   nonEmptyProblem,
   fieldsProblem,

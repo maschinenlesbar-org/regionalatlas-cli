@@ -69,9 +69,10 @@ values }, …]`, one row per region. A value the upstream sent as a special-valu
 [GLOSSARY.md](GLOSSARY.md)) is `null`, and the row then carries a `missing` object naming
 the reason per field.
 
-`--level` accepts these aliases: `land`/`laender`/`bundesland` (=1),
+`--level` accepts these aliases: `land`/`laender`/`länder`/`bundesland`/`bundesländer` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),
-`gemeinde`/`gemeinden` (=5).
+`gemeinde`/`gemeinden` (=5) — case-insensitively, with surrounding spaces ignored and an
+umlaut typed decomposed (as macOS input can produce) read like the composed one.
 
 Every level covers **all of Germany**, filling in with the next coarser unit where the
 finer one does not exist — so `ags` length varies within a level. `regierungsbezirk`

@@ -18,7 +18,7 @@ import type {
 import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
-import { assertKnownKeys, assertValid, nonEmptyProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
+import { assertKnownKeys, assertValid, nonEmptyProblem, normalizeInput, YEAR_SHAPE, yearProblem } from "./validate.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -27,7 +27,7 @@ export function tableForCode(code: string): string {
 
 /** Normalise a user indicator string to compare against a code or a table form. */
 function normalizeIndicatorKey(input: string): string {
-  return input.trim().toLowerCase().replace(/-/g, "_");
+  return normalizeInput(input).toLowerCase().replace(/-/g, "_");
 }
 
 function asString(value: unknown): string {
@@ -94,7 +94,7 @@ function parseFields(raw: unknown): IndicatorField[] {
  * `findField` and by `projectFields`.
  */
 export function fieldKey(name: string): string {
-  return name.trim().toLowerCase().replace(/-/g, "_");
+  return normalizeInput(name).toLowerCase().replace(/-/g, "_");
 }
 
 /**
@@ -247,7 +247,7 @@ export function normaliseYearFilter(year: string | number): string {
  * the catalogue's and the data's composed "ö". Applied to both sides.
  */
 export function foldText(text: string): string {
-  return text.normalize("NFC").toLowerCase();
+  return normalizeInput(text).toLowerCase();
 }
 
 /**

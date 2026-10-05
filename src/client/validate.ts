@@ -57,6 +57,17 @@ export function assertKnownKeys(name: string, value: object, known: readonly str
   }
 }
 
+/**
+ * The one normal form for a name or code a user types: trimmed and in Unicode NFC, so a
+ * decomposed umlaut ("a" + U+0308, as macOS file names and some input methods produce)
+ * reads like the composed one. `--level bundesländer` typed decomposed was "Unknown geo
+ * level" with a message that rendered identically to the accepted alias. Case-folding is
+ * left to the caller, where the lookup is case-insensitive.
+ */
+export function normalizeInput(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
 /** True for an empty or whitespace-only string. */
 export function isBlank(value: string): boolean {
   return value.trim() === "";

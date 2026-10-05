@@ -4,6 +4,7 @@
 
 import type { GeoLevel, GeoLevelInfo } from "./types.js";
 import { RegionalatlasValidationError, cutForMessage } from "./errors.js";
+import { normalizeInput } from "./validate.js";
 
 /** The canonical level definitions (order defines display order). */
 export const GEO_LEVELS: readonly GeoLevelInfo[] = [
@@ -54,7 +55,10 @@ export const DEFAULT_LEVEL = "land";
  */
 export function findLevel(input: unknown): GeoLevelInfo | undefined {
   if (typeof input !== "string") return undefined;
-  const canonical = ALIASES[input.trim().toLowerCase()];
+  // Trimmed, NFC (a decomposed "ä" in "bundesländer") and case-folded.
+  const key = normalizeInput(input).toLowerCase();
+  if (!Object.hasOwn(ALIASES, key)) return undefined;
+  const canonical = ALIASES[key];
   if (canonical === undefined) return undefined;
   return GEO_LEVELS.find((l) => l.name === canonical);
 }
