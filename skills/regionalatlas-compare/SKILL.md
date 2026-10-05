@@ -53,9 +53,13 @@ regionalatlas query AI002-1-5 --level land --region Sachsen --compact \
 regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   | jq '[.[] | select(.name|test("Berlin|Hamburg|Bremen"))] | map({name, ai0201: .values.ai0201})'
 
-# Highest / lowest across the whole level
+# Highest / lowest across the whole level — regions without a figure (null) left out
+# first, and counted, since jq sorts null before every number
 regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
-  | jq 'sort_by(.values.ai0201) | {lowest: .[0]|{name, v:.values.ai0201}, highest: .[-1]|{name, v:.values.ai0201}}'
+  | jq '(map(select(.values.ai0201 == null)) | length) as $none
+        | map(select(.values.ai0201 != null)) | sort_by(.values.ai0201)
+        | {lowest: (.[0] | {name, v: .values.ai0201}), highest: (.[-1] | {name, v: .values.ai0201}),
+           with_figure: length, without_figure: $none}'
 
 # Kreise by AGS: the exact keys, never a name pattern ("München" in a jq test() also
 # matches 09184 München, Landkreis)
@@ -102,8 +106,10 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   reporting a comparison; never infer a column's meaning from its code order or the
   size of its numbers. `AI005` is the cautionary case: `ai0507` is the AfD share and
   `ai0506` is Wahlbeteiligung.
-- **Watch `null`** — a region with no figure sorts oddly; filter `select(.!=null)`
-  before `min`/`max`/`avg`. The upstream's special-value codes (`2222222222` =
+- **Watch `null`** — a region with no figure sorts first in jq (`sort_by` puts `null`
+  before every number, so `.[0]` of a sorted list is a region *without* a figure); filter
+  `select(.!=null)` before `sort_by`/`min`/`max`/`avg`, and say how many regions had no
+  figure. The upstream's special-value codes (`2222222222` =
   nichts vorhanden, …) already arrive as `null`, with the reason in the row's `missing`
   object — quote that reason when a compared region has no figure.
 - **Same `--year` across regions** so you compare like with like. Leaving it out uses the

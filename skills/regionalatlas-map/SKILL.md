@@ -65,9 +65,10 @@ regionalatlas query AI002-1-5 --level land --year 2020 --compact | jq '.[] | {na
 regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   | jq -r '.[] | "\(.ags)\t\(.name)\t\(.values.ai0201)"'
 
-# Rank Bundesländer by a value field, top 5
+# Rank Bundesländer by a value field, top 5 (regions without a figure left out: jq
+# sorts null before every number)
 regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
-  | jq 'sort_by(.values.ai0201) | reverse | .[:5] | .[] | {name, ai0201: .values.ai0201}'
+  | jq 'map(select(.values.ai0201 != null)) | sort_by(.values.ai0201) | reverse | .[:5] | .[] | {name, ai0201: .values.ai0201}'
 ```
 
 ## Traps
