@@ -78,7 +78,10 @@ export {
   cutForMessage,
   MAX_MESSAGE_VALUE_LENGTH,
   credentialsIn,
+  queryTokensIn,
   redactCredentials,
+  redactQueryTokens,
+  SECRET_QUERY_PARAMETERS,
   shortenUrl,
 } from "./errors.js";
 

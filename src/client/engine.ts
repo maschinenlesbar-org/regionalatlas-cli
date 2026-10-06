@@ -28,7 +28,9 @@ import {
   credentialsIn,
   cutForMessage,
   type Download,
+  queryTokensIn,
   redactCredentials,
+  redactQueryTokens,
   redactUrl,
 } from "./errors.js";
 import {
@@ -340,7 +342,17 @@ export function assertHeaderValue(name: string, value: string): string {
 
 /** The userinfo of a URL, as written and percent-decoded, for scrubbing text that echoes it. */
 function credentialForms(url: string): string[] {
-  return credentialsIn(url).flatMap((raw) => {
+  return withDecoded(credentialsIn(url));
+}
+
+/** The secret query-parameter values of a URL (`?token=`), as written and percent-decoded. */
+function queryTokenForms(url: string): string[] {
+  return withDecoded(queryTokensIn(url));
+}
+
+/** Each value as written and percent-decoded (when it decodes). */
+function withDecoded(values: string[]): string[] {
+  return values.flatMap((raw) => {
     try {
       return [raw, decodeURIComponent(raw)];
     } catch {
@@ -380,6 +392,8 @@ export class RequestEngine {
    * raw and percent-decoded, for scrubbing server and transport text.
    */
   readonly #credentials = new Set<string>();
+  /** The secret query-parameter values (`?token=`) of the catalogue URL, raw and decoded. */
+  readonly #tokens = new Set<string>();
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly defaultHeaders: Record<string, string>;
@@ -436,7 +450,8 @@ export class RequestEngine {
    * the errors it builds itself (the ArcGIS envelope).
    */
   redact(text: string): string {
-    return this.#credentials.size === 0 ? text : redactCredentials(text, [...this.#credentials]);
+    if (this.#credentials.size === 0 && this.#tokens.size === 0) return text;
+    return redactQueryTokens(redactCredentials(text, [...this.#credentials]), [...this.#tokens]);
   }
 
   /**
@@ -445,12 +460,13 @@ export class RequestEngine {
    * cause chain kept), so logging the error with its causes can't reveal a password.
    */
   private scrubCause(cause: unknown, depth = 0): unknown {
-    if (this.#credentials.size === 0 || depth > 5) return cause;
+    if ((this.#credentials.size === 0 && this.#tokens.size === 0) || depth > 5) return cause;
     if (typeof cause === "string") return this.redact(cause);
     if (!(cause instanceof Error)) return cause;
     const inner = this.scrubCause(cause.cause, depth + 1);
     const message = this.redact(cause.message);
-    if (message === cause.message && inner === cause.cause && !this.redact(cause.stack ?? "").includes("***@")) {
+    const stack = cause.stack ?? "";
+    if (message === cause.message && inner === cause.cause && this.redact(stack) === stack) {
       return cause;
     }
     const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
@@ -615,8 +631,10 @@ export class RequestEngine {
   /** GET a fully-qualified absolute URL (e.g. the catalogue host) and parse JSON into `T`. */
   async getJsonAbsolute<T>(absoluteUrl: string, query?: QueryParams): Promise<T> {
     const url = this.buildAbsoluteUrl(absoluteUrl, query);
-    // Its userinfo is as secret as the base URL's: scrub it from every message too.
+    // Its userinfo is as secret as the base URL's, and so is a `?token=`: scrub both from
+    // every message too.
     for (const form of credentialForms(url)) this.#credentials.add(form);
+    for (const form of queryTokenForms(url)) this.#tokens.add(form);
     return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), redactUrl(url));
   }
 

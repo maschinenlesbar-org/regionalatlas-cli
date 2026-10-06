@@ -147,3 +147,79 @@ test("P4 for --catalog-url: a '%' that isn't an escape in the userinfo is a usag
   }
   assert.doesNotThrow(() => new RegionalatlasClient({ catalogUrl: "https://alice:100%25@cat.example/c.json" }));
 });
+
+// ---- a `?token=` in the catalogue URL (an ArcGIS token) is a credential too ----------
+
+const TOKEN = "tok-S3CRET-value_42";
+
+test("--catalog-url ?token=: no output path prints the token", async () => {
+  const urls = [
+    `https://cat.example/services.json?token=${TOKEN}`,
+    `https://cat.example/services.json?f=json&access_token=${TOKEN}`,
+    `https://cat.example:99999/services.json?TOKEN=${TOKEN}`,
+    `ftp://cat.example/services.json?token=${TOKEN}`,
+    `https://cat.example/services.json?token=${TOKEN} `,
+  ];
+  for (const body of ['[{"title":"T","children":[]}]', "<html>login</html>", "", "null", `{"error":"Invalid token ${TOKEN}"}`]) {
+    for (const url of urls) {
+      for (const argv of [
+        ["--catalog-url", url, "themes"],
+        [`--catalog-url=${url}`, "indicators"],
+        ["--catalog-url", url, "query", "AI002-1-5"],
+      ]) {
+        const c = cli(body);
+        await run(argv, c.deps);
+        assert.ok(!c.text().includes(TOKEN), `body ${JSON.stringify(body)} argv ${JSON.stringify(argv)}:\n${c.text()}`);
+      }
+    }
+  }
+});
+
+test("library: no error of the catalogue carries its ?token=, and the token never reaches the data host", async () => {
+  const catalogUrl = `https://cat.example/services.json?token=${TOKEN}`;
+  const cases: Array<[string, (req: HttpRequest) => Promise<HttpResponse>]> = [
+    ["not JSON", async () => json(200, "<html>login</html>")],
+    ["empty", async () => json(200, "")],
+    ["401 echoing the URL and the token", async (req) => json(401, { message: `bad token ${TOKEN} for ${req.url}` })],
+    ["302 (not followed)", async (req) => ({ status: 302, headers: { location: req.url }, body: Buffer.alloc(0) })],
+    ["transport error with the URL", async (req) => { throw new TypeError(`Failed to fetch ${req.url}`); }],
+  ];
+  for (const [label, transport] of cases) {
+    const client = new RegionalatlasClient({ catalogUrl, transport, maxRetries: 0 });
+    let err: unknown;
+    try {
+      await client.themes();
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error, `${label}: the call should have failed`);
+    assert.ok(!everything(err).includes(TOKEN), `${label}: ${everything(err)}`);
+  }
+  assert.ok(!everything(new RegionalatlasClient({ catalogUrl })).includes(TOKEN));
+
+  // Success: the catalogue request carries the token, the data request never does.
+  const seen: string[] = [];
+  const ok = new RegionalatlasClient({
+    catalogUrl,
+    transport: async (req) => {
+      seen.push(req.url);
+      return req.url.startsWith("https://cat.example/") ? json(200, catalog) : json(200, landData);
+    },
+  });
+  await ok.query({ indicator: "AI002-1-5", year: 2020 });
+  assert.equal(seen.length, 2);
+  assert.ok(seen[0]!.includes(`token=${TOKEN}`));
+  assert.ok(!seen[1]!.includes(TOKEN), seen[1]);
+});
+
+test("redactUrl and redactQueryTokens hide token values", async () => {
+  const { redactUrl, redactQueryTokens, queryTokensIn } = await import("../src/index.js");
+  assert.equal(redactUrl(`https://h/s.json?a=1&token=${TOKEN}#x`), "https://h/s.json?a=1&token=***#x");
+  assert.equal(redactUrl(`https://u:p@h:99999/s.json?Access_Token=${TOKEN}`), "https://***@h:99999/s.json?Access_Token=***");
+  assert.deepEqual(queryTokensIn(`--catalog-url=https://h/?token=${TOKEN}&x=1`), [TOKEN]);
+  assert.equal(redactQueryTokens(`invalid token ${TOKEN}`, [TOKEN]), "invalid token ***");
+  // A short token is redacted only in its parameter form.
+  assert.equal(redactQueryTokens("HTTP 500 ?token=5", ["5"]), "HTTP 500 ?token=***");
+  // Other parameters are left alone.
+  assert.equal(redactUrl("https://h/s.json?tokens=1&mytoken=2"), "https://h/s.json?tokens=1&mytoken=2");
+});

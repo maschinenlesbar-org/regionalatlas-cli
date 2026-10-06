@@ -2,10 +2,12 @@
 // construct in tests and to `instanceof`-check by consumers.
 
 /**
- * Replace the userinfo of a URL (`https://user:secret@host/...`) with `***`, so a
- * credential in a base or catalogue URL never reaches an error message, a log or CI
- * output. A value that does not parse as a URL has its userinfo cut out by text
- * (`credentialsIn`); a value without userinfo is returned unchanged.
+ * Replace the credentials of a URL with `***`, so a credential in a base or catalogue URL
+ * never reaches an error message, a log or CI output: the userinfo
+ * (`https://user:secret@host/...` becomes `https://***@host/...`) and the value of a
+ * secret query parameter ({@link SECRET_QUERY_PARAMETERS}: `?token=abc` becomes
+ * `?token=***`). A value that does not parse as a URL has its userinfo cut out by text
+ * (`credentialsIn`); a value without credentials is returned unchanged.
  */
 export function redactUrl(url: string): string {
   let parsed: URL;
@@ -14,13 +16,57 @@ export function redactUrl(url: string): string {
   } catch {
     // A value that doesn't parse (a port typo, an unencoded "#" in the password) can still
     // carry credentials: cut them out by text.
-    return redactCredentials(url, credentialsIn(url));
+    return redactQueryTokens(redactCredentials(url, credentialsIn(url)));
   }
   // `user:pw@host` without a scheme parses as a URL with the scheme "user:": no userinfo.
-  if (parsed.username === "" && parsed.password === "") return redactCredentials(url, credentialsIn(url));
+  if (parsed.username === "" && parsed.password === "") {
+    return redactQueryTokens(redactCredentials(url, credentialsIn(url)));
+  }
   parsed.username = "***";
   parsed.password = "";
-  return parsed.href;
+  return redactQueryTokens(parsed.href);
+}
+
+/**
+ * The query parameters whose value is a credential: ArcGIS's `token` (the token its
+ * `generateToken` endpoint issues for a secured service, sent as `?token=…`) and OAuth 2's
+ * `access_token` (RFC 6750). Only the catalogue URL can carry one — a base URL takes no
+ * query. Names match case-insensitively.
+ */
+export const SECRET_QUERY_PARAMETERS: readonly string[] = ["token", "access_token"];
+
+/** `?token=` / `&access_token=` and the value after it (up to the next `&`, `#`, quote or space). */
+const SECRET_QUERY_PARAMETER = /([?&](?:token|access_token)=)([^&#\s'"]+)/gi;
+
+/**
+ * A bare token value shorter than this is not scrubbed from free text: replacing every
+ * "5" of a message for a one-character token would garble it. Its `token=` form is
+ * always redacted.
+ */
+const MIN_BARE_TOKEN_LENGTH = 6;
+
+/**
+ * The values of the secret query parameters ({@link SECRET_QUERY_PARAMETERS}) in a
+ * URL-like value, exactly as written (percent-encoded), or `[]` when it carries none. Works
+ * on values that don't parse as a URL, and on values with a prefix (`--catalog-url=…`).
+ */
+export function queryTokensIn(value: string): string[] {
+  return [...value.matchAll(SECRET_QUERY_PARAMETER)].map((m) => m[2] ?? "").filter((v) => v !== "");
+}
+
+/**
+ * `text` with the value of every secret query parameter replaced by `***`
+ * (`?token=abc` → `?token=***`), and every listed token value (as `queryTokensIn` returns
+ * them, or decoded) replaced wherever it occurs alone — a server's "invalid token abc"
+ * echoes it without the parameter name. Values shorter than six characters are only
+ * redacted in their `token=` form.
+ */
+export function redactQueryTokens(text: string, tokens: readonly string[] = []): string {
+  let out = text.replace(SECRET_QUERY_PARAMETER, (_match, head: string) => `${head}***`);
+  for (const token of tokens) {
+    if (token.length >= MIN_BARE_TOKEN_LENGTH) out = out.split(token).join("***");
+  }
+  return out;
 }
 
 /**

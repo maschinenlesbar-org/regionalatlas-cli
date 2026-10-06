@@ -230,6 +230,16 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   as a `RegionalatlasNetworkError`. The engine keeps its per-request scheme check
   (`assertHttpScheme`) as defence in depth for absolute URLs. `--base-url` and
   `--catalog-url` use the same rules.
+- **`?token=` in the catalogue URL** is a credential: in ArcGIS a `token` query
+  parameter is the access token `generateToken` issues for a secured service, and OAuth 2
+  sends `access_token` the same way (RFC 6750) — `SECRET_QUERY_PARAMETERS`. The public
+  `services.json` takes none; a mirror behind a token login may. `redactUrl` shows the
+  value as `token=***` (alongside the `***@` userinfo), the engine adds the value (raw
+  and decoded) to what `redact`/`scrubCause` scrub from bodies, details, transport text
+  and causes, and `withRedactedOutput` redacts it from CLI output (`queryTokensIn`,
+  `redactQueryTokens`; a bare value under six characters only in its `token=` form). It
+  never crosses origins: only the catalogue request carries it, the base URL takes no
+  query, and no redirect is followed.
 - **`REGIONALATLAS_BASE_URL`** (`program.ts`): the CLI reads it through the injectable
   `CliDeps.env` (`process.env` in `defaultDeps`) as the default of `--base-url` — flag >
   variable > built-in default, an empty variable counts as unset. Commander doesn't run

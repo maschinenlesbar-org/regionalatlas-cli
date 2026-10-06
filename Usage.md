@@ -33,6 +33,13 @@ characters the password contains. A `%` in the user name or password must start 
 (write a literal `%` as `%25`); a bare one is a usage error (exit 2). The library checks `baseUrl` and `catalogUrl` by the
 same rules when the client is built.
 
+`--catalog-url` may carry a query, and a `token` (or `access_token`) parameter in it is
+treated as a credential: ArcGIS services take their access token as `?token=…`, so a mirror
+behind such a login works as `--catalog-url 'https://mirror.example/services.json?token=…'`.
+The token is sent only with the catalogue request — never to the data host (`--base-url`
+takes no query), and redirects are not followed — and everything the CLI prints shows it as
+`token=***`. The public catalogue needs none.
+
 `REGIONALATLAS_BASE_URL` sets the data host's base URL for every run (a mirror, a local
 fixture server); `--base-url` overrides it, and an empty variable counts as unset. Its value
 is checked by the same rules before any request: a bad one is a usage error (exit 2) that
