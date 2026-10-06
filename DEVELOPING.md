@@ -230,6 +230,15 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   as a `RegionalatlasNetworkError`. The engine keeps its per-request scheme check
   (`assertHttpScheme`) as defence in depth for absolute URLs. `--base-url` and
   `--catalog-url` use the same rules.
+- **Plain `http:`** (`cleartextProblem(url, secrets?, urlName?)` in engine.ts, exported):
+  one sentence when requests to `url` would travel unencrypted — `requests to <host> are
+  sent unencrypted (http:, not https:)`, or naming what travels with them (`the base
+  URL's credentials`, `the catalogue URL's token`) — and `undefined` for `https:`, an
+  unparseable URL and loopback hosts. `<host>` is `url.host`, never the userinfo. The
+  CLI's `action()` wrapper writes `warning: <sentence>` to stderr before the client is
+  built, once per URL the command contacts: the catalogue URL always, the base URL only
+  for `query` (`themes`/`indicators` never reach the data host). Help, version and usage
+  errors never warn; stdout and the exit code are unchanged. The library never warns.
 - **`?token=` in the catalogue URL** is a credential: in ArcGIS a `token` query
   parameter is the access token `generateToken` issues for a secured service, and OAuth 2
   sends `access_token` the same way (RFC 6750) — `SECRET_QUERY_PARAMETERS`. The public
@@ -311,7 +320,8 @@ host (catalogue vs data). Coverage highlights:
 - `conformance-p*.test.ts` — the workspace's shared conformance checks from the
   2026-10-05 review (P1 credential redaction in CLI output, P2 in library objects, P4
   base-URL validation, P5 transport contract, P6 retry policy, P7 pipes and exit codes,
-  P8/P9/P13 charset, body shape and error classes); copied across the `*-cli` repos, only
+  P8/P9/P13 charset, body shape and error classes, P20 the stderr warning for a plain-`http:`
+  URL); copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.
 

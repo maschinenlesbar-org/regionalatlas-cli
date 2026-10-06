@@ -492,7 +492,9 @@ test("userinfo in --base-url is redacted from error messages but still sent", as
   assert.equal(code, 4);
   const stderr = cli.err.join("\n");
   assert.doesNotMatch(stderr, /secret/);
-  assert.match(stderr, /^Error: HTTP 404 for GET http:\/\/\*\*\*@gis-idmz\.example\/m\/arcgis\//);
+  // The plain-http: warning comes first, naming the credentials without printing them.
+  assert.equal(cli.err[0], "warning: the base URL's credentials are sent unencrypted to gis-idmz.example (http:, not https:)");
+  assert.match(stderr, /^Error: HTTP 404 for GET http:\/\/\*\*\*@gis-idmz\.example\/m\/arcgis\//m);
   assert.equal(new URL(cli.mt.last().url).password, "secret");
 });
 
@@ -618,4 +620,26 @@ test("a password in REGIONALATLAS_BASE_URL never reaches the output, help includ
   const all = [...cli.out, ...cli.err].join("\n");
   assert.match(all, /REGIONALATLAS_BASE_URL/);
   assert.ok(!all.includes("s3cret"), all);
+});
+
+// ---- P20 for the second URL: the catalogue ----
+
+test("a plain-http: catalogue URL warns once per run, naming its token without printing it", async () => {
+  const token = "tok-S3CRET-value_42";
+  for (const [argv, expected] of [
+    [["--catalog-url", "http://cat.example/services.json", "themes"], ["warning: requests to cat.example are sent unencrypted (http:, not https:)"]],
+    [["--catalog-url", `http://cat.example/s.json?token=${token}`, "indicators"], ["warning: the catalogue URL's token is sent unencrypted to cat.example (http:, not https:)"]],
+    [["--catalog-url", `http://u:p@cat.example:8080/s.json?token=${token}`, "themes"], ["warning: the catalogue URL's token and the catalogue URL's credentials are sent unencrypted to cat.example:8080 (http:, not https:)"]],
+    // themes and indicators never contact the data host: its http: base URL is not named.
+    [["--base-url", "http://data.example", "themes"], []],
+    // query contacts both: one warning per URL.
+    [["--catalog-url", "http://cat.example/s.json", "--base-url", "http://data.example", "query", "AI002-1-5", "--year", "2020"],
+      ["warning: requests to cat.example are sent unencrypted (http:, not https:)", "warning: requests to data.example are sent unencrypted (http:, not https:)"]],
+    [["--catalog-url", "http://localhost:9/s.json", "themes"], []],
+  ] as const) {
+    const cli = makeCli((req) => (new URL(req.url).hostname === "data.example" ? jsonResponse(fx.landData) : jsonResponse(fx.catalog)));
+    assert.equal(await run([...argv], cli.deps), 0, cli.err.join("\n"));
+    assert.deepEqual(cli.err.filter((l) => l.startsWith("warning:")), expected, argv.join(" "));
+    assert.ok(![...cli.out, ...cli.err].join("\n").includes(token));
+  }
 });

@@ -4,7 +4,9 @@
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
-import type { RegionalatlasClientOptions } from "../client/client.js";
+import { DEFAULT_CATALOG_URL, type RegionalatlasClientOptions } from "../client/client.js";
+import { DEFAULT_BASE_URL, cleartextProblem } from "../client/engine.js";
+import { queryTokensIn } from "../client/errors.js";
 import { resolveLevel } from "../client/levels.js";
 import { RegionalatlasValidationError } from "../client/errors.js";
 import {
@@ -266,18 +268,36 @@ export interface ActionContext {
  * client construction. The callback receives a context (client + resolved global
  * options + this command's options) and the command's positional arguments.
  *
+ * Before the client is built (so before any request), each URL the command contacts is
+ * checked: the catalogue URL always, the data host's base URL when `usesDataHost` (the
+ * `query` command). Plain `http:` to a remote host gets one `warning: <cleartextProblem
+ * sentence>` line on stderr per URL, naming the catalogue URL's token when it carries
+ * one. An action runs once per run, so the warning does too; help, version and usage
+ * errors never reach an action and never warn. stdout is never touched.
+ *
  * Commander invokes actions as (arg1, ..., argN, options, command); we slice off
  * the trailing options object and command instance to recover the positionals.
  */
 export function action(
   deps: CliDeps,
   fn: (ctx: ActionContext, positionals: string[]) => Promise<void>,
+  usesDataHost = false,
 ): (...args: unknown[]) => Promise<void> {
   return async (...args: unknown[]) => {
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    for (const problem of cleartextProblems(global, usesDataHost)) deps.io.err(`warning: ${problem}`);
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };
+}
+
+/** The cleartext warnings for the URLs a command contacts (see `action`). */
+function cleartextProblems(global: GlobalOptions, usesDataHost: boolean): string[] {
+  const catalogUrl = global.catalogUrl ?? DEFAULT_CATALOG_URL;
+  const token = queryTokensIn(catalogUrl).length > 0 ? ["the catalogue URL's token"] : [];
+  const problems = [cleartextProblem(catalogUrl, token, "the catalogue URL")];
+  if (usesDataHost) problems.push(cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL));
+  return problems.filter((p): p is string => p !== undefined);
 }

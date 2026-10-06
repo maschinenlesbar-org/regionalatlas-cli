@@ -40,6 +40,17 @@ The token is sent only with the catalogue request — never to the data host (`-
 takes no query), and redirects are not followed — and everything the CLI prints shows it as
 `token=***`. The public catalogue needs none.
 
+**Plain `http:`.** A remote host on plain `http:` gets one warning line on stderr before
+the first request, per URL the command contacts (the catalogue URL always, the base URL for
+`query`); stdout and the exit code are unchanged, and loopback hosts (`localhost`, `127.x`,
+`::1`) don't warn. It names what travels unencrypted, never its value:
+
+```text
+warning: requests to mirror.example are sent unencrypted (http:, not https:)
+warning: the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)
+warning: the catalogue URL's token is sent unencrypted to cat.example (http:, not https:)
+```
+
 `REGIONALATLAS_BASE_URL` sets the data host's base URL for every run (a mirror, a local
 fixture server); `--base-url` overrides it, and an empty variable counts as unset. Its value
 is checked by the same rules before any request: a bad one is a usage error (exit 2) that

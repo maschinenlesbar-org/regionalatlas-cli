@@ -16,6 +16,7 @@ export type { RegionalatlasClientOptions } from "./client.js";
 export {
   RequestEngine,
   assertHeaderValue,
+  cleartextProblem,
   validateHttpUrl,
   DEFAULT_BASE_URL,
   MAX_RETRY_AFTER_MS,

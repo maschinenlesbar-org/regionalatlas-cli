@@ -100,7 +100,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
           const resolved = resolveIndicator(await client.indicators(), query.indicator);
           deps.io.err(emptyResultNote(resolved, query, fetched));
         }
-      }),
+      }, true),
     );
 }
 

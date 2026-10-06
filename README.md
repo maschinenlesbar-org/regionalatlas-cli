@@ -55,7 +55,9 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
 
 Global flags: `--base-url` (or the `REGIONALATLAS_BASE_URL` environment variable; the flag
 wins), `--catalog-url`, `--timeout`, `--user-agent`, `--max-retries`,
-`--max-response-bytes`, `--compact`. See [Usage.md](Usage.md).
+`--max-response-bytes`, `--compact`. See [Usage.md](Usage.md). A plain `http:` URL to a
+remote host (base or catalogue URL) gets one `warning: … sent unencrypted to <host> (http:,
+not https:)` line on stderr per URL; stdout and the exit code are unchanged.
 
 ## Library
 
