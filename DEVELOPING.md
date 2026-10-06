@@ -284,6 +284,8 @@ host (catalogue vs data). Coverage highlights:
   bounded retries, option-shaped filter values).
 - `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
   the scheme guard, and JSON decoding/error mapping.
+- `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
+  whose reader has gone) on stdout exit 0, on stderr they are ignored.
 - `validate.test.ts` — the input rules, `assertValid`, and how `run()` reports a
   `RegionalatlasValidationError`.
 - `parity.test.ts` — the same input through the CLI and the library (`parity()`): both
