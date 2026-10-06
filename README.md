@@ -55,7 +55,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
 
 Global flags: `--base-url` (or the `REGIONALATLAS_BASE_URL` environment variable; the flag
 wins), `--catalog-url`, `--timeout`, `--user-agent`, `--max-retries`,
-`--max-response-bytes`, `--compact`. See [Usage.md](Usage.md). A plain `http:` URL to a
+`--max-response-bytes`, `--compact`. See [Usage.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/Usage.md). A plain `http:` URL to a
 remote host (base or catalogue URL) gets one `warning: … sent unencrypted to <host> (http:,
 not https:)` line on stderr per URL; stdout and the exit code are unchanged.
 
@@ -77,7 +77,7 @@ const { rows: hits, fetched, region } = await c.queryResult({ indicator: "AI002-
 ## Two hosts
 
 Unlike most siblings, this CLI talks to **two** upstreams (documented in
-[DEVELOPING.md](DEVELOPING.md)):
+[DEVELOPING.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/DEVELOPING.md)):
 
 1. the **indicator catalogue** (`services.json` on statistikportal.de), and
 2. the **ArcGIS MapServer** data query on gis-idmz.nrw.de, whose `dynamicLayer`
@@ -86,15 +86,15 @@ Unlike most siblings, this CLI talks to **two** upstreams (documented in
 Because the data query embeds raw SQL, the indicator, geo level, and year are all
 **validated against the catalogue allowlist before any SQL is built** — a bogus
 indicator never reaches the server. See the injection-guard section in
-[DEVELOPING.md](DEVELOPING.md).
+[DEVELOPING.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/DEVELOPING.md).
 
 ## Documentation
 
-- [Usage.md](Usage.md) — commands, options, the geo levels, exit codes
-- [DEVELOPING.md](DEVELOPING.md) — architecture, the two-host split, the SQL guard
-- [GLOSSARY.md](GLOSSARY.md) — AGS, typ / geo levels, Indikator, table code, Veränderungsrate
+- [Usage.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/Usage.md) — commands, options, the geo levels, exit codes
+- [DEVELOPING.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/DEVELOPING.md) — architecture, the two-host split, the SQL guard
+- [GLOSSARY.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/GLOSSARY.md) — AGS, typ / geo levels, Indikator, table code, Veränderungsrate
 - [DATA_LICENSE.md](DATA_LICENSE.md) — the dl-de/by-2.0 data terms
-- [SKILLS.md](SKILLS.md) — the Claude Code skills this repo ships
+- [SKILLS.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/SKILLS.md) — the Claude Code skills this repo ships
 
 ## Licence
 

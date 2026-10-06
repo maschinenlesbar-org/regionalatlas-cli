@@ -332,7 +332,8 @@ host (catalogue vs data). Coverage highlights:
   2026-10-05 review (P1 credential redaction in CLI output, P2 in library objects, P4
   base-URL validation, P5 transport contract, P6 retry policy, P7 pipes and exit codes,
   P8/P9/P13 charset, body shape and error classes, P20 the stderr warning for a plain-`http:`
-  URL); copied across the `*-cli` repos, only
+  URL, P21 README links only to files the npm package ships — others by their GitHub URL);
+  copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.
 
