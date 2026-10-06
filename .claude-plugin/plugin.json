@@ -1,6 +1,6 @@
 {
   "name": "regionalatlas",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "German regional-statistics skills powered by the regionalatlas-cli (Regionalatlas Deutschland of the Statistische Ämter des Bundes und der Länder).",
   "author": {
     "name": "Sebastian Schürmann",
