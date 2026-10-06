@@ -92,9 +92,13 @@ Verified against Bremen `AI002-1-5`: `ai0208` 21.4 (2022) → 22.3 (2023) with
 Angabe fällt später an (codes and labels from the web app's `app/js/modulRendern.js`,
 which also treats every value above 2,000,000,000 as such a class; checked 2026-09-26).
 Seen live: `AI005` 1998 `ai0507` (no AfD yet) and `AI002-1-5` 2000 (`ai0202`, and the
-`v` columns of the first year). `parseRow` turns them into `null` and records the reason
-in `RegionRow.missing` (`SPECIAL_VALUES`, `specialValueReason`); no catalogue column is a
-total that could reach the threshold.
+`v` columns of the first year). `parseRow` turns `2222222222` into `0` — the Destatis
+`-`, exactly zero (`SPECIAL_VALUE_FIGURES`, `specialValueFigure`; the user's decision of
+2026-10-06, it was `null` up to 0.4.0) — and every other code into `null`, and records
+the code's meaning in `RegionRow.missing` either way (`SPECIAL_VALUES`,
+`specialValueReason`). The upstream also writes `2222222222` for a Veränderungsrate
+without a previous year (2000), where 0 is no real rate; `missing` is how a caller tells
+them apart. No catalogue column is a total that could reach the threshold.
 
 ### (B) Catalogue — the indicator list
 

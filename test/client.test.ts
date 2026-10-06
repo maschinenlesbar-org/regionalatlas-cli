@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   RegionalatlasClient,
   parseRow,
+  specialValueFigure,
   filterByRegion,
   projectFields,
 } from "../src/client/client.js";
@@ -359,15 +360,20 @@ test("field projection treats - and _ alike, so a catalogue spelling selects the
   assert.deepEqual({ ...projectFields([row], ["ai_z02"])[0]!.values }, { ai_z02: 43.6 });
 });
 
-test("a special-value code is null with its meaning in missing, never a figure", () => {
-  // Live 1998 AI005: every Land row carries ai0507 (AfD share, Prozent) = 2222222222.
+test("a special-value code is never the code: 0 for nichts vorhanden, else null, its meaning in missing", () => {
+  // Live 1998 AI005: every Land row carries ai0507 (AfD share, Prozent) = 2222222222,
+  // "nichts vorhanden" — the Destatis "-", exactly zero.
   const row = parseRow(
     { ags: "09", gen: "Bayern", ai0501: 47.7, ai0507: 2222222222, ai0202: "6666666666", ai0209: 3333333333 },
     1,
     "land",
     1998,
   );
-  assert.deepEqual({ ...row.values }, { ai0501: 47.7, ai0507: null, ai0202: null, ai0209: null });
+  assert.deepEqual({ ...row.values }, { ai0501: 47.7, ai0507: 0, ai0202: null, ai0209: null });
+  // The string form of the code too.
+  assert.deepEqual({ ...parseRow({ ags: "09", gen: "B", ai0507: "2222222222" }, 1, "land", 1998).values }, { ai0507: 0 });
+  assert.equal(specialValueFigure(2222222222), 0);
+  for (const code of [5555555555, 6666666666, 7777777777, 8888888888, 3333333333]) assert.equal(specialValueFigure(code), null);
   assert.deepEqual({ ...row.missing }, {
     ai0507: "nichts vorhanden",
     ai0202: "Aussage nicht sinnvoll",

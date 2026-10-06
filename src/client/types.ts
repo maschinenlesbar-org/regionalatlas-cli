@@ -195,7 +195,9 @@ export interface RegionRow {
   /**
    * Present only when the upstream sent a special-value code instead of a figure
    * (e.g. `2222222222`, "nichts vorhanden"): value field → the code's meaning. The
-   * matching `values` entry is `null`. See `SPECIAL_VALUES`.
+   * matching `values` entry is `0` for "nichts vorhanden" (the Destatis symbol `-`,
+   * exactly zero) and `null` for every other code. See `SPECIAL_VALUES` and
+   * `SPECIAL_VALUE_FIGURES`.
    */
   missing?: Record<string, string>;
 }

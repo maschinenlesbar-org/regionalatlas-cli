@@ -17,7 +17,7 @@ Regionalatlas terms and fields, as the CLI surfaces them.
 | **jahr / year** | `--year`, `year` | The reporting year (a 4-digit integer, `1000`–`9999`; a padded value, a leading zero or a fraction is refused by `--year` and the library alike). Each indicator offers a specific set of years, often with gaps; `indicators` lists them all in `years` (e.g. only the election years for `AI005`) and the levels with figures per year in `levels`. Leaving out `--year` uses the newest catalogue year, which the data host may not have loaded yet: `query` then returns `[]` and notes it on stderr. |
 | **value field** | `values` | An indicator value column (e.g. `ai0201`) — a number or `null`. `--fields` keeps only named ones (case-insensitive, `-` and `_` alike). `indicators` lists every column of an indicator with its title and unit, under the key it has in `values` — the Zensus 2011 indicators' catalogue writes `AI-Z01`, the data host `ai_z01`, and the CLI uses `ai_z01` for both. |
 | **Veränderungsrate (`v` field)** | `values` | A `<field>v` column (e.g. `ai0201v`) is the year-on-year **rate of change** of the matching value field — a published value in its own right, not a precision flag. Its unit is **percent**, or **percentage points** for a share indicator (`ai0208v`); `indicators` gives the unit per column. |
-| **Sonderwert (special-value code)** | `missing` | A number above 2,000,000,000 that stands for a table symbol, not a figure: `2222222222` nichts vorhanden (`-`), `5555555555` Wert geheim zu halten (`.`), `6666666666` Aussage nicht sinnvoll (`x`), `7777777777` Wert nicht sicher genug (`/`), `8888888888` Angabe fällt später an (`...`) — the codes and labels of the Regionalatlas web app. The CLI prints such a value as `null` and names the reason in the row's `missing` object (`"missing": {"ai0507": "nichts vorhanden"}`, the AfD share in 1998). |
+| **Sonderwert (special-value code)** | `missing` | A number above 2,000,000,000 that stands for a table symbol, not a figure: `2222222222` nichts vorhanden (`-`), `5555555555` Wert geheim zu halten (`.`), `6666666666` Aussage nicht sinnvoll (`x`), `7777777777` Wert nicht sicher genug (`/`), `8888888888` Angabe fällt später an (`...`) — the codes and labels of the Regionalatlas web app. The CLI prints `2222222222` (nichts vorhanden, the `-` that means exactly zero) as `0` and every other code as `null`, and names the code's meaning in the row's `missing` object either way (`"values": {"ai0507": 0}, "missing": {"ai0507": "nichts vorhanden"}`, the AfD share in 1998). The upstream also writes `2222222222` for a Veränderungsrate without a previous year (`ai0201v` in 2000), where 0 is no real rate — `missing` tells the cases apart. |
 | **gen2 / ags2 / jahr2** | (internal) | The joined side of the SQL `LEFT OUTER JOIN`. `gen2` is leading-space padded in the raw data — the client trims it; the parsed row uses `gen`/`ags`/`jahr`. |
 | **dynamicLayer / queryTable** | (internal) | The ArcGIS mechanism that runs the raw SQL join behind `query`. |
 | **`--base-url` / `--catalog-url`** | options | The ArcGIS data host / the indicator catalogue URL (the two upstream hosts). |
@@ -28,8 +28,11 @@ Regionalatlas terms and fields, as the CLI surfaces them.
   level, year, values }`.
 - **A `null` value** means the indicator has no figure for that region/year. When the
   upstream sent a special-value code instead, the row's `missing` object names the
-  reason (`nichts vorhanden`, `Wert geheim zu halten`, …); a row without such codes has
-  no `missing` key.
+  reason (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …); a row without such codes
+  has no `missing` key.
+- **A `0` with `missing: "nichts vorhanden"`** is the table symbol `-`: nothing there,
+  exactly zero. It counts in a sum, an average or a ranking like any other 0 (it used to
+  be `null`, since 0.5.0 it is `0`).
 - **It joins geography to statistics** — every region present at the level appears; a
   region with no indicator row still appears (its `values` are `null`), thanks to the
   `LEFT OUTER JOIN`.

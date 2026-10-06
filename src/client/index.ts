@@ -10,6 +10,8 @@ export {
   projectFields,
   specialValueReason,
   SPECIAL_VALUES,
+  SPECIAL_VALUE_FIGURES,
+  specialValueFigure,
   SPECIAL_VALUE_THRESHOLD,
 } from "./client.js";
 export type { RegionalatlasClientOptions } from "./client.js";

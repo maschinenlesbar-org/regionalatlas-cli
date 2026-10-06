@@ -91,8 +91,10 @@ The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the tab
 form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, typ, level, year,
 values }, …]`, one row per region. A value the upstream sent as a special-value code
 (`2222222222` = nichts vorhanden, `6666666666` = Aussage nicht sinnvoll, …; see
-[GLOSSARY.md](GLOSSARY.md)) is `null`, and the row then carries a `missing` object naming
-the reason per field.
+[GLOSSARY.md](GLOSSARY.md)) is never the code: `2222222222`, the table symbol `-` for
+exactly zero, is `0`, every other code is `null`, and the row then carries a `missing`
+object naming the code's meaning per field (`"missing": {"ai0507": "nichts vorhanden"}`).
+Before 0.5.0 "nichts vorhanden" was `null` too.
 
 `--level` accepts these aliases: `land`/`laender`/`länder`/`bundesland`/`bundesländer` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),

@@ -343,6 +343,27 @@ export const SPECIAL_VALUES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
+ * The special-value codes that stand for a figure, and the figure. `2222222222`,
+ * "nichts vorhanden", is the Destatis symbol `-`: nothing there, *exactly zero* — 372
+ * Kreise of `AI019-3-5` in 2025 carry it — so it becomes `0`, while `missing` still names
+ * the code. (The upstream also writes it for a Veränderungsrate without a previous year,
+ * `AI002-1-5`'s `ai0201v` in 2000; `missing` is how a caller can tell.) Every other code
+ * stays `null`.
+ */
+export const SPECIAL_VALUE_FIGURES: Readonly<Record<string, number>> = Object.freeze({
+  "2222222222": 0,
+});
+
+/**
+ * The figure a special-value code stands for (`0` for "nichts vorhanden"), or `null` for a
+ * code that stands for no figure (secret, not meaningful, not yet available, unknown).
+ */
+export function specialValueFigure(value: number): number | null {
+  const key = String(value);
+  return Object.hasOwn(SPECIAL_VALUE_FIGURES, key) ? (SPECIAL_VALUE_FIGURES[key] ?? null) : null;
+}
+
+/**
  * The reason a value is a special-value code rather than a measurement, or
  * `undefined` for an ordinary number. A code above the threshold that the web app
  * does not name gets a generic reason that still carries the code.
@@ -395,14 +416,15 @@ export function parseRow(
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
     const n = toValue(value);
-    // A special-value code (2222222222 = "nichts vorhanden") is not a figure: an
-    // average or a ranking over it would be off by billions. It becomes null like
-    // any other missing value, and `missing` says why.
+    // A special-value code is not a measurement: an average or a ranking over it would
+    // be off by billions. "nichts vorhanden" (2222222222) becomes 0, the figure it
+    // stands for; every other code becomes null like any other missing value. Either
+    // way `missing` names the code.
     const reason = n === null ? undefined : specialValueReason(n);
-    if (reason === undefined) {
+    if (reason === undefined || n === null) {
       values[key] = n;
     } else {
-      values[key] = null;
+      values[key] = specialValueFigure(n);
       missing ??= Object.create(null) as Record<string, string>;
       missing[key] = reason;
     }
