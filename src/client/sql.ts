@@ -10,6 +10,9 @@
 import type { GeoLevel } from "./types.js";
 import { RegionalatlasError } from "./errors.js";
 
+/** The administrative-boundary table every data query joins an indicator table to. */
+export const BOUNDARY_TABLE = "verwaltungsgrenzen_gesamt";
+
 /**
  * Extra defence-in-depth: assert the pieces are exactly the shape we expect right
  * before they enter the SQL string. These should never fire when called through the
@@ -24,6 +27,10 @@ function assertSafeTable(table: string): void {
     throw new RegionalatlasError(
       `Refusing to build SQL: table "${table}" is not a valid catalogue table name.`,
     );
+  }
+  // The boundary table is the left side of every join; joining it to itself is no indicator.
+  if (table === BOUNDARY_TABLE) {
+    throw new RegionalatlasError(`Refusing to build SQL: table "${table}" is the boundary table, not an indicator.`);
   }
 }
 
@@ -48,7 +55,7 @@ export function buildSql(table: string, typ: number, year: number): string {
   assertSafeTyp(typ);
   assertSafeYear(year);
   return (
-    `SELECT * FROM verwaltungsgrenzen_gesamt ` +
+    `SELECT * FROM ${BOUNDARY_TABLE} ` +
     `LEFT OUTER JOIN ${table} ON ags = ags2 and jahr = jahr2 ` +
     `WHERE typ = ${typ} AND jahr = ${year} AND (jahr2 = ${year} OR jahr2 IS NULL)`
   );

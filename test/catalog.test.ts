@@ -11,7 +11,8 @@ import {
   resolveYear,
   tableForCode,
 } from "../src/client/catalog.js";
-import { RegionalatlasValidationError } from "../src/client/errors.js";
+import { RegionalatlasError, RegionalatlasParseError, RegionalatlasValidationError } from "../src/client/errors.js";
+import { BOUNDARY_TABLE, buildSql } from "../src/client/sql.js";
 import * as fx from "./fixtures.js";
 
 test("tableForCode lowercases and replaces hyphens with underscores", () => {
@@ -357,4 +358,44 @@ test("P10: an indicator filter with an unknown key is refused before the catalog
     new RegionalatlasClient({ transport: async () => assert.fail("no request expected") }).indicators({ serach: "x" } as never),
     /unknown key "serach" \(did you mean "search"\?\); known keys: theme, year, search\./,
   );
+});
+
+// ---- codes the SQL join must never see: refused, the whole catalogue (fail closed) ----
+
+function catalogWith(...codes: string[]): unknown {
+  return [{ title: "T", children: codes.map((code) => ({ code, title_short: code, years: { "2020": [] } })) }];
+}
+
+test("a catalogue code naming the boundary table is refused, naming the code", () => {
+  for (const code of ["verwaltungsgrenzen_gesamt", "VERWALTUNGSGRENZEN-GESAMT"]) {
+    for (const parse of [parseIndicators, parseThemes]) {
+      assert.throws(
+        () => parse(catalogWith("AI002-1-5", code)),
+        (err: unknown) =>
+          err instanceof RegionalatlasParseError &&
+          err.message.includes(JSON.stringify(code)) &&
+          /boundary table verwaltungsgrenzen_gesamt/.test(err.message),
+      );
+    }
+  }
+});
+
+test("two catalogue codes naming the same table are refused, naming both", () => {
+  for (const [a, b] of [["DUP-1", "dup_1"], ["AI002-1-5", "ai002-1-5"], ["AI002-1-5", "AI002-1-5"]] as const) {
+    for (const parse of [parseIndicators, parseThemes]) {
+      assert.throws(
+        () => parse(catalogWith(a, "AI001-2-5", b)),
+        (err: unknown) =>
+          err instanceof RegionalatlasParseError &&
+          err.message.includes(`${JSON.stringify(a)} and ${JSON.stringify(b)}`) &&
+          err.message.includes(tableForCode(a)),
+      );
+    }
+  }
+  // Distinct tables pass.
+  assert.equal(parseIndicators(catalogWith("AI002-1-5", "AI002-1-6", "AI-Z1-2011")).length, 3);
+});
+
+test("buildSql refuses the boundary table as the indicator table (defence in depth)", () => {
+  assert.throws(() => buildSql(BOUNDARY_TABLE, 1, 2020), RegionalatlasError);
 });

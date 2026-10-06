@@ -643,3 +643,16 @@ test("a plain-http: catalogue URL warns once per run, naming its token without p
     assert.ok(![...cli.out, ...cli.err].join("\n").includes(token));
   }
 });
+
+test("a catalogue with colliding codes fails every command (exit 1), before any data request", async () => {
+  const bad = [{ title: "T", children: [
+    { code: "DUP-1", title_short: "a", years: { "2020": [] } },
+    { code: "dup_1", title_short: "b", years: { "2020": [] } },
+  ] }];
+  for (const argv of [["themes"], ["indicators"], ["query", "dup_1", "--year", "2020"]]) {
+    const cli = makeCli((req) => (new URL(req.url).hostname.includes("statistikportal") ? jsonResponse(bad) : jsonResponse(fx.landData)));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.match(cli.err.join("\n"), /Refusing the indicator catalogue: the codes "DUP-1" and "dup_1" name the same table dup_1/);
+    assert.equal(dataCalls(cli.mt.calls).length, 0);
+  }
+});

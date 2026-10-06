@@ -51,7 +51,7 @@ export {
 } from "./catalog.js";
 export type { IndicatorFilter } from "./catalog.js";
 export { GEO_LEVELS, LEVEL_ALIASES, DEFAULT_LEVEL, findLevel, resolveLevel, levelForTyp } from "./levels.js";
-export { buildSql, buildLayerParam } from "./sql.js";
+export { BOUNDARY_TABLE, buildSql, buildLayerParam } from "./sql.js";
 export {
   assertValid,
   assertKnownKeys,

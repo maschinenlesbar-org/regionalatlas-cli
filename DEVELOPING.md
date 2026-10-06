@@ -131,6 +131,13 @@ no raw user text is ever interpolated:
    a typed `RegionalatlasValidationError` is thrown **before** the SQL is built and no
    data request is made. The `<TABLE>` interpolated into SQL is **always** the matched
    `Indicator.table` (lowercase `[a-z0-9_]+`), never raw user text.
+   The catalogue host is not trusted beyond the code shape: `parseIndicators` (and
+   `parseThemes`, so every command agrees) refuses the whole catalogue with a
+   `RegionalatlasParseError` (exit 1) naming the code(s) when a code's table is the
+   boundary table `verwaltungsgrenzen_gesamt` (`BOUNDARY_TABLE`), or when two codes name
+   the same table (`DUP-1` and `dup_1`: one would be unreachable, and which one a query
+   got depended on the catalogue's order). Fail closed: no data request is made. The
+   public catalogue has neither (71 codes, 71 tables on 2026-10-05).
 2. **Level → typ** (`levels.ts › resolveLevel`). A friendly name/alias maps to one of
    the fixed integers `{1,2,3,5}`; an unknown level (or a non-string one) → typed usage
    error. The lookup goes through `normalizeInput` (trim, NFC; exported) and is
@@ -166,7 +173,7 @@ no raw user text is ever interpolated:
    dictionary). A blank `region`, or a `fields` list without a non-blank name, is
    refused before any request instead of returning every row or every column.
 5. **Defence in depth** (`sql.ts`). Right before interpolation, `buildSql` re-asserts
-   the table matches `^[a-z0-9_]+$`, the typ is one of `{1,2,3,5}`, and the year is a
+   the table matches `^[a-z0-9_]+$` and is not the boundary table, the typ is one of `{1,2,3,5}`, and the year is a
    4-digit integer — so a future refactor cannot route unvalidated text into SQL.
 
 The tests prove: a bogus/injection-shaped indicator is rejected and **never reaches the

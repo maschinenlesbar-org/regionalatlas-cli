@@ -18,6 +18,7 @@ import type {
 import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage } from "./errors.js";
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
+import { BOUNDARY_TABLE } from "./sql.js";
 import { assertKnownKeys, assertValid, nonEmptyProblem, normalizeInput, YEAR_SHAPE, yearProblem } from "./validate.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
@@ -135,7 +136,37 @@ function publishedLevels(raw: unknown): string[] | undefined {
   return GEO_LEVELS.filter((_, i) => published[i]).map((l) => l.name);
 }
 
-/** Parse the raw services.json array into a flat list of indicators. */
+/**
+ * Fail closed on a code the SQL join must never see: one whose table is the boundary
+ * table (the join would read the boundary table twice), or one whose table another code
+ * already names (`DUP-1` and `dup_1` are both `dup_1`, so one of them would be
+ * unreachable, and which one a query gets would depend on the catalogue's order). The
+ * catalogue host is not trusted with that: the whole catalogue is refused with a
+ * RegionalatlasParseError naming the code(s). The public catalogue has neither.
+ */
+function assertUsableTable(code: string, table: string, seen: Map<string, string>): void {
+  const show = (c: string): string => JSON.stringify(cutForMessage(sanitizeServerText(c)));
+  if (table === BOUNDARY_TABLE) {
+    throw new RegionalatlasParseError(
+      `Refusing the indicator catalogue: the code ${show(code)} names the boundary table ${BOUNDARY_TABLE}, ` +
+        "which every data query joins the indicator to.",
+    );
+  }
+  const first = seen.get(table);
+  if (first !== undefined) {
+    throw new RegionalatlasParseError(
+      `Refusing the indicator catalogue: the codes ${show(first)} and ${show(code)} name the same table ` +
+        `${cutForMessage(table)} (codes are case-insensitive, "-" and "_" alike).`,
+    );
+  }
+  seen.set(table, code);
+}
+
+/**
+ * Parse the raw services.json array into a flat list of indicators. A catalogue with a
+ * code that names the boundary table, or two codes naming the same table, is refused
+ * (RegionalatlasParseError).
+ */
 export function parseIndicators(raw: unknown): Indicator[] {
   if (!Array.isArray(raw)) {
     throw new RegionalatlasParseError(
@@ -144,6 +175,8 @@ export function parseIndicators(raw: unknown): Indicator[] {
   }
   const catalog = raw as RawCatalog;
   const out: Indicator[] = [];
+  /** Table name → the first code that named it. */
+  const seen = new Map<string, string>();
   for (const theme of catalog) {
     if (theme === null || typeof theme !== "object") continue;
     const t = theme as RawCatalogTheme;
@@ -166,9 +199,11 @@ export function parseIndicators(raw: unknown): Indicator[] {
         const published = publishedLevels(rawYears[year]);
         if (published !== undefined) levels[year] = published;
       }
+      const table = tableForCode(code);
+      assertUsableTable(code, table, seen);
       out.push({
         code,
-        table: tableForCode(code),
+        table,
         theme: themeTitle,
         titleShort: catalogText(c.title_short),
         titleLong: catalogText(c.title_long),
@@ -188,6 +223,8 @@ export function parseThemes(raw: unknown): Theme[] {
       "Unexpected catalogue shape: expected a JSON array of themes from services.json.",
     );
   }
+  // The same checks as `indicators`: a catalogue it refuses is refused here too.
+  parseIndicators(raw);
   const catalog = raw as RawCatalog;
   return catalog
     .filter((t): t is RawCatalogTheme => t !== null && typeof t === "object")
