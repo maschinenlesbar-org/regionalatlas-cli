@@ -572,3 +572,50 @@ test("the size-cap hint fits the download: the catalogue, or a data reply (findi
     if (args.includes("themes") || args.includes("indicators")) assert.doesNotMatch(err.join("\n"), /--level/);
   }
 });
+
+// ---- REGIONALATLAS_BASE_URL: flag > variable > default ----
+
+function makeEnvCli(env: Record<string, string>) {
+  const cli = makeRoutingCli();
+  cli.deps.env = env;
+  return cli;
+}
+
+/** The data-host requests (everything that is not the catalogue host). */
+function dataHostCalls(calls: HttpRequest[]): HttpRequest[] {
+  return calls.filter((c) => !new URL(c.url).hostname.includes("statistikportal"));
+}
+
+test("REGIONALATLAS_BASE_URL sets the data host; --base-url wins over it", async () => {
+  const fromEnv = makeEnvCli({ REGIONALATLAS_BASE_URL: "https://mirror.example/prefix" });
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], fromEnv.deps), 0, fromEnv.err.join("\n"));
+  assert.match(dataHostCalls(fromEnv.mt.calls)[0]!.url, /^https:\/\/mirror\.example\/prefix\/arcgis\//);
+
+  const fromFlag = makeEnvCli({ REGIONALATLAS_BASE_URL: "https://mirror.example" });
+  const argv = ["--base-url", "https://other.example", "query", "AI002-1-5", "--year", "2020"];
+  assert.equal(await run(argv, fromFlag.deps), 0, fromFlag.err.join("\n"));
+  assert.match(dataHostCalls(fromFlag.mt.calls)[0]!.url, /^https:\/\/other\.example\/arcgis\//);
+
+  const empty = makeEnvCli({ REGIONALATLAS_BASE_URL: "" });
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], empty.deps), 0, empty.err.join("\n"));
+  assert.match(dataHostCalls(empty.mt.calls)[0]!.url, /^https:\/\/www\.gis-idmz\.nrw\.de\//);
+});
+
+test("a bad REGIONALATLAS_BASE_URL is a usage error naming the variable, not its value", async () => {
+  const cli = makeEnvCli({ REGIONALATLAS_BASE_URL: "ftp://alice:s3cret@mirror.example" });
+  assert.equal(await run(["themes"], cli.deps), 2);
+  assert.equal(cli.mt.calls.length, 0);
+  const err = cli.err.join("\n");
+  assert.match(err, /REGIONALATLAS_BASE_URL/);
+  assert.ok(!err.includes("s3cret") && !err.includes("ftp://"), err);
+});
+
+test("a password in REGIONALATLAS_BASE_URL never reaches the output, help included", async () => {
+  const cli = makeEnvCli({ REGIONALATLAS_BASE_URL: "https://alice:s3cret@mirror.example" });
+  assert.equal(await run(["--help"], cli.deps), 0);
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
+  assert.equal(await run(["query", "NOPE"], cli.deps), 2);
+  const all = [...cli.out, ...cli.err].join("\n");
+  assert.match(all, /REGIONALATLAS_BASE_URL/);
+  assert.ok(!all.includes("s3cret"), all);
+});

@@ -230,6 +230,14 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   as a `RegionalatlasNetworkError`. The engine keeps its per-request scheme check
   (`assertHttpScheme`) as defence in depth for absolute URLs. `--base-url` and
   `--catalog-url` use the same rules.
+- **`REGIONALATLAS_BASE_URL`** (`program.ts`): the CLI reads it through the injectable
+  `CliDeps.env` (`process.env` in `defaultDeps`) as the default of `--base-url` — flag >
+  variable > built-in default, an empty variable counts as unset. Commander doesn't run
+  value parsers on defaults, so a `preAction` hook checks it with `parseBaseUrl` before
+  any command runs and fails as a usage error naming the variable, never its value, with
+  no help after it; the `help` command skips the check (P19). `withRedactedOutput` adds
+  the variable's userinfo to its secrets, and `--help` shows the default redacted. The
+  library has no environment lookup: a library caller passes `baseUrl`.
 
 ## ArcGIS specifics
 

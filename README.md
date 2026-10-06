@@ -53,8 +53,9 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
   name (else every name containing the text) and says on stderr when several regions
   match.
 
-Global flags: `--base-url`, `--catalog-url`, `--timeout`, `--user-agent`,
-`--max-retries`, `--max-response-bytes`, `--compact`. See [Usage.md](Usage.md).
+Global flags: `--base-url` (or the `REGIONALATLAS_BASE_URL` environment variable; the flag
+wins), `--catalog-url`, `--timeout`, `--user-agent`, `--max-retries`,
+`--max-response-bytes`, `--compact`. See [Usage.md](Usage.md).
 
 ## Library
 

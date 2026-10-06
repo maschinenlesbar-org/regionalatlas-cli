@@ -3,7 +3,7 @@
 // captured output and exit code without spawning a subprocess.
 
 import { CommanderError, type Command } from "commander";
-import { buildProgram, defaultDeps } from "./program.js";
+import { BASE_URL_ENV, buildProgram, defaultDeps } from "./program.js";
 import type { CliDeps } from "./io.js";
 import { stripTerminalControls } from "./shared.js";
 import {
@@ -59,7 +59,7 @@ export function redactUserinfo(text: string): string {
  * prints on stdout and stderr. Commander echoes rejected values in its errors
  * (`option '--base-url <url>' argument '…' is invalid`), and the CLI's own messages
  * quote arguments (`Unknown indicator "…"`): whatever path a credential from
- * `--base-url` or `--catalog-url` takes, the exact userinfo (as `credentialsIn` finds it,
+ * `--base-url`, `--catalog-url` or REGIONALATLAS_BASE_URL takes, the exact userinfo (as `credentialsIn` finds it,
  * plus its control-stripped and JSON-quoted forms) is replaced by `***`. A pattern alone
  * can't delimit a password with spaces, quotes, `#`, `?` or `/`; the exact strings can.
  * Without credentials in the arguments the output passes through unchanged.
@@ -70,7 +70,7 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
     token.startsWith("-") && token.includes("=") ? token.slice(token.indexOf("=") + 1) : token,
   );
   const secrets = new Set<string>();
-  for (const source of [...argv, ...values]) {
+  for (const source of [...argv, ...values, deps.env?.[BASE_URL_ENV] ?? ""]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
       secrets.add(stripTerminalControls(secret));

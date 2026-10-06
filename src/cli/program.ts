@@ -4,12 +4,13 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { Command } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "./io.js";
 import { defaultIO } from "./io.js";
 import { RegionalatlasClient } from "../client/client.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { MAX_RETRIES } from "../client/engine.js";
+import { DEFAULT_BASE_URL, MAX_RETRIES } from "../client/engine.js";
+import { redactUrl } from "../client/errors.js";
 import {
   parseIntArg,
   parseBaseUrl,
@@ -41,11 +42,17 @@ export const VERSION = readVersion();
 /** Default dependencies: real client + real stdout/stderr. */
 export const defaultDeps: CliDeps = {
   io: defaultIO,
+  env: process.env,
   createClient: (options) => new RegionalatlasClient(options),
 };
 
+/** The environment variable that sets the data host's base URL (flag > variable > default). */
+export const BASE_URL_ENV = "REGIONALATLAS_BASE_URL";
+
 export function buildProgram(deps: CliDeps = defaultDeps): Command {
   const program = new Command();
+  // flag > REGIONALATLAS_BASE_URL > default; an empty variable counts as unset.
+  const baseUrlDefault = deps.env?.[BASE_URL_ENV] || DEFAULT_BASE_URL;
 
   program
     .name("regionalatlas")
@@ -57,11 +64,12 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "<land|kreis|…>` fetches the data rows for a year.",
     )
     .version(VERSION)
-    .option(
-      "--base-url <url>",
-      "ArcGIS data host base URL",
-      parseBaseUrl,
-      "https://www.gis-idmz.nrw.de",
+    .addOption(
+      new Option("--base-url <url>", `ArcGIS data host base URL (env ${BASE_URL_ENV})`)
+        .argParser(parseBaseUrl)
+        // The help shows the default without userinfo: a password in REGIONALATLAS_BASE_URL
+        // must not end up in --help output or CI logs.
+        .default(baseUrlDefault, JSON.stringify(redactUrl(baseUrlDefault))),
     )
     .option(
       "--catalog-url <url>",
@@ -87,6 +95,23 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     .showHelpAfterError();
+
+  // commander runs value parsers on flags but not on defaults, so a base URL taken from
+  // REGIONALATLAS_BASE_URL is checked here, before any command runs (a usage error, exit
+  // 2). The message names the variable, not its value (which may hold a password). The
+  // help command never makes a request: help must work whatever the variable holds.
+  program.hook("preAction", (_program, actionCommand) => {
+    if (actionCommand.name() === "help") return;
+    if (program.getOptionValueSource("baseUrl") !== "default") return;
+    try {
+      parseBaseUrl(program.opts<{ baseUrl: string }>().baseUrl);
+    } catch (err) {
+      if (!(err instanceof InvalidArgumentError)) throw err;
+      // No help after this error: it would only repeat the variable's value as the default.
+      program.showHelpAfterError(false);
+      program.error(`error: ${BASE_URL_ENV}: ${err.message} Fix or unset the variable.`);
+    }
+  });
 
   registerCommands(program, deps);
   forbidRepeatedOptions(program);

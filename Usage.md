@@ -11,7 +11,7 @@ regionalatlas [global options] <command> [command options]
 
 | Option | Description |
 |---|---|
-| `--base-url <url>` | ArcGIS data host base URL (default `https://www.gis-idmz.nrw.de`) |
+| `--base-url <url>` | ArcGIS data host base URL (default: the `REGIONALATLAS_BASE_URL` environment variable, else `https://www.gis-idmz.nrw.de`) |
 | `--catalog-url <url>` | indicator catalogue URL (default the statistikportal.de `services.json`) |
 | `--timeout <ms>` | time limit per request in ms, whole response included (0 = no timeout; at most 2147483647) |
 | `--user-agent <ua>` | User-Agent header value (not blank; no control characters or characters above U+00FF) |
@@ -32,6 +32,13 @@ messages, commander's usage errors (which quote a rejected value), help — what
 characters the password contains. A `%` in the user name or password must start an escape
 (write a literal `%` as `%25`); a bare one is a usage error (exit 2). The library checks `baseUrl` and `catalogUrl` by the
 same rules when the client is built.
+
+`REGIONALATLAS_BASE_URL` sets the data host's base URL for every run (a mirror, a local
+fixture server); `--base-url` overrides it, and an empty variable counts as unset. Its value
+is checked by the same rules before any request: a bad one is a usage error (exit 2) that
+names the variable, not its value (`error: REGIONALATLAS_BASE_URL: Only http: and https:
+URLs are supported. Fix or unset the variable.`). Help works whatever it holds, and a
+password in it is redacted like one in `--base-url`.
 
 ## Commands
 

@@ -12,13 +12,13 @@ import { run } from "../src/cli/run.js";
 import { RegionalatlasClient as Client } from "../src/client/client.js";
 import { RegionalatlasValidationError as ValidationError } from "../src/client/errors.js";
 import type { Transport } from "../src/client/http.js";
-const BASE_URL_ENV: string | undefined = undefined; // regionalatlas reads no environment variable
+const BASE_URL_ENV: string | undefined = "REGIONALATLAS_BASE_URL";
 const SIMPLE_COMMAND = ["themes"];
 const USAGE_EXIT = 2;
-/** This repo's CliDeps: no env. */
-function makeDeps(out: string[], err: string[], _env: Record<string, string>, transport: Transport): CliDeps {
+function makeDeps(out: string[], err: string[], env: Record<string, string>, transport: Transport): CliDeps {
   return {
     io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+    env,
     createClient: (opts) => new Client({ ...opts, transport }),
   };
 }
