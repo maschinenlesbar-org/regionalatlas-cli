@@ -148,6 +148,14 @@ export function shortenUrl(url: string): string {
   return `${url.slice(0, q)}?${params.join("&")}`;
 }
 
+/**
+ * ` (retried n times)` for an error that persisted through `n` retries, `""` for none:
+ * the final error after the retries ran out says that retrying already happened.
+ */
+export function retriedSuffix(retries: number): string {
+  return retries > 0 ? ` (retried ${retries} ${retries === 1 ? "time" : "times"})` : "";
+}
+
 /** Base class for every error originating from this client. */
 export class RegionalatlasError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -172,6 +180,8 @@ export class RegionalatlasApiError extends RegionalatlasError {
   readonly url: string;
   readonly method: string;
   readonly body: string;
+  /** How many times the request was retried before this error (0 when it was not). */
+  readonly retries: number;
 
   constructor(args: {
     url: string;
@@ -180,6 +190,8 @@ export class RegionalatlasApiError extends RegionalatlasError {
     status?: number;
     arcgisCode?: number;
     detail?: string;
+    /** How many times the request was retried before this answer (a 429/503 that persisted). */
+    retries?: number;
   }) {
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);
@@ -188,7 +200,8 @@ export class RegionalatlasApiError extends RegionalatlasError {
       args.status !== undefined
         ? `HTTP ${args.status}`
         : `ArcGIS error${args.arcgisCode !== undefined ? ` ${args.arcgisCode}` : ""}`;
-    super(`${head} for ${args.method} ${shortenUrl(url)}${detailPart}`);
+    super(`${head} for ${args.method} ${shortenUrl(url)}${detailPart}${retriedSuffix(args.retries ?? 0)}`);
+    this.retries = args.retries ?? 0;
     this.status = args.status;
     this.arcgisCode = args.arcgisCode;
     this.url = url;

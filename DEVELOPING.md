@@ -350,7 +350,11 @@ host (catalogue vs data). Coverage highlights:
   server-set `Retry-After: 86400` cannot park the CLI for a day. A missing or malformed
   header (`1.5`, `-5`, any other date format) falls back to linear backoff
   (`retryDelayMs × attempt`); `parseRetryAfter` never hands it to a bare `Date.parse`,
-  which reads `"1.5"` as a date in 2001 and so retried at once.
+  which reads `"1.5"` as a date in 2001 and so retried at once. When the retries run out,
+  the final error says so: `HTTP 503 for GET … (retried 2 times)` (a
+  `RegionalatlasApiError` with `retries: 2`), or `socket hang up (retried 2 times)` for a
+  reset connection (`retriedSuffix`, exported). An error that was never retried has no
+  suffix and `retries: 0`.
 - **Custom transports:** the engine enforces `timeoutMs` itself for every transport — the
   request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and
   the call rejects then with a `RegionalatlasNetworkError` whether the transport stops or

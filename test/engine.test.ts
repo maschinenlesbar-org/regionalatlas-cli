@@ -339,3 +339,29 @@ test("a JSON body is decoded by its declared charset; a BOM is dropped; an unkno
   const mt = makeMockTransport(() => rawResponse(text, "application/json; charset=x-klingon"));
   await assert.rejects(new RequestEngine({ transport: mt.transport }).getJson("/q"), RegionalatlasParseError);
 });
+
+test("the error after the retries ran out says how many were made", async () => {
+  const sleep = async (): Promise<void> => {};
+  // A 429/503 that persists: "(retried n times)", and `retries` on the error.
+  for (const [maxRetries, suffix] of [[2, " (retried 2 times)"], [1, " (retried 1 time)"], [0, ""]] as const) {
+    const mt = makeMockTransport(() => jsonResponse({ error: { message: "busy" } }, 503));
+    const e = new RequestEngine({ baseUrl: "https://example.test", transport: mt.transport, maxRetries, sleep });
+    await assert.rejects(
+      () => e.getJson("/x"),
+      (err) => err instanceof RegionalatlasApiError && err.message.endsWith(`busy${suffix}`) && err.retries === maxRetries,
+    );
+  }
+  // A reset connection that persists says so too.
+  const reset = Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+  const e = new RequestEngine({ baseUrl: "https://example.test", transport: async () => { throw reset; }, maxRetries: 3, sleep });
+  await assert.rejects(
+    () => e.getJson("/x"),
+    (err) => err instanceof RegionalatlasNetworkError && err.message === "socket hang up (retried 3 times)",
+  );
+  // Statuses and failures that are never retried carry no suffix.
+  const notFound = new RequestEngine({ baseUrl: "https://example.test", transport: async () => jsonResponse({ message: "no" }, 404), maxRetries: 3, sleep });
+  await assert.rejects(() => notFound.getJson("/x"), (err) => err instanceof RegionalatlasApiError && !/retried/.test(err.message) && err.retries === 0);
+  const refused = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+  const down = new RequestEngine({ baseUrl: "https://example.test", transport: async () => { throw refused; }, maxRetries: 3, sleep });
+  await assert.rejects(() => down.getJson("/x"), (err) => err instanceof RegionalatlasNetworkError && !/retried/.test(err.message));
+});

@@ -32,6 +32,7 @@ import {
   redactCredentials,
   redactQueryTokens,
   redactUrl,
+  retriedSuffix,
 } from "./errors.js";
 import {
   assertValid,
@@ -522,10 +523,10 @@ export class RequestEngine {
    * scrubbed from its message and cause chain; any other `RegionalatlasError` passes
    * through, and a clean `RegionalatlasNetworkError` stays as it is.
    */
-  private transportError(cause: unknown): RegionalatlasError {
+  private transportError(cause: unknown, retries = 0): RegionalatlasError {
     if (cause instanceof RegionalatlasError && !(cause instanceof RegionalatlasNetworkError)) return cause;
     const reason = cause instanceof Error ? cause.message : String(cause);
-    const message = sanitizeServerText(this.redact(reason));
+    const message = sanitizeServerText(this.redact(reason)) + retriedSuffix(retries);
     const scrubbed = this.scrubCause(cause);
     if (cause instanceof RegionalatlasNetworkError && message === cause.message && scrubbed === cause) return cause;
     return new RegionalatlasNetworkError(message, { cause: scrubbed });
@@ -616,7 +617,7 @@ export class RequestEngine {
         if (cause instanceof RegionalatlasSizeLimitError && cause.download === undefined) {
           throw new RegionalatlasSizeLimitError(cause.limit, download, { cause });
         }
-        throw this.transportError(cause);
+        throw this.transportError(cause, hasTransientCode(cause) ? attempt : 0);
       }
 
       // An injected transport may resolve with anything; a malformed HttpResponse would
@@ -649,7 +650,8 @@ export class RequestEngine {
 
       const contentType = String(responseHeaders["content-type"] ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(url, status, body);
+        // A 429/503 that is still there after the retries says so ("retried n times").
+        throw this.toApiError(url, status, body, retryable ? attempt : 0);
       }
 
       return { data: body, contentType, status };
@@ -691,7 +693,7 @@ export class RequestEngine {
     }
   }
 
-  private toApiError(url: string, status: number, body: Buffer): RegionalatlasApiError {
+  private toApiError(url: string, status: number, body: Buffer, retries = 0): RegionalatlasApiError {
     // The body is kept on the error (`body`) and may echo the request URL: scrub it.
     const text = this.redact(body.toString("utf8"));
     let detail: string | undefined;
@@ -718,6 +720,6 @@ export class RequestEngine {
     // into stderr via the error message.
     // Cut, too: a server can send a 200 kB detail.
     if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
-    return new RegionalatlasApiError({ status, url, method: "GET", body: text, detail });
+    return new RegionalatlasApiError({ status, url, method: "GET", body: text, detail, retries });
   }
 }

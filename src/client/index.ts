@@ -82,6 +82,7 @@ export {
   queryTokensIn,
   redactCredentials,
   redactQueryTokens,
+  retriedSuffix,
   SECRET_QUERY_PARAMETERS,
   shortenUrl,
 } from "./errors.js";
