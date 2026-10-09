@@ -225,7 +225,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   URLs without surrounding or interior whitespace or control characters; `baseUrl` also
   without a query or fragment. Userinfo is allowed (sent as Basic auth, redacted in
   messages), but a `%` in it must start a valid escape (`%25` for a literal one): Node
-  decodes it for the Basic-auth header and would fail only at request time. The CLI also redacts on output: `run.ts` (`withRedactedOutput`) takes the
+  decodes it for the Basic-auth header and would fail only at request time. The CLI also redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the
   exact userinfo of every argument (`credentialsIn`, exported) and replaces it with `***`
   in everything it prints — commander's usage errors, which echo a rejected
   `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
@@ -266,7 +266,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   variable > built-in default, an empty variable counts as unset. Commander doesn't run
   value parsers on defaults, so a `preAction` hook checks it with `parseBaseUrl` before
   any command runs and fails as a usage error naming the variable, never its value, with
-  no help after it; the `help` command skips the check (P19). `withRedactedOutput` adds
+  no help after it; the `help` command skips the check (P19). `redactionFor` adds
   the variable's userinfo to its secrets, and `--help` shows the default redacted. The
   library has no environment lookup: a library caller passes `baseUrl`.
 
@@ -449,9 +449,10 @@ unexpected response shape, unexpected errors), `api` (the hosts' error answers, 
 notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
 and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never
 writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
-commander parses it, so commander's own usage errors are records too, and on top of the
-redacted (and terminal-control-stripped) `io.err`, so a secret is kept out of the log in
-either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. Two
+commander parses it, so commander's own usage errors are records too, and with the run's
+redaction (`redactionFor`, `withRedactedOutput`), which replaces a secret in the message
+only, before it is escaped: the frame is never touched (a catalogue token equal to the
+topic or a year can't corrupt it), and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. Two
 lines stay raw: `Output error: …` from `handleOutputErrors` and the bin shim's last-resort
 `Unexpected error: …`, both written outside `run()`. Conformance test P23 checks all of
 this, and its body is shared across the *-cli repos.

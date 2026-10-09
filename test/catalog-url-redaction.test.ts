@@ -223,3 +223,31 @@ test("redactUrl and redactQueryTokens hide token values", async () => {
   // Other parameters are left alone.
   assert.equal(redactUrl("https://h/s.json?tokens=1&mytoken=2"), "https://h/s.json?tokens=1&mytoken=2");
 });
+
+test("a catalogue token equal to a part of the record's frame leaves the frame intact (#14)", async () => {
+  // A token equal to the topic, the program or the year used to give `[***]`, `[***.api]`
+  // or `***-01-02T…`: the redaction ran over the formatted record.
+  const TS = "2026-01-02T03:04:05.678Z";
+  for (const token of ["regionalatlas.api", "regionalatlas", "2026-01-02"]) {
+    for (const format of ["text", "jsonl"]) {
+      const err: string[] = [];
+      const deps: CliDeps = {
+        io: { out: () => {}, err: (s) => err.push(s) },
+        now: () => new Date(TS),
+        createClient: (opts) =>
+          new RegionalatlasClient({ ...opts, transport: async () => json(500, { message: `invalid token ${token}` }), maxRetries: 0 }),
+      };
+      assert.equal(await run(["--log-format", format, "--catalog-url", `https://cat.example/services.json?token=${token}`, "themes"], deps), 1);
+      assert.equal(err.length, 1, err.join("\n"));
+      const line = err[0]!;
+      if (format === "jsonl") {
+        const record = JSON.parse(line) as Record<string, string>;
+        assert.deepEqual([record["ts"], record["level"], record["topic"]], [TS, "ERROR", "regionalatlas.api"], line);
+        assert.ok(!(record["msg"] ?? "").includes(token), line);
+      } else {
+        assert.ok(line.startsWith(`${TS} ERROR [regionalatlas.api] `), line);
+        assert.ok(!line.slice(line.indexOf("] ") + 2).includes(token), line);
+      }
+    }
+  }
+});
