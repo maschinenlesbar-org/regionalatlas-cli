@@ -16,7 +16,7 @@
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
 import { RequestEngine, describeArcGisError, validateHttpUrl, type EngineOptions } from "./engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, redactUrl } from "./errors.js";
+import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, redactUrl } from "./errors.js";
 import {
   assertKnownFields,
   assertLevelPublished,
@@ -237,8 +237,10 @@ export class RegionalatlasClient {
         // Server text that may echo the request URL: scrubbed like the engine's own errors.
         body: this.engine.redact(JSON.stringify(res)),
         arcgisCode: typeof code === "number" ? code : undefined,
-        // Message and details, control characters stripped (sanitizeServerText).
-        detail: detail === undefined ? undefined : this.engine.redact(detail),
+        // Message and details, control characters stripped (sanitizeServerText), redacted,
+        // then cut at MAX_MESSAGE_VALUE_LENGTH like an HTTP error's detail: a server can
+        // send a 200 kB message, or thousands of details.
+        detail: detail === undefined ? undefined : cutForMessage(this.engine.redact(detail)),
       });
     }
     return res as ArcGisQueryResponse;

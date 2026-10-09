@@ -11,6 +11,7 @@ import {
   RegionalatlasApiError,
   RegionalatlasParseError,
   RegionalatlasValidationError,
+  MAX_MESSAGE_VALUE_LENGTH,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, queryOf, routeByHost } from "./helpers.js";
 import type { HttpRequest } from "../src/client/http.js";
@@ -286,6 +287,24 @@ test("an ArcGIS error envelope (HTTP 200) throws RegionalatlasApiError", async (
       err instanceof RegionalatlasApiError &&
       err.arcgisCode === 400 &&
       /Invalid or missing input parameters/.test(err.message),
+  );
+});
+
+test("an ArcGIS error envelope (HTTP 200) is cut like an HTTP error's detail (B01-1)", async () => {
+  // A 200 kB message and 5000 details used to give a 250 kB message (10 MB: one 10 MB record).
+  const huge = { error: { code: 500, message: "A".repeat(200_000), details: Array.from({ length: 5000 }, (_, i) => `d${i}`) } };
+  const { client } = clientRouting(huge);
+  await assert.rejects(
+    () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
+    (err) => {
+      assert.ok(err instanceof RegionalatlasApiError);
+      assert.equal(err.detail?.length, MAX_MESSAGE_VALUE_LENGTH + 1);
+      assert.match(err.detail ?? "", /^A+…$/);
+      assert.ok(err.message.length < 1000, `${err.message.length}`);
+      // The answer itself stays on the error, whole.
+      assert.ok(err.body.length > 200_000);
+      return true;
+    },
   );
 });
 

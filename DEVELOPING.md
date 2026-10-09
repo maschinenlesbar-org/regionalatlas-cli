@@ -282,7 +282,9 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   `RegionalatlasParseError` (`Unexpected response shape from <path>: expected …`), not
   an empty result. The `error.message`
   is run through `sanitizeServerText` before it can reach stderr: control and bidi
-  characters dropped, whitespace folded to one line. The catalogue is a second trust
+  characters dropped, whitespace folded to one line; the joined message and details are
+  then cut at 500 characters (`cutForMessage`), as for an HTTP error's detail, while
+  `body` keeps the whole answer. The catalogue is a second trust
   domain (`--catalog-url`), so its texts (titles, units, theme names) go through the
   same function when parsed — they appear in error messages such as the list of
   `Available:` columns. As a last net, run.ts strips C0 (except tab/newline), DEL and
