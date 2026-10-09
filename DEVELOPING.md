@@ -359,7 +359,7 @@ host (catalogue vs data). Coverage highlights:
   network → 6; other → 1. The bin shim installs `handleOutputErrors()` (io.ts) before
   `run()`: an EPIPE on stdout (a reader that stops early, `| head`) exits 0 quietly, an
   EPIPE on stderr is ignored so the run's own code stands, and any other stdout error
-  prints one `Output error:` line and exits 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
+  is an ERROR record of `regionalatlas.output` (`Could not write to stdout: …`) and exits 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
   from the data host that means a base-URL misconfiguration → usage).
 - **Retry/backoff:** `429`/`503` and reset connections are retried up to `maxRetries`
   (default 2); a refused connection, a DNS failure and a timeout are not. Each retry waits
@@ -455,8 +455,8 @@ character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellF
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors, an
 unexpected response shape, unexpected errors), `api` (the hosts' error answers, and the
-notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
-and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never
+notes on an empty, cut-off or ambiguous result), `http` (the connection: network errors
+and their size-cap hints, the cleartext warning) and `output` (a stdout write error). Code logs through `logOf(deps)` and never
 writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
 commander parses it (`logFormatFromArgv`, used only for the records of a parse error: it
 takes the first `--log-format`, the one `forbidRepeatedOptions` keeps, and skips the value
@@ -469,7 +469,9 @@ an ERROR "missing command: `regionalatlas <subcommand>`" before that help, so ev
 failed run has an ERROR record (`writeCommanderErr`). The log is built with the run's
 redaction (`redactionFor`, `withRedactedOutput`), which replaces a secret in the message
 only, before it is escaped: the frame is never touched (a catalogue token equal to the
-topic or a year can't corrupt it), and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. Two
-lines stay raw: `Output error: …` from `handleOutputErrors` and the bin shim's last-resort
-`Unexpected error: …`, both written outside `run()`. Conformance test P23 checks all of
+topic or a year can't corrupt it), and a secret is kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. What
+happens outside `run()` is logged too, through `processLogger(argv)` (the format argv asks
+for, the run's redaction): a stdout write error from `handleOutputErrors` is an ERROR of
+`regionalatlas.output` ("Could not write to stdout: …"), and the bin shim's last-resort
+`Unexpected error: …` an ERROR of `regionalatlas.cli`. Conformance test P23 checks all of
 this, and its body is shared across the *-cli repos.
