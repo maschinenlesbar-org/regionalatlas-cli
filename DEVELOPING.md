@@ -325,6 +325,8 @@ host (catalogue vs data). Coverage highlights:
   the scheme guard, and JSON decoding/error mapping.
 - `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
   whose reader has gone) on stdout exit 0, on stderr they are ignored.
+- `log.test.ts` — the record helpers of `src/cli/log.ts` on their own
+  (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - `validate.test.ts` — the input rules, `assertValid`, and how `run()` reports a
   `RegionalatlasValidationError`.
 - `parity.test.ts` — the same input through the CLI and the library (`parity()`): both
@@ -428,7 +430,11 @@ Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp,
 (`ERROR`, `WARN`, `INFO`) and a topic, `regionalatlas.<area>`. `--log-format text` (the
 default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
-and `msg`. The areas are `cli` (usage errors, commander's messages, validation errors, an
+and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord` over
+the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
+every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
+controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
+forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, validation errors, an
 unexpected response shape, unexpected errors), `api` (the hosts' error answers, and the
 notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
 and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never

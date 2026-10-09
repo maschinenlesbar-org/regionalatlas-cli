@@ -65,7 +65,10 @@ level (`ERROR`, `WARN`, `INFO`) and a topic, the program and the area it comes f
 (`regionalatlas.cli` for usage errors, `regionalatlas.api` for the hosts' answers and the
 notes on an empty or ambiguous result, `regionalatlas.http` for the connection). By
 default it is written log4j style; `--log-format jsonl` writes one JSON object per line
-instead:
+instead. A record is always one line: a line break, a control character or a bidi control
+in a message (a server's text, a value you typed) is written as an escape (`\n`,
+`\u001b`, `\u202e`), so it can neither split a record nor forge another one, nor steer the
+terminal:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] requests to mirror.example are sent unencrypted (http:, not https:)
