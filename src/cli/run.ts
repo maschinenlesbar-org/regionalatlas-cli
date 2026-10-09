@@ -130,10 +130,26 @@ function flagValues(argv: readonly string[], flags: readonly string[]): string[]
 
 /** The secrets of a run, and the two ways they are replaced. */
 export interface Redaction {
-  /** stdout text: the userinfo and the catalogue token of every argument replaced. */
+  /**
+   * stdout text: the userinfo, the `token=` parameter, and the bare catalogue token only
+   * where it is a whole JSON string value, never inside other text.
+   */
   out(text: string): string;
   /** stderr text, a record's message: that, and the bare password of a userinfo (`***`). */
   err(text: string): string;
+}
+
+/**
+ * `text` with every JSON string literal whose content is one of `tokens` replaced by
+ * `"***"`. Only whole values: a token inside a longer string on stdout is data and stays,
+ * as `-o` writes it (a token `Bevölkerung` turned a theme title into `*** nach Alter`).
+ * Values under six characters are skipped, as `redactQueryTokens` does for bare values.
+ */
+function redactWholeJsonValues(text: string, tokens: ReadonlySet<string>): string {
+  if (tokens.size === 0) return text;
+  return text.replace(/"((?:[^"\\]|\\.)*)"/g, (literal, content: string) =>
+    content.length >= 6 && tokens.has(content) ? '"***"' : literal,
+  );
 }
 
 /**
@@ -145,7 +161,7 @@ export interface Redaction {
  * by `***`. A pattern alone can't delimit a password with spaces, quotes, `#`, `?` or
  * `/`; the exact strings can. The value of a `?token=` / `&access_token=` in an argument
  * is a credential as well (`redactQueryTokens`): its `token=` form and the bare value
- * become `***`. Without credentials in the arguments the text passes through unchanged.
+ * become `***` on stderr; on stdout the bare value only as a whole JSON string value. Without credentials in the arguments the text passes through unchanged.
  */
 export function redactionFor(argv: readonly string[], env: Record<string, string | undefined>): Redaction {
   // An `--option=value` token is echoed as its value alone.
@@ -190,9 +206,14 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   // Longest first, so a password never leaves half of the user:password around it.
   const echoedList = [...echoed].sort((a, b) => b.length - a.length);
   const passwordList = [...passwords].sort((a, b) => b.length - a.length);
-  const out = (text: string): string =>
-    redactQueryTokens(redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList), tokenList);
-  return { out, err: (text) => redactSecrets(out(text), passwordList) };
+  const withoutCredentials = (text: string): string =>
+    redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList);
+  const tokenSet = new Set(tokenList);
+  return {
+    // The `token=` parameter anywhere; the bare value only as a whole JSON string value.
+    out: (text) => redactWholeJsonValues(redactQueryTokens(withoutCredentials(text)), tokenSet),
+    err: (text) => redactSecrets(redactQueryTokens(withoutCredentials(text), tokenList), passwordList),
+  };
 }
 
 /**

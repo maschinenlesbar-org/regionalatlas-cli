@@ -290,3 +290,27 @@ test("a short catalogue token echoed as token=<value> without ?/& is redacted (B
     assert.ok(!err.join("\n").includes("token=ab12"), err.join("\n"));
   }
 });
+
+test("on stdout a bare catalogue token is replaced only as a whole value, never inside other text; a record replaces it anywhere (decision 2)", async () => {
+  // A token that is also a theme name: the data keeps "Bevölkerung nach Alter"; a title that is the token is hidden.
+  const body = JSON.stringify([{ title: "Bevölkerung nach Alter", children: [] }, { title: "Bevölkerung", children: [] }]);
+  const c = cli(body);
+  assert.equal(await run(["--catalog-url", "https://cat.example/services.json?token=Bevölkerung", "themes", "--compact"], c.deps), 0, c.text());
+  const out = c.text();
+  assert.match(out, /"Bevölkerung nach Alter"/);
+  assert.match(out, /"title":"\*\*\*"/);
+  assert.ok(!/"Bevölkerung"/.test(out), out);
+  // A parameter in the data stays hidden in its `token=` form.
+  const withUrl = cli(JSON.stringify([{ title: "see https://cat.example/services.json?token=Bevölkerung", children: [] }]));
+  await run(["--catalog-url", "https://cat.example/services.json?token=Bevölkerung", "themes", "--compact"], withUrl.deps);
+  assert.match(withUrl.text(), /services\.json\?token=\*\*\*/);
+  // A record replaces the bare token anywhere.
+  const err: string[] = [];
+  const failing: CliDeps = {
+    io: { out: () => {}, err: (s) => err.push(s) },
+    createClient: (opts) =>
+      new RegionalatlasClient({ ...opts, maxRetries: 0, transport: async () => ({ status: 500, headers: { "content-type": "text/plain" }, body: Buffer.from("bad token Bevölkerung for user") }) }),
+  };
+  assert.notEqual(await run(["--catalog-url", "https://cat.example/services.json?token=Bevölkerung", "themes"], failing), 0);
+  assert.ok(!err.join("\n").includes("Bevölkerung"), err.join("\n"));
+});

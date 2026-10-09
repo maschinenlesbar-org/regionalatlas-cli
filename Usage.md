@@ -41,7 +41,7 @@ treated as a credential: ArcGIS services take their access token as `?token=…`
 behind such a login works as `--catalog-url 'https://mirror.example/services.json?token=…'`.
 The token is sent only with the catalogue request — never to the data host (`--base-url`
 takes no query), and redirects are not followed — and everything the CLI prints shows it as
-`token=***`. The public catalogue needs none.
+`token=***` (in the data on stdout a bare token value is replaced only as a whole value, never inside other text). The public catalogue needs none.
 
 **Plain `http:`.** A remote host on plain `http:` gets one warning record on stderr before
 the first request, per URL the command contacts (the catalogue URL always, the base URL for
