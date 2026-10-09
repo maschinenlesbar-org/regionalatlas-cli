@@ -55,9 +55,26 @@ regionalatlas query AI002-1-5 --level land --fields ai0201       # project value
 
 Global flags: `--base-url` (or the `REGIONALATLAS_BASE_URL` environment variable; the flag
 wins), `--catalog-url`, `--timeout`, `--user-agent`, `--max-retries`,
-`--max-response-bytes`, `--compact`. See [Usage.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/Usage.md). A plain `http:` URL to a
-remote host (base or catalogue URL) gets one `warning: … sent unencrypted to <host> (http:,
-not https:)` line on stderr per URL; stdout and the exit code are unchanged.
+`--max-response-bytes`, `--log-format`, `--compact`. See [Usage.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/Usage.md). A plain `http:` URL to a
+remote host (base or catalogue URL) gets one warning on stderr per URL (`WARN
+[regionalatlas.http] … sent unencrypted to <host> (http:, not https:)`); stdout and the
+exit code are unchanged.
+
+Data goes to stdout as JSON; each line on stderr is a **log record**: a timestamp (UTC), a
+level (`ERROR`, `WARN`, `INFO`) and a topic, the program and the area it comes from
+(`regionalatlas.cli` for usage errors, `regionalatlas.api` for the hosts' answers and the
+notes on an empty or ambiguous result, `regionalatlas.http` for the connection). By
+default it is written log4j style; `--log-format jsonl` writes one JSON object per line
+instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] requests to mirror.example are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z INFO  [regionalatlas.api] the data host returned no rows for AI002-1-5 at level kreis in 2024. …
+```
+
+```bash
+regionalatlas --log-format jsonl query AI002-1-5 2>log.jsonl   # {"ts":"…","level":"INFO","topic":"regionalatlas.api","msg":"…"}
+```
 
 ## Library
 

@@ -18,6 +18,7 @@ regionalatlas [global options] <command> [command options]
 | `--max-retries <n>` | retries for transient 429/503 responses and reset connections (0..10); a refused connection, a DNS failure and a timeout are not retried. Each retry waits a linear backoff (200 ms, 400 ms, …), or the server's `Retry-After` when that is longer (capped at 30 s) — never less, so `Retry-After: 0` still waits the backoff. When they run out, the error says how many were made (`… (retried 2 times)`) |
 | `--max-response-bytes <n>` | cap the response body size in bytes (0 = unlimited; default 100 MiB). Every command reads the indicator catalogue (about 2 MB) first, so a cap below that fails even `themes`; the error says which download was too big |
 | `--compact` | print JSON on a single line (for piping to `jq`) |
+| `--log-format <format>` | how errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
 | `-V, --version` / `-h, --help` | version / help |
 
 Every option takes one value, except `--fields`, which is repeatable (`--fields a --fields b`
@@ -40,21 +41,21 @@ The token is sent only with the catalogue request — never to the data host (`-
 takes no query), and redirects are not followed — and everything the CLI prints shows it as
 `token=***`. The public catalogue needs none.
 
-**Plain `http:`.** A remote host on plain `http:` gets one warning line on stderr before
+**Plain `http:`.** A remote host on plain `http:` gets one warning record on stderr before
 the first request, per URL the command contacts (the catalogue URL always, the base URL for
 `query`); stdout and the exit code are unchanged, and loopback hosts (`localhost`, `127.x`,
 `::1`) don't warn. It names what travels unencrypted, never its value:
 
 ```text
-warning: requests to mirror.example are sent unencrypted (http:, not https:)
-warning: the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)
-warning: the catalogue URL's token is sent unencrypted to cat.example (http:, not https:)
+2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] requests to mirror.example are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] the base URL's credentials are sent unencrypted to mirror.example (http:, not https:)
+2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] the catalogue URL's token is sent unencrypted to cat.example (http:, not https:)
 ```
 
 `REGIONALATLAS_BASE_URL` sets the data host's base URL for every run (a mirror, a local
 fixture server); `--base-url` overrides it, and an empty variable counts as unset. Its value
 is checked by the same rules before any request: a bad one is a usage error (exit 2) that
-names the variable, not its value (`error: REGIONALATLAS_BASE_URL: Only http: and https:
+names the variable, not its value (`ERROR [regionalatlas.cli] REGIONALATLAS_BASE_URL: Only http: and https:
 URLs are supported. Fix or unset the variable.`). Help works whatever it holds, and a
 password in it is redacted like one in `--base-url`.
 
@@ -128,16 +129,16 @@ indicator's value columns first — `indicators` lists them with their titles an
   (`9`, `09`). When no row has that key, the row whose shorter key it pads with zeros:
   a level carries a filled-in unit under its own short key, so the official 8-digit key
   `09162000` (München) matches the `09162` row at `gemeinde`, and `11000000` / `11000`
-  Berlin's `11` row at `gemeinde` / `kreis`; a `Note:` on stderr says so.
+  Berlin's `11` row at `gemeinde` / `kreis`; an `INFO` note on stderr says so.
 - **Text is a name**, compared case-insensitively: the rows whose **whole name** equals it
   when there are any — `Sachsen` is Sachsen alone, not Niedersachsen and Sachsen-Anhalt
   too; `Gera` is Gera, not Groß-Gerau; `München` at `kreis` is the city (`09162`), not
-  `München, Landkreis` — and a `Note:` on stderr names the rows that only contain the
+  `München, Landkreis` — and an `INFO` note on stderr names the rows that only contain the
   text. Without a whole-name match, every row whose name contains the text
   (`--region Neustadt` at `gemeinde`: 21 rows).
 - **Several rows can still match** — a name two regions share (two Gemeinden called
   Halle; `Hannover` twice in the Kreis rows of 2000) or a part of a name. All are
-  printed, and a `Note:` on stderr says the region is ambiguous and lists them; pick one
+  printed, and an `INFO` note on stderr says the region is ambiguous and lists them; pick one
   by its `ags`. A script that wants one region should give the AGS, or check that it got
   exactly one row.
 
@@ -165,7 +166,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 
 | Code | Meaning |
 |---|---|
-| `0` | success (help/version included); an empty result also exits 0, with a `Note:` on stderr — from `query` and from `indicators` alike; so does a run whose output reader stops early (`\| head`), quietly |
+| `0` | success (help/version included); an empty result also exits 0, with an `INFO` note on stderr — from `query` and from `indicators` alike; so does a run whose output reader stops early (`\| head`), quietly |
 | `1` | API/logical error (the ArcGIS `error` envelope), a catalogue the CLI refuses (not the expected shape, or two indicator codes naming the same table, or one naming the boundary table `verwaltungsgrenzen_gesamt`), or a catch-all |
 | `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, a `--base-url` with a query, fragment or surrounding whitespace, redirecting base URL) |
 | `4` | HTTP 404 |
@@ -181,7 +182,7 @@ A failed run keeps its exit code when the reader of stderr has gone away (`2>&1 
 - **The ArcGIS server reports logical errors as HTTP 200 with an `error` object** — the
   CLI detects it and exits 1 with the message.
 - **A result cut off at the server's record limit** (`exceededTransferLimit`, set above
-  2,000,000 rows today) is printed with a `Note:` on stderr saying it is incomplete.
+  2,000,000 rows today) is printed with an `INFO` note on stderr saying it is incomplete.
 - **Two hosts:** the data query hits `--base-url` (ArcGIS); the indicator list hits
   `--catalog-url` (statistikportal.de). Both are keyless.
 - The data is © the Statistische Ämter des Bundes und der Länder under **dl-de/by-2.0**

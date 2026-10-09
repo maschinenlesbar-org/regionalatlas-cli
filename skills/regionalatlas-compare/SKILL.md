@@ -32,7 +32,7 @@ This skill also filters JSON with `jq`. **Validate it too** — run `command -v 
 `--region` selects **one** region per call: an AGS (numeric matches ignore leading
 zeros), or a name — the region whose whole name it is (`Sachsen`, not Niedersachsen),
 else every region whose name contains it. When several rows match, the CLI prints them
-all and a `Note:` on stderr saying the region is ambiguous; **read stderr and check you got
+all and an `INFO` note on stderr saying the region is ambiguous; **read stderr and check you got
 one row** before reporting a figure. To compare **several** regions, either run one call
 per region, or fetch the whole level once and filter with `jq` (fewer requests):
 
@@ -88,10 +88,10 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
 - **`--region` is one selector per call** — for many regions, fetch the level once and
   filter with `jq` rather than N requests.
 - **A name can stand for several regions.** `--region München` at `--level kreis` is the
-  city (`09162`) — its whole name — and the `Note:` names `09184 München, Landkreis`,
+  city (`09162`) — its whole name — and the `INFO` note names `09184 München, Landkreis`,
   which it left out; ask the user which one they mean when it isn't clear. A name two
   regions share (two Gemeinden called Halle) or a part of a name (`Neustadt`) returns every
-  match with an "ambiguous" `Note:` — never take `.[0]` of that; pick by `ags`. A
+  match with an "ambiguous" `INFO` note — never take `.[0]` of that; pick by `ags`. A
   `test("…")` jq filter has no exact-name rule at all, so filter Kreise and Gemeinden by
   `ags`.
 - **Pick a value field** (`--fields ai0201`) so the comparison is on a single number.
@@ -118,7 +118,7 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   year does it mean "no previous year" rather than zero — leave such a 0 out there.
 - **Same `--year` across regions** so you compare like with like. Leaving it out uses the
   newest catalogue year, which may not be loaded yet: the CLI then prints `[]` with a
-  `Note:` on stderr naming the previous year to use.
+  `INFO` note on stderr naming the previous year to use.
 - To dump the whole level for a map → the **regionalatlas-map** skill; to find the code
   → the **regionalatlas-catalog** skill.
 - Cite the source: © Statistische Ämter des Bundes und der Länder (dl-de/by-2.0).

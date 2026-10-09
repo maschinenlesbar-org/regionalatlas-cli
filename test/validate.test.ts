@@ -18,7 +18,7 @@ import * as lib from "../src/index.js";
 import { run } from "../src/cli/run.js";
 import { RegionalatlasClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
-import { makeMockTransport, parity, routeByHost } from "./helpers.js";
+import { makeMockTransport, parity, routeByHost, untimed } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
 const notFoo: Problem<string> = (v) => (v === "foo" ? "Must not be foo." : undefined);
@@ -52,7 +52,7 @@ function cliWith(createClient: CliDeps["createClient"]) {
   return { deps, out, err };
 }
 
-test("run() maps a RegionalatlasValidationError from an action to the usage exit code 2 with 'Error: <message>'", async () => {
+test("run() maps a RegionalatlasValidationError from an action to the usage exit code 2 and an ERROR record", async () => {
   const mt = makeMockTransport(routeByHost(fx.catalog, fx.landData));
   const cli = cliWith((opts) => {
     const client = new RegionalatlasClient({ ...opts, transport: mt.transport });
@@ -64,7 +64,7 @@ test("run() maps a RegionalatlasValidationError from an action to the usage exit
   const code = await run(["themes"], cli.deps);
   assert.equal(code, 2);
   assert.deepEqual(cli.out, []);
-  assert.equal(cli.err.join("\n"), "Error: Invalid theme: Expected a non-empty value.");
+  assert.equal(untimed(cli.err.join("\n")), "ERROR [regionalatlas.cli] Invalid theme: Expected a non-empty value.");
   assert.equal(mt.calls.length, 0);
 });
 
@@ -73,7 +73,7 @@ test("run() maps a RegionalatlasValidationError thrown while building the client
     throw new RegionalatlasValidationError("Invalid userAgent: Expected a non-empty value.");
   });
   assert.equal(await run(["themes"], cli.deps), 2);
-  assert.equal(cli.err.join("\n"), "Error: Invalid userAgent: Expected a non-empty value.");
+  assert.equal(untimed(cli.err.join("\n")), "ERROR [regionalatlas.cli] Invalid userAgent: Expected a non-empty value.");
 });
 
 test("parity() drives the same input through run() and the library on one transport", async () => {

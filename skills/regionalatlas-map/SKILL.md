@@ -80,7 +80,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   `Available:` years). `regionalatlas indicators` lists every offered year in `years` and
   the levels with figures per year in `levels` (`AI005` has only election years).
 - **Leaving out `--year` uses the newest catalogue year, which may not be loaded yet.**
-  The CLI then prints `[]`, exits 0 and writes a `Note:` on stderr naming the previous
+  The CLI then prints `[]`, exits 0 and writes an `INFO` note on stderr naming the previous
   year (on 2026-09-15 `AI013-1` gave `[]` for 2026 and all 400 Kreise with `--year 2025`).
   On an empty result, rerun with the year the note names and tell the user which year the
   map shows.
@@ -88,7 +88,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
   `fields` list on the indicator (`regionalatlas indicators --search …`), not from a
   probing query. An unknown name is a usage error (exit 2) whose message lists the
   valid columns. `--region` filters client-side (an AGS, or an exact name — else every
-  name containing the text; a `Note:` on stderr says when several regions match).
+  name containing the text; an `INFO` note on stderr says when several regions match).
 - **`values` keys are bare column codes — `indicators` says what they mean.** Each
   indicator row carries a `fields` list of `{code, title, unit}` in the order the data
   host returns the columns. Read the label from there; never infer it from the code

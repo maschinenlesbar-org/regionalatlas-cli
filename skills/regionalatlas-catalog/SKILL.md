@@ -89,7 +89,7 @@ regionalatlas indicators --search AI005 --year 2024 --compact
   lists them, and `query` refuses them (exit 2). Pick a year whose `levels` entry names the
   level you want.
 - **The newest catalogue year may not be loaded yet.** `AI013-1` listed years up to 2026 on
-  2026-09-15, but `query` returned `[]` for 2026 (with a `Note:` on stderr naming 2025).
+  2026-09-15, but `query` returned `[]` for 2026 (with an `INFO` note on stderr naming 2025).
   A year listed here is not a guarantee of data.
 - **`values` keys are bare column codes — `indicators` says what they mean.** Each
   indicator row carries a `fields` list of `{code, title, unit}` in the order the data

@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { RegionalatlasClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse, queryOf, routeByHost } from "./helpers.js";
+import { makeMockTransport, jsonResponse, queryOf, routeByHost, untimed } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
 function makeCli(responder: (req: HttpRequest) => HttpResponse) {
@@ -100,7 +100,7 @@ test("an indicators listing that matches nothing says so on stderr, exit 0", asy
   const cli = makeRoutingCli();
   assert.equal(await run(["indicators", "--search", "zzzz", "--compact"], cli.deps), 0);
   assert.equal(cli.out.join("\n"), "[]");
-  assert.match(cli.err.join("\n"), /none of the 3 catalogue indicators match --search "zzzz"/);
+  assert.match(untimed(cli.err.join("\n")), /^INFO  \[regionalatlas\.api\] none of the 3 catalogue indicators match --search "zzzz"/);
 });
 
 test("an empty indicators listing filtered by year names the catalogue's year span", async () => {
@@ -302,8 +302,8 @@ test("an empty result with the defaulted newest year prints [] and a note to try
   };
   assert.match(layer.source.dataSource.query, /typ = 3 AND jahr = 2024/);
   assert.equal(cli.mt.calls.length, 2);
-  assert.deepEqual(cli.err, [
-    "Note: the data host returned no rows for AI002-1-5 at level kreis in 2024. " +
+  assert.deepEqual(cli.err.map(untimed), [
+    "INFO  [regionalatlas.api] the data host returned no rows for AI002-1-5 at level kreis in 2024. " +
       "2024 is the newest year in the catalogue, but its data may not be loaded yet; try --year 2020.",
   ]);
 });
@@ -311,8 +311,8 @@ test("an empty result with the defaulted newest year prints [] and a note to try
 test("an empty host reply with --region blames the year, not the region", async () => {
   const cli = makeRoutingCli({ ...fx.landData, features: [] });
   assert.equal(await run(["query", "AI002-1-5", "--region", "11"], cli.deps), 0);
-  assert.deepEqual(cli.err, [
-    "Note: the data host returned no rows for AI002-1-5 at level land in 2024 (before --region was applied). " +
+  assert.deepEqual(cli.err.map(untimed), [
+    "INFO  [regionalatlas.api] the data host returned no rows for AI002-1-5 at level land in 2024 (before --region was applied). " +
       "2024 is the newest year in the catalogue, but its data may not be loaded yet; try --year 2020.",
   ]);
 });
@@ -321,15 +321,15 @@ test("an empty result for an explicit year notes it without a year hint", async 
   const cli = makeRoutingCli({ ...fx.landData, features: [] });
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
   assert.equal(JSON.stringify(JSON.parse(cli.out.join("\n"))), "[]");
-  assert.deepEqual(cli.err, ["Note: the data host returned no rows for AI002-1-5 at level land in 2020."]);
+  assert.deepEqual(cli.err.map(untimed), ["INFO  [regionalatlas.api] the data host returned no rows for AI002-1-5 at level land in 2020."]);
 });
 
 test("a --region that matches nothing notes the region, no note when rows remain", async () => {
   const none = makeRoutingCli();
   assert.equal(await run(["query", "AI002-1-5", "--region", "Bayern"], none.deps), 0);
   // The host returned rows, so the year is not the suspect: no "try --year" hint.
-  assert.deepEqual(none.err, [
-    'Note: none of the 2 rows for AI002-1-5 at level land in 2024 match --region "Bayern" ' +
+  assert.deepEqual(none.err.map(untimed), [
+    'INFO  [regionalatlas.api] none of the 2 rows for AI002-1-5 at level land in 2024 match --region "Bayern" ' +
       "(a name, a part of one, or an AGS).",
   ]);
 
@@ -440,7 +440,7 @@ test("hostile catalogue text and an escape-laden argument never reach stderr raw
     const cli = makeCli(routeByHost(catalog, fx.landData));
     assert.equal(await run(argv, cli.deps), 2);
     const stderr = cli.err.join("\n");
-    assert.match(stderr, /^Error: /);
+    assert.match(untimed(stderr), /^ERROR \[regionalatlas\.cli\] /);
     assert.doesNotMatch(stderr, controls, JSON.stringify(stderr));
   }
 });
@@ -449,16 +449,16 @@ test("a maintenance reply exits 1 with the shape error and no empty-result note"
   const cli = makeCli(routeByHost(fx.catalog, { status: "maintenance" }));
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 1);
   assert.equal(cli.out.length, 0);
-  assert.match(cli.err.join("\n"), /^Error: Unexpected response shape from .*expected a features array, got none\.$/);
-  assert.doesNotMatch(cli.err.join("\n"), /Note:/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[regionalatlas\.cli\] Unexpected response shape from .*expected a features array, got none\.$/);
+  assert.doesNotMatch(untimed(cli.err.join("\n")), /^INFO /m);
 });
 
 test("a result cut off at the host's record limit prints the rows and a note", async () => {
   const cli = makeRoutingCli({ ...fx.landData, exceededTransferLimit: true });
   assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
   assert.equal((JSON.parse(cli.out.join("\n")) as unknown[]).length, 2);
-  assert.deepEqual(cli.err, [
-    "Note: the data host stopped at its record limit after 2 rows (exceededTransferLimit), " +
+  assert.deepEqual(cli.err.map(untimed), [
+    "INFO  [regionalatlas.api] the data host stopped at its record limit after 2 rows (exceededTransferLimit), " +
       "so the result is incomplete. Query a coarser --level.",
   ]);
 });
@@ -493,8 +493,8 @@ test("userinfo in --base-url is redacted from error messages but still sent", as
   const stderr = cli.err.join("\n");
   assert.doesNotMatch(stderr, /secret/);
   // The plain-http: warning comes first, naming the credentials without printing them.
-  assert.equal(cli.err[0], "warning: the base URL's credentials are sent unencrypted to gis-idmz.example (http:, not https:)");
-  assert.match(stderr, /^Error: HTTP 404 for GET http:\/\/\*\*\*@gis-idmz\.example\/m\/arcgis\//m);
+  assert.equal(untimed(cli.err[0] ?? ""), "WARN  [regionalatlas.http] the base URL's credentials are sent unencrypted to gis-idmz.example (http:, not https:)");
+  assert.match(untimed(stderr), /^ERROR \[regionalatlas\.api\] HTTP 404 for GET http:\/\/\*\*\*@gis-idmz\.example\/m\/arcgis\//m);
   assert.equal(new URL(cli.mt.last().url).password, "secret");
 });
 
@@ -627,19 +627,19 @@ test("a password in REGIONALATLAS_BASE_URL never reaches the output, help includ
 test("a plain-http: catalogue URL warns once per run, naming its token without printing it", async () => {
   const token = "tok-S3CRET-value_42";
   for (const [argv, expected] of [
-    [["--catalog-url", "http://cat.example/services.json", "themes"], ["warning: requests to cat.example are sent unencrypted (http:, not https:)"]],
-    [["--catalog-url", `http://cat.example/s.json?token=${token}`, "indicators"], ["warning: the catalogue URL's token is sent unencrypted to cat.example (http:, not https:)"]],
-    [["--catalog-url", `http://u:p@cat.example:8080/s.json?token=${token}`, "themes"], ["warning: the catalogue URL's token and the catalogue URL's credentials are sent unencrypted to cat.example:8080 (http:, not https:)"]],
+    [["--catalog-url", "http://cat.example/services.json", "themes"], ["WARN  [regionalatlas.http] requests to cat.example are sent unencrypted (http:, not https:)"]],
+    [["--catalog-url", `http://cat.example/s.json?token=${token}`, "indicators"], ["WARN  [regionalatlas.http] the catalogue URL's token is sent unencrypted to cat.example (http:, not https:)"]],
+    [["--catalog-url", `http://u:p@cat.example:8080/s.json?token=${token}`, "themes"], ["WARN  [regionalatlas.http] the catalogue URL's token and the catalogue URL's credentials are sent unencrypted to cat.example:8080 (http:, not https:)"]],
     // themes and indicators never contact the data host: its http: base URL is not named.
     [["--base-url", "http://data.example", "themes"], []],
     // query contacts both: one warning per URL.
     [["--catalog-url", "http://cat.example/s.json", "--base-url", "http://data.example", "query", "AI002-1-5", "--year", "2020"],
-      ["warning: requests to cat.example are sent unencrypted (http:, not https:)", "warning: requests to data.example are sent unencrypted (http:, not https:)"]],
+      ["WARN  [regionalatlas.http] requests to cat.example are sent unencrypted (http:, not https:)", "WARN  [regionalatlas.http] requests to data.example are sent unencrypted (http:, not https:)"]],
     [["--catalog-url", "http://localhost:9/s.json", "themes"], []],
   ] as const) {
     const cli = makeCli((req) => (new URL(req.url).hostname === "data.example" ? jsonResponse(fx.landData) : jsonResponse(fx.catalog)));
     assert.equal(await run([...argv], cli.deps), 0, cli.err.join("\n"));
-    assert.deepEqual(cli.err.filter((l) => l.startsWith("warning:")), expected, argv.join(" "));
+    assert.deepEqual(cli.err.map(untimed).filter((l) => l.startsWith("WARN ")), expected, argv.join(" "));
     assert.ok(![...cli.out, ...cli.err].join("\n").includes(token));
   }
 });

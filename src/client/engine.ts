@@ -131,7 +131,7 @@ export function isBidiControl(code: number): boolean {
  *   reorder the visible message.
  * - Every run of whitespace — newlines, tabs, U+2028/U+2029 included — becomes one
  *   space and the ends are trimmed, so the text stays on one line and cannot forge
- *   an `Error:` line of its own.
+ *   a log record of its own.
  *
  * The CLI's JSON output is escaped separately (`escapeControlChars` in
  * cli/shared.ts). Written as a char-code filter so no raw control byte appears in
@@ -349,7 +349,7 @@ function isLoopbackHost(hostname: string): boolean {
  * catalogue URL's token"; the CLI passes that one when the catalogue URL carries a
  * `?token=`), and `<urlName>'s credentials` when the URL carries userinfo ("the base URL's
  * credentials" by default). It never contains a password or token. The CLI prints it
- * once per run and URL as `warning: <sentence>` on stderr.
+ * once per run and URL as a `WARN` record of `regionalatlas.http` on stderr.
  */
 export function cleartextProblem(
   baseUrl: string,

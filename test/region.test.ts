@@ -10,6 +10,7 @@ import type { RegionRow } from "../src/client/types.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { run } from "../src/cli/run.js";
 import { catalog } from "./fixtures.js";
+import { untimed } from "./helpers.js";
 
 const row = (ags: string, name: string): RegionRow => ({ ags, name, typ: 3, level: "kreis", year: 2024, values: {} });
 const names = (rows: RegionRow[]): string[] => rows.map((r) => `${r.ags} ${r.name}`);
@@ -121,8 +122,8 @@ test("CLI: an exact name prints one row and names what it left out", async () =>
   const c = cli(LAND_ROWS);
   assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020", "--region", "Sachsen"], c.deps), 0);
   assert.deepEqual((JSON.parse(c.out.join("")) as RegionRow[]).map((r) => r.name), ["Sachsen"]);
-  assert.deepEqual(c.err, [
-    'Note: --region "Sachsen" matched the name exactly; left out 2 rows that only contain it: ' +
+  assert.deepEqual(c.err.map(untimed), [
+    'INFO  [regionalatlas.api] --region "Sachsen" matched the name exactly; left out 2 rows that only contain it: ' +
       "03 Niedersachsen, 15 Sachsen-Anhalt (pick one of those by its AGS).",
   ]);
 });
@@ -131,8 +132,8 @@ test("CLI: an ambiguous region prints every row and says it is ambiguous", async
   const c = cli(LAND_ROWS);
   assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020", "--region", "sachs"], c.deps), 0);
   assert.equal((JSON.parse(c.out.join("")) as RegionRow[]).length, 3);
-  assert.deepEqual(c.err, [
-    'Note: --region "sachs" is ambiguous: 3 rows contain it in their name (no name equals it): ' +
+  assert.deepEqual(c.err.map(untimed), [
+    'INFO  [regionalatlas.api] --region "sachs" is ambiguous: 3 rows contain it in their name (no name equals it): ' +
       "03 Niedersachsen, 14 Sachsen, 15 Sachsen-Anhalt. Pick one region by its AGS (--region <ags>).",
   ]);
 });
@@ -146,5 +147,5 @@ test("CLI: an unambiguous name or key prints no note; a padded key says what it 
   const c = cli([["11", "Berlin"], ["09162", "München"]]);
   assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020", "--region", "09162000"], c.deps), 0);
   assert.deepEqual((JSON.parse(c.out.join("")) as RegionRow[]).map((r) => r.ags), ["09162"]);
-  assert.match(c.err.join("\n"), /^Note: no row at level land has the key "09162000"; matched 09162 München, which this level carries under the shorter key/);
+  assert.match(untimed(c.err.join("\n")), /^INFO  \[regionalatlas\.api\] no row at level land has the key "09162000"; matched 09162 München, which this level carries under the shorter key/);
 });

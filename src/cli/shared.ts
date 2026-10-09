@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_CATALOG_URL, type RegionalatlasClientOptions } from "../client/client.js";
 import { DEFAULT_BASE_URL, cleartextProblem } from "../client/engine.js";
 import { queryTokensIn } from "../client/errors.js";
@@ -270,8 +270,8 @@ export interface ActionContext {
  *
  * Before the client is built (so before any request), each URL the command contacts is
  * checked: the catalogue URL always, the data host's base URL when `usesDataHost` (the
- * `query` command). Plain `http:` to a remote host gets one `warning: <cleartextProblem
- * sentence>` line on stderr per URL, naming the catalogue URL's token when it carries
+ * `query` command). Plain `http:` to a remote host gets one warning on stderr (a `WARN`
+ * record of `regionalatlas.http`, the cleartextProblem sentence) per URL, naming the catalogue URL's token when it carries
  * one. An action runs once per run, so the warning does too; help, version and usage
  * errors never reach an action and never warn. stdout is never touched.
  *
@@ -287,7 +287,7 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
-    for (const problem of cleartextProblems(global, usesDataHost)) deps.io.err(`warning: ${problem}`);
+    for (const problem of cleartextProblems(global, usesDataHost)) logOf(deps).warn("http", problem);
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

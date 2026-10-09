@@ -37,7 +37,8 @@ src/
     client.ts    # RegionalatlasClient (themes / indicators / query) + row parsing/filtering
     index.ts
   cli/
-    io.ts        # injectable I/O (CliDeps / CliIO) — no env seam (no auth)
+    io.ts        # injectable I/O (CliDeps / CliIO), the logger and the clock — no env seam (no auth)
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers (--level, --year, --fields, http-url), global->engine mapping, render
     commands/regions.ts  # themes / indicators / query
     program.ts   # assembles the commander program
@@ -169,7 +170,7 @@ no raw user text is ever interpolated:
    `11000` → Berlin's `11` at kreis; the official keys used to match nothing); else the rows whose whole name equals it (case-insensitive,
    NFC) when there are any — the substring hits are then reported as `others` — else every
    row whose name contains it. `queryResult` returns how it matched (`region.by`,
-   `region.others`), and the CLI prints a `Note:` when an exact name left rows out or when
+   `region.others`), and the CLI prints an `INFO` note when an exact name left rows out or when
    several rows matched (`regionNote`). A bare substring match used to put the wrong
    region first (`Sachsen` → Niedersachsen, `Gera` → Groß-Gerau, `Berlin` at gemeinde →
    Berlingen), and `jq '.[0]'` took it. Fields: keep only the
@@ -196,7 +197,7 @@ methods check their input before any request (an async method rejects rather tha
 throwing synchronously), so a rejected input sends nothing. The CLI's commander parsers
 call the same functions and report the reason as a usage error, and `run.ts` maps a
 `RegionalatlasValidationError` raised in an action, or while the client is built, to
-exit 2 (`Error: <message>`). `test/helpers.ts` has a `parity()` helper that drives one
+exit 2 (an `ERROR` record of `regionalatlas.cli`). `test/helpers.ts` has a `parity()` helper that drives one
 input through `run()` and through the library on one recording mock transport.
 
 What the library refuses with `RegionalatlasValidationError`, before any request:
@@ -246,7 +247,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   sent unencrypted (http:, not https:)`, or naming what travels with them (`the base
   URL's credentials`, `the catalogue URL's token`) — and `undefined` for `https:`, an
   unparseable URL and loopback hosts. `<host>` is `url.host`, never the userinfo. The
-  CLI's `action()` wrapper writes `warning: <sentence>` to stderr before the client is
+  CLI's `action()` wrapper logs the sentence as a `WARN` record of `regionalatlas.http` before the client is
   built, once per URL the command contacts: the catalogue URL always, the base URL only
   for `query` (`themes`/`indicators` never reach the data host). Help, version and usage
   errors never warn; stdout and the exit code are unchanged. The library never warns.
@@ -296,7 +297,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   `RegionalatlasApiError.url` keeps the full URL.
 - **`exceededTransferLimit`**: the MapServer stops at its `maxRecordCount` (2,000,000 on
   2026-09-26, so no real query reaches it today) and says so only in this flag.
-  `queryResult()` passes it on (`=== true` only), and the CLI prints a `Note:` on
+  `queryResult()` passes it on (`=== true` only), and the CLI prints an `INFO` note on
   stderr with the rows it got; `query()` returns the rows alone.
 - The data query uses `spatialReference.wkid = 25832` (ETRS89 / UTM 32N) in the layer,
   and `returnGeometry=false` (we only need attributes).
@@ -332,7 +333,8 @@ host (catalogue vs data). Coverage highlights:
   2026-10-05 review (P1 credential redaction in CLI output, P2 in library objects, P4
   base-URL validation, P5 transport contract, P6 retry policy, P7 pipes and exit codes,
   P8/P9/P13 charset, body shape and error classes, P20 the stderr warning for a plain-`http:`
-  URL, P21 README links only to files the npm package ships — others by their GitHub URL);
+  URL, P21 README links only to files the npm package ships — others by their GitHub URL,
+  P23 the stderr log: records with timestamp, level and topic, `--log-format text|jsonl`);
   copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.
@@ -419,3 +421,21 @@ npm run build                        # the CLI, for the command reference
 cd site && npm ci && bundle install  # once (Node >= 22.12, Ruby 3.4, Bundler)
 npm run serve                        # http://127.0.0.1:4000/regionalatlas-cli/
 ```
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `regionalatlas.<area>`. `--log-format text` (the
+default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages, validation errors, an
+unexpected response shape, unexpected errors), `api` (the hosts' error answers, and the
+notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
+and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never
+writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
+commander parses it, so commander's own usage errors are records too, and on top of the
+redacted (and terminal-control-stripped) `io.err`, so a secret is kept out of the log in
+either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. Two
+lines stay raw: `Output error: …` from `handleOutputErrors` and the bin shim's last-resort
+`Unexpected error: …`, both written outside `run()`. Conformance test P23 checks all of
+this, and its body is shared across the *-cli repos.

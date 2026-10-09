@@ -4,7 +4,7 @@
 //   - `query`       fetch data rows for an indicator at a chosen geo level
 
 import type { Command } from "commander";
-import type { CliDeps } from "../io.js";
+import { logOf, type CliDeps } from "../io.js";
 import { resolveIndicator, resolveYear, type IndicatorFilter } from "../../client/catalog.js";
 import { DEFAULT_LEVEL } from "../../client/levels.js";
 import type { Indicator, QueryOptions, QueryResult, RegionRow } from "../../client/types.js";
@@ -49,7 +49,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         if (indicators.length === 0) {
           // `query` explains its empty results; discovery — where the user is most
           // likely to be guessing — should not be the one command that stays silent.
-          deps.io.err(emptyIndicatorsNote(filter, await client.indicators()));
+          logOf(deps).info("api", emptyIndicatorsNote(filter, await client.indicators()));
         }
       }),
     );
@@ -86,11 +86,12 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         renderJson(deps, global, rows);
         if (region !== undefined && query.region !== undefined) {
           const note = regionNote(query.region, query.level ?? DEFAULT_LEVEL, region, rows);
-          if (note !== undefined) deps.io.err(note);
+          if (note !== undefined) logOf(deps).info("api", note);
         }
         if (exceededTransferLimit) {
-          deps.io.err(
-            `Note: the data host stopped at its record limit after ${fetched} rows ` +
+          logOf(deps).info(
+            "api",
+            `the data host stopped at its record limit after ${fetched} rows ` +
               "(exceededTransferLimit), so the result is incomplete. Query a coarser --level.",
           );
         }
@@ -98,7 +99,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
           // An empty result exits 0 like any other; say why on stderr so it isn't read
           // as "this indicator has no data". The catalogue is cached, so no new request.
           const resolved = resolveIndicator(await client.indicators(), query.indicator);
-          deps.io.err(emptyResultNote(resolved, query, fetched));
+          logOf(deps).info("api", emptyResultNote(resolved, query, fetched));
         }
       }, true),
     );
@@ -127,20 +128,20 @@ export function regionNote(
   const asked = JSON.stringify(cutForMessage(input.trim()));
   if (match.by === "ags-filled" && rows[0] !== undefined) {
     return (
-      `Note: no row at level ${level} has the key ${asked}; matched ${regionList(rows)}, ` +
+      `no row at level ${level} has the key ${asked}; matched ${regionList(rows)}, ` +
       "which this level carries under the shorter key (a level fills in with coarser units)."
     );
   }
   if (rows.length > 1) {
     const how = match.by === "name" ? "share that exact name" : "contain it in their name (no name equals it)";
     return (
-      `Note: --region ${asked} is ambiguous: ${rows.length} rows ${how}: ${regionList(rows)}. ` +
+      `--region ${asked} is ambiguous: ${rows.length} rows ${how}: ${regionList(rows)}. ` +
       "Pick one region by its AGS (--region <ags>)."
     );
   }
   if (match.by === "name" && match.others.length > 0) {
     return (
-      `Note: --region ${asked} matched the name exactly; left out ${match.others.length} ` +
+      `--region ${asked} matched the name exactly; left out ${match.others.length} ` +
       `${match.others.length > 1 ? "rows that only contain" : "row that only contains"} it: ${regionList(match.others)} ` +
       "(pick one of those by its AGS)."
     );
@@ -160,10 +161,10 @@ function emptyIndicatorsNote(filter: IndicatorFilter, all: Indicator[]): string 
   if (filter.year !== undefined) applied.push(`--year ${filter.year}`);
   if (filter.search !== undefined) applied.push(`--search ${JSON.stringify(filter.search)}`);
   if (applied.length === 0) {
-    return "Note: the catalogue lists no indicators at all — check --catalog-url.";
+    return "the catalogue lists no indicators at all — check --catalog-url.";
   }
   let note =
-    `Note: none of the ${all.length} catalogue indicators match ${applied.join(" + ")}.`;
+    `none of the ${all.length} catalogue indicators match ${applied.join(" + ")}.`;
   if (filter.year !== undefined) {
     const years = [...new Set(all.flatMap((i) => i.years))].sort();
     const first = years[0];
@@ -187,12 +188,12 @@ function emptyResultNote(indicator: Indicator, query: QueryOptions, fetched: num
   const where = `${indicator.code} at level ${query.level ?? DEFAULT_LEVEL} in ${year}`;
   if (fetched > 0) {
     return (
-      `Note: none of the ${fetched} rows for ${where} match --region ` +
+      `none of the ${fetched} rows for ${where} match --region ` +
       `${JSON.stringify(query.region)} (a name, a part of one, or an AGS).`
     );
   }
   let note =
-    `Note: the data host returned no rows for ${where}` +
+    `the data host returned no rows for ${where}` +
     `${query.region !== undefined ? " (before --region was applied)" : ""}.`;
   if (query.year === undefined) {
     const earlier = indicator.years.map(Number).filter((y) => y < year);

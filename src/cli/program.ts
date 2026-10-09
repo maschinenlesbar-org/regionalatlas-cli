@@ -20,6 +20,7 @@ import {
   forbidRepeatedOptions,
 } from "./shared.js";
 import { registerCommands } from "./commands/regions.js";
+import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
 
 /**
  * Single source of truth for the version: read from package.json at runtime
@@ -48,6 +49,13 @@ export const defaultDeps: CliDeps = {
 
 /** The environment variable that sets the data host's base URL (flag > variable > default). */
 export const BASE_URL_ENV = "REGIONALATLAS_BASE_URL";
+
+/** commander value-parser for `--log-format`. */
+function parseLogFormat(value: string): string {
+  const problem = logFormatProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return value;
+}
 
 export function buildProgram(deps: CliDeps = defaultDeps): Command {
   const program = new Command();
@@ -92,6 +100,11 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "--max-response-bytes <n>",
       "cap response body size in bytes (0 = unlimited; default 100 MiB)",
       parseIntArg,
+    )
+    .option(
+      "--log-format <format>",
+      `how errors, warnings and notes are written to stderr: text (log4j style: time, level, [topic], message) or jsonl (one JSON object per line: ts, level, topic, msg); default ${DEFAULT_LOG_FORMAT}`,
+      parseLogFormat,
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
     .showHelpAfterError();
