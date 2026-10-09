@@ -74,6 +74,7 @@ terminal; a message longer than 4000 characters is cut and ends in `… (N more 
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [regionalatlas.http] requests to mirror.example are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.700Z WARN  [regionalatlas.http] HTTP 503 from mirror.example: retry 1 of 2 in 200 ms
 2026-10-09T14:03:12.902Z INFO  [regionalatlas.api] the data host returned no rows for AI002-1-5 at level kreis in 2024. …
 ```
 

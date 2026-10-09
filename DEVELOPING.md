@@ -379,6 +379,13 @@ host (catalogue vs data). Coverage highlights:
   `RegionalatlasApiError` with `retries: 2`), or `socket hang up (retried 2 times)` for a
   reset connection (`retriedSuffix`, exported). An error that was never retried has no
   suffix and `retries: 0`.
+  Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
+  `{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (userinfo
+  and a catalogue token redacted) `}`) is called once per retry right before the sleep, never
+  when there is none, and a throw in it is swallowed. The CLI's `action()` sets it to log one
+  `WARN` record of `regionalatlas.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s`
+  (`retryMessage`; host only, whole seconds, ms under 1 s). Tests: `test/engine.test.ts`,
+  `test/retry-log.test.ts`.
 - **Custom transports:** the engine enforces `timeoutMs` itself for every transport — the
   request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and
   the call rejects then with a `RegionalatlasNetworkError` whether the transport stops or

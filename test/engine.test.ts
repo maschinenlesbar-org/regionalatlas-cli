@@ -415,3 +415,85 @@ test("credentials a server echoes are scrubbed from the error: Basic, user:passw
   });
   await assert.rejects(client.query({ indicator: "AI002-1-5", year: 2020 }), check);
 });
+
+test("onRetry is called once per retry, with the event fields, right before the sleep", async () => {
+  const log: string[] = [];
+  const events: unknown[] = [];
+  let n = 0;
+  const mt = makeMockTransport(() =>
+    n++ < 2
+      ? { status: 503, headers: n === 1 ? { "retry-after": "2" } : {}, body: Buffer.from("{}") }
+      : jsonResponse({ ok: 1 }),
+  );
+  const e = new RequestEngine({
+    transport: mt.transport,
+    baseUrl: "https://user:pw@example.test",
+    maxRetries: 3,
+    sleep: async (ms) => void log.push(`sleep ${ms}`),
+    onRetry: (ev) => {
+      events.push(ev);
+      log.push("retry");
+    },
+  });
+  await e.getJson("/x");
+  assert.deepEqual(log, ["retry", "sleep 2000", "retry", "sleep 400"]);
+  assert.equal(events.length, 2);
+  for (const [i, ev] of events.entries()) {
+    const { url, ...rest } = ev as { url: string };
+    assert.deepEqual(rest, i === 0 ? { retry: 1, maxRetries: 3, delayMs: 2000, status: 503 } : { retry: 2, maxRetries: 3, delayMs: 400, status: 503 });
+    assert.ok(url.endsWith("example.test/x") && !url.includes("pw"), url);
+  }
+});
+
+test("onRetry reports a reset connection without a status", async () => {
+  let n = 0;
+  const events: unknown[] = [];
+  const mt = makeMockTransport(() => {
+    if (n++ === 0) throw Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+    return jsonResponse({ ok: 1 });
+  });
+  const e = new RequestEngine({ transport: mt.transport, sleep: async () => {}, onRetry: (ev) => void events.push(ev) });
+  await e.getJson("/x");
+  assert.equal(events.length, 1);
+  assert.equal((events[0] as { status?: number }).status, undefined);
+  assert.equal((events[0] as { retry: number }).retry, 1);
+});
+
+test("onRetry is never called without a retry", async () => {
+  const events: unknown[] = [];
+  const onRetry = (ev: unknown) => void events.push(ev);
+  const ok = new RequestEngine({ transport: makeMockTransport(() => jsonResponse({})).transport, sleep: async () => {}, onRetry });
+  await ok.getJson("/x");
+  const notFound = new RequestEngine({
+    transport: makeMockTransport(() => jsonResponse({ detail: "no" }, 404)).transport,
+    sleep: async () => {},
+    onRetry,
+  });
+  await assert.rejects(notFound.getJson("/x"), RegionalatlasApiError);
+  // retries exhausted: the last 503 is an error, not a retry
+  const down = new RequestEngine({
+    transport: makeMockTransport(() => ({ status: 503, headers: {}, body: Buffer.from("{}") })).transport,
+    maxRetries: 1,
+    sleep: async () => {},
+    onRetry,
+  });
+  await assert.rejects(down.getJson("/x"), RegionalatlasApiError);
+  assert.equal(events.length, 1);
+});
+
+test("a throw in onRetry is swallowed", async () => {
+  let n = 0;
+  const e = new RequestEngine({
+    transport: makeMockTransport(() => (n++ === 0 ? { status: 503, headers: {}, body: Buffer.from("{}") } : jsonResponse({}))).transport,
+    sleep: async () => {},
+    onRetry: () => {
+      throw new Error("boom");
+    },
+  });
+  await e.getJson("/x");
+});
+
+test("onRetry must be a function", () => {
+  assert.throws(() => new RequestEngine({ onRetry: 5 as never }), RegionalatlasValidationError);
+  assert.throws(() => new RegionalatlasClient({ onRetry: 5 as never }), RegionalatlasValidationError);
+});
