@@ -335,7 +335,8 @@ host (catalogue vs data). Coverage highlights:
 - `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
   the scheme guard, and JSON decoding/error mapping.
 - `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
-  whose reader has gone) on stdout exit 0, on stderr they are ignored.
+  whose reader has gone) on stdout exit 0, on stderr they are ignored, any other stdout
+  error is a record; `stderrAfterStdout`: a record held behind stdout's backlog.
 - `log.test.ts` — the record helpers of `src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - `validate.test.ts` — the input rules, `assertValid`, and how `run()` reports a
@@ -478,5 +479,8 @@ for, the run's redaction): a stdout write error from `handleOutputErrors` is an 
 `Unexpected error: …` an ERROR of `regionalatlas.cli`. Node's own process warnings
 (`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of `regionalatlas.cli`, `(node)
 <name>: <message>`: the bin shim calls `installWarningLog(process, log)`, which removes
-Node's default listener (checked on Node 22, 24 and 26). Conformance test P23 checks all of
+Node's default listener (checked on Node 22, 24 and 26). In `defaultDeps` a record waits
+for stdout (`stderrAfterStdout`): it is held while stdout has a backlog and written, in
+order, once it is gone, so with `2>&1 |` and a slow reader it never lands inside the data
+(the record-limit and empty-result notes follow the JSON). Conformance test P23 checks all of
 this, and its body is shared across the *-cli repos.
