@@ -393,7 +393,8 @@ host (catalogue vs data). Coverage highlights:
   `RegionalatlasValidationError` (`assertIndicatorInput`, `assertYearInput`,
   `assertIndicatorFilter`), never a raw `TypeError`; `null` options count as none. Echoed
   values and server text in messages are cut at 500 characters (`cutForMessage`,
-  `MAX_MESSAGE_VALUE_LENGTH`, exported), and a string option value is quoted.
+  `MAX_MESSAGE_VALUE_LENGTH`, exported), never inside a surrogate pair (`cutText`), so the
+  message stays well-formed; a string option value is quoted.
 - **Engine options are checked** (`intOption` in engine.ts): `timeoutMs` 0..2^31−1,
   `maxRetries` 0..`MAX_RETRIES` (10, shared with `--max-retries`), `retryDelayMs`
   0..30 000, `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER`; anything else (negative,
@@ -434,7 +435,9 @@ and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord`
 the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
-forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages, validation errors, an
+forge another one or steer the terminal. Before that a lone surrogate (half a
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
+The areas are `cli` (usage errors, commander's messages, validation errors, an
 unexpected response shape, unexpected errors), `api` (the hosts' error answers, and the
 notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
 and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never

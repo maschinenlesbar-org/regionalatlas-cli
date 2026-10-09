@@ -27,6 +27,7 @@ import {
   RegionalatlasValidationError,
   credentialsIn,
   cutForMessage,
+  cutText,
   type Download,
   queryTokensIn,
   redactCredentials,
@@ -415,7 +416,7 @@ function decodeBody(body: Buffer, contentType: string, source: string): string {
     decoder = new TextDecoder(charset);
   } catch {
     throw new RegionalatlasParseError(
-      `Unsupported response charset "${sanitizeServerText(charset).slice(0, 100)}" from ${source}.`,
+      `Unsupported response charset "${cutText(sanitizeServerText(charset), 100)}" from ${source}.`,
     );
   }
   return decoder.decode(body);
@@ -712,7 +713,7 @@ export class RequestEngine {
       // snippet of a textual body; skip HTML pages (start with "<").
       const snippet = text.trim().replace(/\s+/g, " ");
       if (snippet.length > 0 && !snippet.startsWith("<")) {
-        detail = snippet.length > 200 ? `${snippet.slice(0, 200)}…` : snippet;
+        detail = snippet.length > 200 ? `${cutText(snippet, 200)}…` : snippet;
       }
     }
     // `detail` came from the attacker-controlled response body; strip control

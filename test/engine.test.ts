@@ -12,6 +12,8 @@ import {
   RegionalatlasNetworkError,
   RegionalatlasParseError,
   RegionalatlasValidationError,
+  cutText,
+  toWellFormed,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse, queryOf } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -364,4 +366,28 @@ test("the error after the retries ran out says how many were made", async () => 
   const refused = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
   const down = new RequestEngine({ baseUrl: "https://example.test", transport: async () => { throw refused; }, maxRetries: 3, sleep });
   await assert.rejects(() => down.getJson("/x"), (err) => err instanceof RegionalatlasNetworkError && !/retried/.test(err.message));
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a\ufffd b\ufffd \u{1f600}");
+});
+
+test("a server text cut at 500 or 200 characters keeps the message well-formed", async () => {
+  const text = "a" + "\u{1f600}".repeat(400);
+  for (const response of [
+    jsonResponse({ message: text }, 500),
+    jsonResponse({ error: { code: 500, message: text } }, 500),
+    rawResponse(text, "text/plain", 500),
+  ]) {
+    const e = new RequestEngine({ transport: makeMockTransport(() => response).transport, maxRetries: 0 });
+    await assert.rejects(e.getJson("/x/query"), (err: Error) => {
+      assert.ok(err instanceof RegionalatlasApiError);
+      assert.equal(toWellFormed(err.message), err.message);
+      assert.match(err.message, /…$/);
+      return true;
+    });
+  }
 });

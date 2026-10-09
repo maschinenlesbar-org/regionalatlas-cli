@@ -4,7 +4,7 @@
 // commander parsers call the same functions and turn the reason into a usage
 // error, so a rule is written once and the CLI and the library cannot drift apart.
 
-import { RegionalatlasValidationError } from "./errors.js";
+import { RegionalatlasValidationError, cutText } from "./errors.js";
 
 /** A rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -49,7 +49,7 @@ export function assertKnownKeys(name: string, value: object, known: readonly str
   for (const key of Object.keys(value)) {
     if (known.includes(key)) continue;
     const near = known.find((k) => k.toLowerCase() === key.toLowerCase() || editDistance(k, key) <= 2);
-    const shown = JSON.stringify(key.length > 100 ? `${key.slice(0, 100)}…` : key);
+    const shown = JSON.stringify(key.length > 100 ? `${cutText(key, 100)}…` : key);
     throw new RegionalatlasValidationError(
       `Invalid ${name}: unknown key ${shown}${near === undefined ? "" : ` (did you mean "${near}"?)`}; ` +
         `known keys: ${known.join(", ")}.`,
