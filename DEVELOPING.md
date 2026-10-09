@@ -267,7 +267,8 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   decoded, and cleaned as `sanitizeServerText` leaves an echo of it, the detail being
   redacted again after cleaning) to what `redact`/`scrubCause` scrub from bodies, details,
   transport text and causes, and `withRedactedOutput` redacts it from CLI output (`queryTokensIn`,
-  `redactQueryTokens`; a bare value under six characters only in its `token=` form). It
+  `redactQueryTokens`; a bare value under six characters only in its `token=` or
+  `access_token=` form, with or without the `?`/`&` a server's echo may drop). It
   never crosses origins: only the catalogue request carries it, the base URL takes no
   query, and no redirect is followed.
 - **`REGIONALATLAS_BASE_URL`** (`program.ts`): the CLI reads it through the injectable

@@ -42,9 +42,14 @@ const SECRET_QUERY_PARAMETER = /([?&](?:token|access_token)=)([^&#\s'"]+)/gi;
 /**
  * A bare token value shorter than this is not scrubbed from free text: replacing every
  * "5" of a message for a one-character token would garble it. Its `token=` form is
- * always redacted.
+ * always redacted, with or without a `?`/`&` before it.
  */
 const MIN_BARE_TOKEN_LENGTH = 6;
+
+/** `text` with the characters a regular expression gives a meaning escaped. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * The values of the secret query parameters ({@link SECRET_QUERY_PARAMETERS}) in a
@@ -60,12 +65,19 @@ export function queryTokensIn(value: string): string[] {
  * (`?token=abc` → `?token=***`), and every listed token value (as `queryTokensIn` returns
  * them, or decoded) replaced wherever it occurs alone — a server's "invalid token abc"
  * echoes it without the parameter name. Values shorter than six characters are only
- * redacted in their `token=` form.
+ * redacted in their `token=` form, which a server may echo without the `?` or `&`
+ * (`raw token=ab12`): a listed value is redacted after a bare `token=` or
+ * `access_token=` too.
  */
 export function redactQueryTokens(text: string, tokens: readonly string[] = []): string {
   let out = text.replace(SECRET_QUERY_PARAMETER, (_match, head: string) => `${head}***`);
   for (const token of tokens) {
+    if (token === "") continue;
     if (token.length >= MIN_BARE_TOKEN_LENGTH) out = out.split(token).join("***");
+    else {
+      const named = new RegExp(`(?<![A-Za-z0-9_])((?:token|access_token)=)${escapeRegExp(token)}(?![A-Za-z0-9._~%+/=-])`, "gi");
+      out = out.replace(named, "$1***");
+    }
   }
   return out;
 }

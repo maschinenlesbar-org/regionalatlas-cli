@@ -268,3 +268,25 @@ test("a catalogue token the server echoes is redacted after its text is cleaned 
     return true;
   });
 });
+
+test("a short catalogue token echoed as token=<value> without ?/& is redacted (B03-1)", async () => {
+  const { redactQueryTokens } = await import("../src/index.js");
+  assert.equal(redactQueryTokens("invalid token ab12 (raw token=ab12)", ["ab12"]), "invalid token ab12 (raw token=***)");
+  assert.equal(redactQueryTokens("access_token=ab12, Token=ab12; mytoken=ab12 token=ab123", ["ab12"]), "access_token=***, Token=***; mytoken=ab12 token=ab123");
+  // The library's error and the CLI's record alike.
+  const client = new RegionalatlasClient({
+    catalogUrl: "https://cat.example/services.json?token=ab12",
+    transport: async () => json(500, { message: "invalid token ab12 (raw token=ab12)" }),
+    maxRetries: 0,
+  });
+  await assert.rejects(client.themes(), (err: Error) => /\(raw token=\*\*\*\)/.test(err.message) && !/token=ab12/.test(err.message));
+  for (const format of ["text", "jsonl"]) {
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: () => {}, err: (s) => err.push(s) },
+      createClient: (opts) => new RegionalatlasClient({ ...opts, transport: async () => json(500, { message: "invalid token ab12 (raw token=ab12)" }), maxRetries: 0 }),
+    };
+    assert.equal(await run(["--log-format", format, "--catalog-url", "https://cat.example/services.json?token=ab12", "themes"], deps), 1);
+    assert.ok(!err.join("\n").includes("token=ab12"), err.join("\n"));
+  }
+});
