@@ -11,6 +11,7 @@ import {
   RegionalatlasApiError,
   RegionalatlasError,
   RegionalatlasNetworkError,
+  RegionalatlasParseError,
   RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   credentialsIn,
@@ -307,7 +308,10 @@ export async function run(argv: string[], rawDeps: CliDeps = defaultDeps): Promi
       return EXIT.NETWORK;
     }
     if (err instanceof RegionalatlasError) {
-      log.error("cli", err.message);
+      // A malformed answer (bad JSON, the wrong shape, an empty body, an unknown charset,
+      // a catalogue the client refuses) is the hosts' answer as much as an error status
+      // is: `api`, like the ArcGIS `error` envelope on HTTP 200.
+      log.error(err instanceof RegionalatlasParseError ? "api" : "cli", err.message);
       return EXIT.OTHER;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);

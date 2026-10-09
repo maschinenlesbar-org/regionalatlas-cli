@@ -453,9 +453,11 @@ controls as `\uXXXX`, so no text that reaches a record, by whatever path, can sp
 forge another one or steer the terminal. Before that a lone surrogate (half a
 character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
-code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors, an
-unexpected response shape, unexpected errors), `api` (the hosts' error answers, and the
-notes on an empty, cut-off or ambiguous result), `http` (the connection: network errors
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors, unexpected
+errors), `api` (the hosts' answers: an error status, the ArcGIS `error` envelope on HTTP
+200, a malformed answer — bad JSON, the wrong shape, an empty body, an unknown charset, a
+catalogue the client refuses, all `RegionalatlasParseError` — and the notes on an empty,
+cut-off or ambiguous result), `http` (the connection: network errors
 and their size-cap hints, the cleartext warning) and `output` (a stdout write error). Code logs through `logOf(deps)` and never
 writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
 commander parses it (`logFormatFromArgv`, used only for the records of a parse error: it

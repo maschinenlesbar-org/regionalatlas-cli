@@ -47,6 +47,19 @@ function secretArgv(secret: string): string[] {
   return ["--base-url", `http://u:${secret}@mirror.example/?x`];
 }
 /**
+ * Malformed answers to SIMPLE_COMMAND's data request with status 200: not JSON, a proxy's
+ * HTML page, the wrong shape (an array, an object without features), empty, an unknown
+ * charset. The catalogue answers as usual (makeDeps routes `answer` to the data host).
+ */
+const MALFORMED_ANSWERS: HttpResponse[] = [
+  { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from("<html>not json</html>") },
+  { status: 200, headers: { "content-type": "text/html" }, body: Buffer.from("<!doctype html><html>a proxy</html>") },
+  { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from("[]") },
+  { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from('{"fields":[]}') },
+  { status: 200, headers: { "content-type": "application/json" }, body: Buffer.alloc(0) },
+  { status: 200, headers: { "content-type": "application/json; charset=x-unknown" }, body: Buffer.from(JSON.stringify(landData)) },
+];
+/**
  * Builds the CliDeps for a run, routing the catalogue host and the data host, on a fixed
  * clock. `answer`, when given, is the data host's answer; the catalogue answers as usual.
  */
@@ -274,4 +287,12 @@ test("P23: the log format is the one commander parsed, also where an option's va
   const dashes = await cli(["--user-agent", "--", "--log-format", "jsonl", ...SIMPLE_COMMAND], errorAnswer("boom"));
   assert.notEqual(dashes.code, 0);
   assertOneRecordEach(dashes.err, "jsonl", "--user-agent -- --log-format jsonl");
+});
+
+test("P23: a malformed answer is an ERROR record of <program>.api", async () => {
+  for (const answer of MALFORMED_ANSWERS) {
+    const r = await cli(SIMPLE_COMMAND, answer);
+    assert.notEqual(r.code, 0, answer.body.toString());
+    assert.match(r.err[0] ?? "", new RegExp(`^${TS} ERROR \\[${PROGRAM}\\.api\\] `), r.err.join("\n"));
+  }
 });

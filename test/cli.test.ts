@@ -4,7 +4,7 @@ import { run } from "../src/cli/run.js";
 import { RegionalatlasClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse, queryOf, routeByHost, untimed } from "./helpers.js";
+import { makeMockTransport, jsonResponse, queryOf, rawResponse, routeByHost, untimed } from "./helpers.js";
 import { credentialsIn } from "../src/client/errors.js";
 import * as fx from "./fixtures.js";
 
@@ -450,7 +450,7 @@ test("a maintenance reply exits 1 with the shape error and no empty-result note"
   const cli = makeCli(routeByHost(fx.catalog, { status: "maintenance" }));
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 1);
   assert.equal(cli.out.length, 0);
-  assert.match(untimed(cli.err.join("\n")), /^ERROR \[regionalatlas\.cli\] Unexpected response shape from .*expected a features array, got none\.$/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[regionalatlas\.api\] Unexpected response shape from .*expected a features array, got none\.$/);
   assert.doesNotMatch(untimed(cli.err.join("\n")), /^INFO /m);
 });
 
@@ -720,5 +720,14 @@ test("a parse error is logged in the format commander would have parsed (L6)", a
     const cli = makeRoutingCli();
     assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
     assert.ok(cli.err.length > 0 && cli.err.every((line) => isJsonl(line) === jsonl), `${argv.join(" ")}:\n${cli.err.join("\n")}`);
+  }
+});
+
+test("a malformed catalogue is an ERROR record of regionalatlas.api, exit 1 (L9)", async () => {
+  const duplicate = [{ title: "T", children: [{ code: "DUP-1", years: { "2020": [] } }, { code: "dup_1", years: { "2020": [] } }] }];
+  for (const body of [rawResponse("<html>login</html>", "application/json"), rawResponse("{}", "application/json"), rawResponse("[]", "application/json; charset=x-unknown"), jsonResponse(duplicate)]) {
+    const cli = makeCli((req) => (new URL(req.url).hostname.includes("statistikportal") ? body : jsonResponse(fx.landData)));
+    assert.equal(await run(["themes"], cli.deps), 1, body.body.toString());
+    assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[regionalatlas\.api\] /, cli.err.join("\n"));
   }
 });

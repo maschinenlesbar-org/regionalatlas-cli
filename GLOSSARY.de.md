@@ -21,6 +21,7 @@ Begriffe und Felder des Regionalatlas, so wie die CLI sie ausgibt.
 | **gen2 / ags2 / jahr2** | (intern) | Die verknüpfte Seite des SQL-`LEFT OUTER JOIN`. `gen2` ist in den Rohdaten mit führenden Leerzeichen aufgefüllt – der Client entfernt sie; die geparste Zeile verwendet `gen`/`ags`/`jahr`. |
 | **dynamicLayer / queryTable** | (intern) | Der ArcGIS-Mechanismus, der den rohen SQL-Join hinter `query` ausführt. |
 | **`--base-url` / `--catalog-url`** | Optionen | Der ArcGIS-Datenhost bzw. die URL des Indikatorenkatalogs (die beiden Upstream-Hosts). |
+| **Log-Eintrag (log record)** | stderr, `--log-format` | Jede Diagnosezeile, die die CLI nach stderr schreibt: ein Zeitstempel, eine Stufe (`ERROR`, `WARN`, `INFO`) und ein Thema `regionalatlas.<Bereich>`, als Text (im Stil von log4j) oder mit `--log-format jsonl` als ein JSON-Objekt pro Zeile. Die Bereiche: `cli` (Bedienfehler, Meldungen von commander, unerwartete Fehler), `api` (die Antworten der Hosts und die Hinweise dazu: ein Fehlerstatus, der ArcGIS-`error`-Umschlag, eine fehlerhafte Antwort — ungültiges JSON, die falsche Form, ein leerer Body, ein Katalog, den die CLI ablehnt — und die Hinweise auf ein leeres, abgeschnittenes oder mehrdeutiges Ergebnis), `http` (die Verbindung, die Hinweise zur Größengrenze, die Klartext-Warnung) und `output` (ein Schreibfehler auf stdout). Ein Eintrag ist immer eine Zeile; Steuerzeichen darin werden maskiert. |
 
 ## Die Daten lesen
 
