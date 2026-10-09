@@ -89,7 +89,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
           if (note !== undefined) logOf(deps).info("api", note);
         }
         if (exceededTransferLimit) {
-          logOf(deps).info(
+          logOf(deps).warn(
             "api",
             `the data host stopped at its record limit after ${fetched} rows ` +
               "(exceededTransferLimit), so the result is incomplete. Query a coarser --level.",

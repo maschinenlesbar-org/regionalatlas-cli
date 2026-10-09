@@ -184,7 +184,7 @@ A failed run keeps its exit code when the reader of stderr has gone away (`2>&1 
 - **The ArcGIS server reports logical errors as HTTP 200 with an `error` object** — the
   CLI detects it and exits 1 with the message.
 - **A result cut off at the server's record limit** (`exceededTransferLimit`, set above
-  2,000,000 rows today) is printed with an `INFO` note on stderr saying it is incomplete.
+  2,000,000 rows today) is printed with a `WARN` record on stderr saying it is incomplete.
 - **Two hosts:** the data query hits `--base-url` (ArcGIS); the indicator list hits
   `--catalog-url` (statistikportal.de). Both are keyless.
 - The data is © the Statistische Ämter des Bundes und der Länder under **dl-de/by-2.0**

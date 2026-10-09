@@ -459,7 +459,7 @@ test("a result cut off at the host's record limit prints the rows and a note", a
   assert.equal(await run(["--compact", "query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
   assert.equal((JSON.parse(cli.out.join("\n")) as unknown[]).length, 2);
   assert.deepEqual(cli.err.map(untimed), [
-    "INFO  [regionalatlas.api] the data host stopped at its record limit after 2 rows (exceededTransferLimit), " +
+    "WARN  [regionalatlas.api] the data host stopped at its record limit after 2 rows (exceededTransferLimit), " +
       "so the result is incomplete. Query a coarser --level.",
   ]);
 });

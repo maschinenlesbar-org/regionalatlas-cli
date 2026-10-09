@@ -311,7 +311,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   `RegionalatlasApiError.url` keeps the full URL.
 - **`exceededTransferLimit`**: the MapServer stops at its `maxRecordCount` (2,000,000 on
   2026-09-26, so no real query reaches it today) and says so only in this flag.
-  `queryResult()` passes it on (`=== true` only), and the CLI prints an `INFO` note on
+  `queryResult()` passes it on (`=== true` only), and the CLI prints a `WARN` record on
   stderr with the rows it got; `query()` returns the rows alone.
 - The data query uses `spatialReference.wkid = 25832` (ETRS89 / UTM 32N) in the layer,
   and `returnGeometry=false` (we only need attributes).
