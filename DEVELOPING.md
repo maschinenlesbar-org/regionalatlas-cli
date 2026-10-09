@@ -475,5 +475,8 @@ topic or a year can't corrupt it), and a secret is kept out of the log in either
 happens outside `run()` is logged too, through `processLogger(argv)` (the format argv asks
 for, the run's redaction): a stdout write error from `handleOutputErrors` is an ERROR of
 `regionalatlas.output` ("Could not write to stdout: …"), and the bin shim's last-resort
-`Unexpected error: …` an ERROR of `regionalatlas.cli`. Conformance test P23 checks all of
+`Unexpected error: …` an ERROR of `regionalatlas.cli`. Node's own process warnings
+(`NODE_TLS_REJECT_UNAUTHORIZED=0`) are WARN records of `regionalatlas.cli`, `(node)
+<name>: <message>`: the bin shim calls `installWarningLog(process, log)`, which removes
+Node's default listener (checked on Node 22, 24 and 26). Conformance test P23 checks all of
 this, and its body is shared across the *-cli repos.
