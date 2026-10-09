@@ -20,7 +20,7 @@ Skills: [regionalatlas-catalog](#regionalatlas-catalog) · [regionalatlas-compar
 
 ```bash
 regionalatlas themes --compact | jq -r '.[] | "\(.title)\t\(.indicatorCount)"'
-regionalatlas indicators --search kita --compact   # [] + „Note: none of the 71 catalogue indicators match --search "kita"."
+regionalatlas indicators --search kita --compact   # [] + „INFO [regionalatlas.api] none of the 71 catalogue indicators match --search "kita".“
 regionalatlas indicators --search betreu --compact | jq '.[] | {code, theme, titleShort, years}'
 regionalatlas indicators --search betreu --year 2025 --compact | jq -r '.[].code'
 regionalatlas indicators --search Betreuungsquote --compact \
@@ -60,7 +60,7 @@ Als Nächstes angeboten: `AI003-3` für alle Kreise abrufen (regionalatlas-map) 
 
 ```bash
 regionalatlas indicators --search kopf --compact                    # AI-S-01 Verfügbares Einkommen pro Kopf, 2000–2022, Einheit EUR
-regionalatlas query AI-S-01 --level kreis --region München --compact  # 1 Zeile, 09162 München; Note: 09184 München, Landkreis ausgelassen
+regionalatlas query AI-S-01 --level kreis --region München --compact  # 1 Zeile, 09162 München; ein INFO-Eintrag nennt das ausgelassene 09184 München, Landkreis
 regionalatlas query AI-S-01 --level kreis --fields ai1601 --compact > kreise.json   # ein Abruf, 400 Zeilen
 jq '[.[] | select(.ags|IN("09162","14713","14626","05513","09184","14729"))] | map({ags, name, v: .values.ai1601})' kreise.json
 jq '(map(select(.values.ai1601 == null)) | length) as $none
@@ -93,7 +93,7 @@ Daten © Statistische Ämter des Bundes und der Länder, dl-de/by-2.0.
 
 ```bash
 regionalatlas indicators --search pkw --compact                     # AI013-1 Pkw-Dichte, 2000–2026 (auch AI-N-08-01)
-regionalatlas query AI013-1 --level kreis --fields ai1301 --compact # [] Exit 0 + Note: 2026 evtl. noch nicht geladen; --year 2025 versuchen
+regionalatlas query AI013-1 --level kreis --fields ai1301 --compact # [] Exit 0 + ein INFO-Eintrag: 2026 evtl. noch nicht geladen, --year 2025 versuchen
 regionalatlas query AI013-1 --level kreis --year 2025 --fields ai1301 --compact > pkw-2025.json
 jq -r '.[] | "\(.ags)\t\(.name)\t\(.values.ai1301)"' pkw-2025.json
 jq 'map(select(.values.ai1301 != null)) | sort_by(.values.ai1301) | reverse | .[:6] | .[] | {name, ai1301: .values.ai1301}' pkw-2025.json
