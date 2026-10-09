@@ -14,9 +14,11 @@ import {
   RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   credentialsIn,
+  echoedCredentialForms,
   queryTokensIn,
   redactCredentials,
   redactQueryTokens,
+  redactSecrets,
 } from "../client/errors.js";
 
 /**
@@ -69,7 +71,7 @@ export function redactUserinfo(text: string): string {
 export interface Redaction {
   /** stdout text: the userinfo and the catalogue token of every argument replaced. */
   out(text: string): string;
-  /** stderr text, a record's message: the same. */
+  /** stderr text, a record's message: that, and the bare password of a userinfo (`***`). */
   err(text: string): string;
 }
 
@@ -91,11 +93,19 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   );
   const secrets = new Set<string>();
   const tokens = new Set<string>();
+  const echoed = new Set<string>();
+  const passwords = new Set<string>();
   for (const source of [...argv, ...values, env[BASE_URL_ENV] ?? ""]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
       secrets.add(stripTerminalControls(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));
+      // What a server echoes back: the Basic value and the decoded user:password on
+      // stdout and stderr, the password alone (it may well occur in the data) on stderr.
+      const [basic, pair, password] = echoedCredentialForms(secret);
+      if (basic !== undefined) echoed.add(basic);
+      if (pair !== undefined) echoed.add(pair);
+      if (password !== undefined) passwords.add(password);
     }
     // A `?token=` in --catalog-url is a credential too (an ArcGIS token).
     for (const token of queryTokensIn(source)) {
@@ -112,9 +122,12 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   if (secrets.size === 0 && tokens.size === 0) return { out: (text) => text, err: (text) => text };
   const list = [...secrets];
   const tokenList = [...tokens];
-  const redact = (text: string): string =>
-    redactQueryTokens(redactUserinfo(redactCredentials(text, list)), tokenList);
-  return { out: redact, err: redact };
+  // Longest first, so a password never leaves half of the user:password around it.
+  const echoedList = [...echoed].sort((a, b) => b.length - a.length);
+  const passwordList = [...passwords].sort((a, b) => b.length - a.length);
+  const out = (text: string): string =>
+    redactQueryTokens(redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList), tokenList);
+  return { out, err: (text) => redactSecrets(out(text), passwordList) };
 }
 
 /**

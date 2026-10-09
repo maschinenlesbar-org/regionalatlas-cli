@@ -15,6 +15,7 @@ import {
   cutText,
   toWellFormed,
 } from "../src/client/errors.js";
+import { RegionalatlasClient } from "../src/client/client.js";
 import { makeMockTransport, jsonResponse, rawResponse, queryOf } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
@@ -390,4 +391,27 @@ test("a server text cut at 500 or 200 characters keeps the message well-formed",
       return true;
     });
   }
+});
+
+test("credentials a server echoes are scrubbed from the error: Basic, user:password, password (L13)", async () => {
+  const basic = Buffer.from("alice:pa ss-pw", "utf8").toString("base64");
+  const echo = `no: Basic ${basic} / alice:pa ss-pw / pa ss-pw`;
+  const check = (err: unknown): boolean => {
+    assert.ok(err instanceof RegionalatlasApiError);
+    for (const form of [basic, "alice:pa ss-pw", "pa ss-pw"]) {
+      assert.ok(!err.message.includes(form), err.message);
+      assert.ok(!err.body.includes(form), err.body);
+    }
+    assert.match(err.message, /no: Basic \*\*\* \/ \*\*\* \/ \*\*\*/);
+    return true;
+  };
+  // An HTTP error from the data host.
+  const e = new RequestEngine({ baseUrl: "https://alice:pa%20ss-pw@mirror.example", transport: makeMockTransport(() => jsonResponse({ message: echo }, 401)).transport, maxRetries: 0 });
+  await assert.rejects(e.getJson("/x/query"), check);
+  // The ArcGIS envelope with HTTP 200, read by the client.
+  const client = new RegionalatlasClient({
+    baseUrl: "https://alice:pa%20ss-pw@mirror.example",
+    transport: makeMockTransport((req) => jsonResponse(new URL(req.url).hostname.includes("statistikportal") ? fx.catalog : { error: { code: 498, message: echo } })).transport,
+  });
+  await assert.rejects(client.query({ indicator: "AI002-1-5", year: 2020 }), check);
 });

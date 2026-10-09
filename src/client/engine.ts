@@ -29,9 +29,11 @@ import {
   cutForMessage,
   cutText,
   type Download,
+  echoedCredentialForms,
   queryTokensIn,
   redactCredentials,
   redactQueryTokens,
+  redactSecrets,
   redactUrl,
   retriedSuffix,
 } from "./errors.js";
@@ -438,6 +440,11 @@ export class RequestEngine {
   readonly #credentials = new Set<string>();
   /** The secret query-parameter values (`?token=`) of the catalogue URL, raw and decoded. */
   readonly #tokens = new Set<string>();
+  /**
+   * The forms a server echoes those userinfos back in (the Basic value, the decoded
+   * `user:password`, the password alone): `echoedCredentialForms`.
+   */
+  readonly #echoed = new Set<string>();
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly defaultHeaders: Record<string, string>;
@@ -461,6 +468,7 @@ export class RequestEngine {
       options.baseUrl === undefined ? DEFAULT_BASE_URL : validateHttpUrl("baseUrl", options.baseUrl, { base: true });
     this.#baseUrl = baseUrl.replace(/\/+$/, "");
     for (const form of credentialForms(this.#baseUrl)) this.#credentials.add(form);
+    for (const form of credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms)) this.#echoed.add(form);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only undefined selects the default; a blank or unsendable value is refused
     // here rather than sent blank or failing late with Node's raw TypeError.
@@ -495,7 +503,9 @@ export class RequestEngine {
    */
   redact(text: string): string {
     if (this.#credentials.size === 0 && this.#tokens.size === 0) return text;
-    return redactQueryTokens(redactCredentials(text, [...this.#credentials]), [...this.#tokens]);
+    // Longest first, so a password never leaves half of the user:password around it.
+    const echoed = [...this.#echoed].sort((a, b) => b.length - a.length);
+    return redactQueryTokens(redactSecrets(redactCredentials(text, [...this.#credentials]), echoed), [...this.#tokens]);
   }
 
   /**
@@ -679,6 +689,7 @@ export class RequestEngine {
     // Its userinfo is as secret as the base URL's, and so is a `?token=`: scrub both from
     // every message too.
     for (const form of credentialForms(url)) this.#credentials.add(form);
+    for (const form of credentialsIn(url).flatMap(echoedCredentialForms)) this.#echoed.add(form);
     for (const form of queryTokenForms(url)) this.#tokens.add(form);
     return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), redactUrl(url));
   }

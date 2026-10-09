@@ -229,12 +229,16 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   exact userinfo of every argument (`credentialsIn`, exported) and replaces it with `***`
   in everything it prints — commander's usage errors, which echo a rejected
   `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
-  quotes, `#`, `?` or `/` is caught as well as an ordinary one. `redactUrl` falls back to
+  quotes, `#`, `?` or `/` is caught as well as an ordinary one. The forms a server echoes
+  a userinfo back in are replaced too (`echoedCredentialForms`, `redactSecrets`): the
+  `Basic` value and the decoded `user:password` on stdout and stderr, the password alone
+  (4 characters or more) on stderr only, since it may well occur in the data. `redactUrl` falls back to
   the same text-based cut for a value that doesn't parse as a URL. The library keeps
   them out of logged objects too: the engine holds the base URL and the client the
   catalogue URL in real `#private` fields, so `console.log(client)`, `util.inspect` and
   `JSON.stringify` don't show them, and the engine scrubs the userinfo of both (raw and
-  percent-decoded) from error bodies, details, transport error text and the `cause`
+  percent-decoded, and the forms a server echoes it back in: the `Basic` value, the
+  decoded `user:password`, the password alone from 4 characters) from error bodies, details, transport error text and the `cause`
   chain (`redact`, `scrubCause`). The catalogue's "Failed to parse JSON response from …"
   and "returned an empty body" messages name it redacted. Whatever a custom transport
   throws reaches the caller as a `RegionalatlasNetworkError` (the original as `cause`).
