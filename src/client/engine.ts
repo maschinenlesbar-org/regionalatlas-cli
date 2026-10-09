@@ -387,7 +387,11 @@ function credentialForms(url: string): string[] {
 
 /** The secret query-parameter values of a URL (`?token=`), as written and percent-decoded. */
 function queryTokenForms(url: string): string[] {
-  return withDecoded(queryTokensIn(url));
+  // Also as an error message shows it: a server that echoes the token has its text
+  // cleaned (sanitizeServerText drops control and bidi characters and folds whitespace)
+  // before the message is redacted.
+  const forms = withDecoded(queryTokensIn(url));
+  return [...new Set([...forms, ...forms.map(sanitizeServerText)])].filter((form) => form !== "");
 }
 
 /** Each value as written and percent-decoded (when it decodes). */
@@ -720,7 +724,8 @@ export class RequestEngine {
     // characters so a hostile endpoint cannot drive terminal escape sequences
     // into stderr via the error message.
     // Cut, too: a server can send a 200 kB detail.
-    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
+    // Redacted again once cleaned: cleaning can turn an echoed token into its cleaned form.
+    if (detail !== undefined) detail = cutForMessage(this.redact(sanitizeServerText(detail)));
     return new RegionalatlasApiError({ status, url, method: "GET", body: text, detail, retries });
   }
 }

@@ -255,9 +255,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   parameter is the access token `generateToken` issues for a secured service, and OAuth 2
   sends `access_token` the same way (RFC 6750) — `SECRET_QUERY_PARAMETERS`. The public
   `services.json` takes none; a mirror behind a token login may. `redactUrl` shows the
-  value as `token=***` (alongside the `***@` userinfo), the engine adds the value (raw
-  and decoded) to what `redact`/`scrubCause` scrub from bodies, details, transport text
-  and causes, and `withRedactedOutput` redacts it from CLI output (`queryTokensIn`,
+  value as `token=***` (alongside the `***@` userinfo), the engine adds the value (raw,
+  decoded, and cleaned as `sanitizeServerText` leaves an echo of it, the detail being
+  redacted again after cleaning) to what `redact`/`scrubCause` scrub from bodies, details,
+  transport text and causes, and `withRedactedOutput` redacts it from CLI output (`queryTokensIn`,
   `redactQueryTokens`; a bare value under six characters only in its `token=` form). It
   never crosses origins: only the catalogue request carries it, the base URL takes no
   query, and no redirect is followed.

@@ -251,3 +251,20 @@ test("a catalogue token equal to a part of the record's frame leaves the frame i
     }
   }
 });
+
+test("a catalogue token the server echoes is redacted after its text is cleaned (#6 variant)", async () => {
+  // `a"b\c d<U+202E>ef`, percent-encoded in the URL. The server echoes it decoded; the
+  // message drops the bidi control and folds the space run, so the text no longer equals
+  // any listed form and used to be printed as `a"b\c def`.
+  const raw = "a%22b%5Cc%20d%E2%80%AEef-S3CRET";
+  const client = new RegionalatlasClient({
+    catalogUrl: `https://cat.example/services.json?token=${raw}`,
+    transport: async () => json(500, { message: `invalid token ${decodeURIComponent(raw)}` }),
+    maxRetries: 0,
+  });
+  await assert.rejects(client.themes(), (err: Error) => {
+    assert.ok(!err.message.includes("S3CRET"), err.message);
+    assert.match(err.message, /invalid token \*\*\*/);
+    return true;
+  });
+});
