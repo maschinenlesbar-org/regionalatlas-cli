@@ -121,11 +121,27 @@ export function redactCredentials(text: string, credentials: readonly string[]):
 export const MAX_MESSAGE_VALUE_LENGTH = 500;
 
 /**
- * `text` cut to MAX_MESSAGE_VALUE_LENGTH characters, ending in "…" when cut; never inside a
- * surrogate pair (`cutText`), so the message stays well-formed.
+ * `text` cut to `max` characters (default MAX_MESSAGE_VALUE_LENGTH), ending in "…" when
+ * cut; never inside a surrogate pair (`cutText`), so the message stays well-formed.
  */
-export function cutForMessage(text: string): string {
-  return text.length > MAX_MESSAGE_VALUE_LENGTH ? `${cutText(text, MAX_MESSAGE_VALUE_LENGTH)}…` : text;
+export function cutForMessage(text: string, max = MAX_MESSAGE_VALUE_LENGTH): string {
+  return text.length > max ? `${cutText(text, max)}…` : text;
+}
+
+/**
+ * The most items an own message lists from a catalogue or a request (columns, unknown
+ * names, years); the rest are counted. 2002 catalogue columns used to make a 171 kB message.
+ */
+export const MAX_LISTED_ITEMS = 40;
+
+/**
+ * `items` joined with `separator`, at most MAX_LISTED_ITEMS of them, then `… (N more)`
+ * for the rest. The caller cuts each item.
+ */
+export function listForMessage(items: readonly string[], separator: string): string {
+  const shown = items.slice(0, MAX_LISTED_ITEMS);
+  const more = items.length - shown.length;
+  return more > 0 ? `${shown.join(separator)}${separator}… (${more} more)` : shown.join(separator);
 }
 
 /**

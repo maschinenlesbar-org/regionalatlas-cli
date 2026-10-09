@@ -15,7 +15,10 @@ import type {
   RawCatalogTheme,
   Theme,
 } from "./types.js";
-import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage } from "./errors.js";
+import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, listForMessage } from "./errors.js";
+
+/** The longest column code or title (in characters) the unknown-field message lists. */
+const MAX_LISTED_ITEM_LENGTH = 60;
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
 import { BOUNDARY_TABLE } from "./sql.js";
@@ -346,11 +349,15 @@ export function assertKnownFields(indicator: Indicator, fields: string[]): void 
   if (indicator.fields.length === 0) return;
   const unknown = fields.filter((f) => f.trim() !== "" && findField(indicator, f) === undefined);
   if (unknown.length === 0) return;
-  const available = indicator.fields.map((f) => `${f.code} (${f.title || f.unit || "—"})`);
+  // Every part cut and the lists bounded: the catalogue is a second trust domain, and a
+  // typed name can be of any length.
+  const available = indicator.fields.map(
+    (f) => `${cutForMessage(f.code, MAX_LISTED_ITEM_LENGTH)} (${cutForMessage(f.title || f.unit || "—", MAX_LISTED_ITEM_LENGTH)})`,
+  );
   throw new RegionalatlasValidationError(
     `Unknown value ${unknown.length > 1 ? "fields" : "field"} ` +
-      `${unknown.map((f) => JSON.stringify(f)).join(", ")} for indicator "${indicator.code}". ` +
-      `Available: ${available.join("; ")}.`,
+      `${listForMessage(unknown.map((f) => JSON.stringify(cutForMessage(f, MAX_LISTED_ITEM_LENGTH))), ", ")} ` +
+      `for indicator "${indicator.code}". Available: ${listForMessage(available, "; ")}.`,
   );
 }
 
@@ -435,7 +442,7 @@ export function resolveYear(indicator: Indicator, year?: number): number {
   if (!indicator.years.includes(String(year))) {
     throw new RegionalatlasValidationError(
       `Year ${year} is not available for indicator "${indicator.code}". ` +
-        `Available: ${indicator.years.join(", ")}.`,
+        `Available: ${listForMessage(indicator.years, ", ")}.`,
     );
   }
   return year;

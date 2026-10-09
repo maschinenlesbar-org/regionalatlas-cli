@@ -396,7 +396,11 @@ host (catalogue vs data). Coverage highlights:
   `assertIndicatorFilter`), never a raw `TypeError`; `null` options count as none. Echoed
   values and server text in messages are cut at 500 characters (`cutForMessage`,
   `MAX_MESSAGE_VALUE_LENGTH`, exported), never inside a surrogate pair (`cutText`), so the
-  message stays well-formed; a string option value is quoted.
+  message stays well-formed; a string option value is quoted. A message that lists
+  catalogue columns, unknown `--fields` names or catalogue years shows at most
+  `MAX_LISTED_ITEMS` (40, exported) and counts the rest (`… (N more)`), each column code
+  and title cut at 60 characters; the CLI's region notes cut each region they name, the
+  `--region`, `--theme` and `--search` they quote at 500.
 - **Engine options are checked** (`intOption` in engine.ts): `timeoutMs` 0..2^31−1,
   `maxRetries` 0..`MAX_RETRIES` (10, shared with `--max-retries`), `retryDelayMs`
   0..30 000, `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER`; anything else (negative,

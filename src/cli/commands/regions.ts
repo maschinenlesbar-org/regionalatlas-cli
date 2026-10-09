@@ -107,7 +107,8 @@ export function registerCommands(program: Command, deps: CliDeps): void {
 
 /** Up to five regions as `ags name`, then how many more. */
 function regionList(rows: ReadonlyArray<{ ags: string; name: string }>): string {
-  const shown = rows.slice(0, 5).map((r) => sanitizeServerText(`${r.ags} ${r.name}`));
+  // Each one cut: region names come from the data host, a second trust domain.
+  const shown = rows.slice(0, 5).map((r) => cutForMessage(sanitizeServerText(`${r.ags} ${r.name}`)));
   return rows.length > 5 ? `${shown.join(", ")} and ${rows.length - 5} more` : shown.join(", ");
 }
 
@@ -157,9 +158,9 @@ export function regionNote(
  */
 function emptyIndicatorsNote(filter: IndicatorFilter, all: Indicator[]): string {
   const applied: string[] = [];
-  if (filter.theme !== undefined) applied.push(`--theme ${JSON.stringify(filter.theme)}`);
+  if (filter.theme !== undefined) applied.push(`--theme ${JSON.stringify(cutForMessage(filter.theme))}`);
   if (filter.year !== undefined) applied.push(`--year ${filter.year}`);
-  if (filter.search !== undefined) applied.push(`--search ${JSON.stringify(filter.search)}`);
+  if (filter.search !== undefined) applied.push(`--search ${JSON.stringify(cutForMessage(filter.search))}`);
   if (applied.length === 0) {
     return "the catalogue lists no indicators at all — check --catalog-url.";
   }
@@ -189,7 +190,7 @@ function emptyResultNote(indicator: Indicator, query: QueryOptions, fetched: num
   if (fetched > 0) {
     return (
       `none of the ${fetched} rows for ${where} match --region ` +
-      `${JSON.stringify(query.region)} (a name, a part of one, or an AGS).`
+      `${JSON.stringify(cutForMessage(query.region ?? ""))} (a name, a part of one, or an AGS).`
     );
   }
   let note =

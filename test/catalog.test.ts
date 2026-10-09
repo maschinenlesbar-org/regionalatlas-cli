@@ -11,7 +11,7 @@ import {
   resolveYear,
   tableForCode,
 } from "../src/client/catalog.js";
-import { RegionalatlasError, RegionalatlasParseError, RegionalatlasValidationError } from "../src/client/errors.js";
+import { MAX_LISTED_ITEMS, RegionalatlasError, RegionalatlasParseError, RegionalatlasValidationError } from "../src/client/errors.js";
 import { BOUNDARY_TABLE, buildSql } from "../src/client/sql.js";
 import * as fx from "./fixtures.js";
 
@@ -149,6 +149,22 @@ test("assertKnownFields accepts known columns and rejects the rest", () => {
       assert.ok(err instanceof RegionalatlasValidationError);
       assert.match(err.message, /Unknown value fields "typo", "alsobad"/);
       assert.match(err.message, /Available: ai0201 \(/);
+      return true;
+    },
+  );
+});
+
+test("assertKnownFields bounds its message: field list, titles and the unknown names are cut (B01-2)", () => {
+  // 2002 columns, one with a 100 kB title, used to make a 171 kB message.
+  const attributes = Array.from({ length: 2002 }, (_, i) => ({ code: `AI99${String(i).padStart(4, "0")}`, title_short: i === 0 ? "T".repeat(100_000) : `Titel ${i}` }));
+  const big = parseIndicators([{ title: "T", children: [{ code: "AI99", years: { "2020": [] }, attributes }] }])[0]!;
+  assert.throws(
+    () => assertKnownFields(big, ["nosuch", "x".repeat(100_000)]),
+    (err: unknown) => {
+      assert.ok(err instanceof RegionalatlasValidationError);
+      assert.ok(err.message.length < 4000, `${err.message.length}`);
+      assert.match(err.message, /^Unknown value fields "nosuch", "x+…" for indicator "AI99"\. Available: ai990000 \(T+…\); ai990001 \(Titel 1\)/);
+      assert.match(err.message, new RegExp(`; … \\(${2002 - MAX_LISTED_ITEMS} more\\)\\.$`));
       return true;
     },
   );

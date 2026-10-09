@@ -80,6 +80,7 @@ export {
   redactUrl,
   cutForMessage,
   MAX_MESSAGE_VALUE_LENGTH,
+  MAX_LISTED_ITEMS,
   credentialsIn,
   queryTokensIn,
   redactCredentials,

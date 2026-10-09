@@ -149,3 +149,28 @@ test("CLI: an unambiguous name or key prints no note; a padded key says what it 
   assert.deepEqual((JSON.parse(c.out.join("")) as RegionRow[]).map((r) => r.ags), ["09162"]);
   assert.match(untimed(c.err.join("\n")), /^INFO  \[regionalatlas\.api\] no row at level land has the key "09162000"; matched 09162 München, which this level carries under the shorter key/);
 });
+
+test("CLI: the region notes quote region names and --region cut (B01-2)", async () => {
+  // Three 100 kB names used to make a 300 kB INFO record, a 100 000-character --region
+  // a 100 kB one.
+  const long = "S".repeat(100_000);
+  const ambiguous = cli([["14", `Sachsen ${long}`], ["15", `Sachsen ${long}`], ["16", `Sachsen ${long}`]]);
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Sachsen"], ambiguous.deps), 0);
+  assert.equal(ambiguous.err.length, 1);
+  assert.ok(ambiguous.err[0]!.length < 2500, `${ambiguous.err[0]!.length}`);
+  assert.match(untimed(ambiguous.err[0]!), /^INFO  \[regionalatlas\.api\] --region "Sachsen" is ambiguous: 3 rows contain it in their name \(no name equals it\): 14 Sachsen S+…, 15 Sachsen S+…, 16 Sachsen S+…\. Pick one region/);
+
+  const none = cli(LAND_ROWS);
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "R".repeat(100_000)], none.deps), 0);
+  assert.equal(none.err.length, 1);
+  assert.ok(none.err[0]!.length < 1000, `${none.err[0]!.length}`);
+  assert.match(untimed(none.err[0]!), /^INFO  \[regionalatlas\.api\] none of the 4 rows for AI002-1-5 at level land in 2020 match --region "R+…" \(a name/);
+});
+
+test("CLI: the empty indicators note quotes --theme and --search cut (B01-2)", async () => {
+  const c = cli(LAND_ROWS);
+  assert.equal(await run(["indicators", "--search", "q".repeat(100_000), "--theme", "t".repeat(100_000)], c.deps), 0);
+  assert.equal(c.err.length, 1);
+  assert.ok(c.err[0]!.length < 1500, `${c.err[0]!.length}`);
+  assert.match(untimed(c.err[0]!), /^INFO  \[regionalatlas\.api\] none of the \d+ catalogue indicators match --theme "t+…" \+ --search "q+…"\.$/);
+});
