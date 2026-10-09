@@ -12,7 +12,7 @@ import { run } from "../src/cli/run.js";
 import { RegionalatlasClient as Client } from "../src/client/client.js";
 import type { Transport } from "../src/client/http.js";
 /** The environment variable the CLI reads a base URL from, or undefined if it has none. */
-const BASE_URL_ENV: string | undefined = undefined; // regionalatlas reads no environment variable
+const BASE_URL_ENV: string | undefined = "REGIONALATLAS_BASE_URL";
 /** A command that needs no arguments and makes one request. */
 const SIMPLE_COMMAND = ["themes"];
 /** A command that takes one positional argument, for the "URL as argument" case. */
@@ -21,10 +21,11 @@ const ARG_COMMAND = ["query"];
 const VALUE_OPTION = "--timeout";
 /** A successful answer to SIMPLE_COMMAND (the catalogue: an array of themes). */
 const okBody = [{ title: "Bevölkerung", children: [] }];
-/** This repo's CliDeps: no env. */
-function makeDeps(out: string[], err: string[], _env: Record<string, string>, transport: Transport): CliDeps {
+/** This repo's CliDeps, with the environment the run sees. */
+function makeDeps(out: string[], err: string[], env: Record<string, string>, transport: Transport): CliDeps {
   return {
     io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+    env,
     createClient: (opts) => new Client({ ...opts, transport }),
   };
 }
@@ -33,7 +34,12 @@ function makeDeps(out: string[], err: string[], _env: Record<string, string>, tr
 /** Passwords that defeated a pattern-based redaction in the 2026-10-05 sweep. */
 const PASSWORDS = ["s3cret-pw", "pa#ss-pw", "pa?ss-pw", "pa/ss-pw", "pa ss-pw", "o'brien-pw", 'pa"ss-pw', "päss-pw", "p@ss-pw", "tab\tpw"];
 
-/** Base-URL shapes per password: valid, rejected (query, fragment, port, scheme, space), schemeless. */
+/**
+ * Base-URL shapes per password: valid, rejected (query, fragment, port, scheme, space),
+ * schemeless. Only a value with a scheme is taken for a URL anywhere in argv (a bare
+ * `a:b@c` may be a file name or a search text, fix plan 2026-10-09 L14); a schemeless one
+ * is still a credential as the base URL's value.
+ */
 function urls(pw: string): string[] {
   return [
     `https://alice:${pw}@mirror.example`,
@@ -68,9 +74,13 @@ function assertNoSecret(text: string, pw: string, context: string): void {
 for (const pw of PASSWORDS) {
   test(`P1: no output path prints the password ${JSON.stringify(pw)}`, async () => {
     for (const url of urls(pw)) {
-      const argvs: string[][] = [
+      const asBaseUrl: string[][] = [
         ["--base-url", url, ...SIMPLE_COMMAND],
         [`--base-url=${url}`, ...SIMPLE_COMMAND],
+      ];
+      const schemeless = !/^[a-z][a-z0-9+.-]*:\/\//i.test(url);
+      const argvs: string[][] = schemeless ? asBaseUrl : [
+        ...asBaseUrl,
         [url, ...SIMPLE_COMMAND], // forgot --base-url: unknown command
         [...SIMPLE_COMMAND, url], // surplus argument
         [...ARG_COMMAND, url], // as a positional value

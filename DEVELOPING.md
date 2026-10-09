@@ -226,10 +226,14 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   without a query or fragment. Userinfo is allowed (sent as Basic auth, redacted in
   messages), but a `%` in it must start a valid escape (`%25` for a literal one): Node
   decodes it for the Basic-auth header and would fail only at request time. The CLI also redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the
-  exact userinfo of every argument (`credentialsIn`, exported) and replaces it with `***`
+  exact userinfo of every URL argument (`credentialsIn`, exported) and replaces it with `***`
   in everything it prints — commander's usage errors, which echo a rejected
   `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
-  quotes, `#`, `?` or `/` is caught as well as an ordinary one. The forms a server echoes
+  quotes, `#`, `?` or `/` is caught as well as an ordinary one. Only a value that starts
+  with a scheme counts (a bare `a:b@c` is a search text, a region name or a User-Agent as
+  often as a credential), except as the value of `--base-url` or `--catalog-url` or in
+  `REGIONALATLAS_BASE_URL`, where a `user:password@host` typed without its scheme is still
+  read as a credential. The forms a server echoes
   a userinfo back in are replaced too (`echoedCredentialForms`, `redactSecrets`): the
   `Basic` value and the decoded `user:password` on stdout and stderr, the password alone
   (4 characters or more) on stderr only, since it may well occur in the data. `redactUrl` falls back to

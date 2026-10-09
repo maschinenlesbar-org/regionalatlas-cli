@@ -5,6 +5,7 @@ import { RegionalatlasClient } from "../src/client/client.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, queryOf, routeByHost, untimed } from "./helpers.js";
+import { credentialsIn } from "../src/client/errors.js";
 import * as fx from "./fixtures.js";
 
 function makeCli(responder: (req: HttpRequest) => HttpResponse) {
@@ -666,4 +667,40 @@ test("an option-shaped value is quoted at most 500 characters long (L3)", async 
   const own = record.slice(record.indexOf("looks like a missing value"));
   assert.match(own, /^looks like a missing value — "--x+…" is the next option/);
   assert.ok(own.length < 800, `${own.length}`);
+});
+
+test("an a:b@c argument is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  // --search, --region and the indicator used to be logged as `"***@x"`, and a theme
+  // title equal to a --user-agent of that shape was rewritten on stdout.
+  const search = makeRoutingCli();
+  assert.equal(await run(["indicators", "--search", "Bev:2024@x"], search.deps), 0);
+  assert.match(untimed(search.err.join("\n")), /--search "Bev:2024@x"/);
+
+  const region = makeRoutingCli();
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "Nieder:sachsen@land"], region.deps), 0);
+  assert.match(untimed(region.err.join("\n")), /--region "Nieder:sachsen@land"/);
+
+  const indicator = makeRoutingCli();
+  assert.equal(await run(["query", "AI002:1@5"], indicator.deps), 2);
+  assert.match(untimed(indicator.err.join("\n")), /Unknown indicator "AI002:1@5"/);
+
+  const catalog = [{ title: "run:2026-10-09@x", children: fx.catalog[0]!.children }];
+  const ua = makeCli(routeByHost(catalog, fx.landData));
+  assert.equal(await run(["--user-agent", "run:2026-10-09@x", "themes"], ua.deps), 0);
+  assert.match(ua.out.join("\n"), /"title": "run:2026-10-09@x"/);
+
+  assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
+});
+
+test("a base or catalogue URL typed without its scheme is still a credential (L14)", async () => {
+  for (const argv of [
+    ["--base-url", "alice:S3cret-pw@mirror.example", "query", "AI002-1-5"],
+    ["--catalog-url=alice:S3cret-pw@mirror.example/services.json", "themes"],
+  ]) {
+    const cli = makeRoutingCli();
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    const all = [...cli.out, ...cli.err].join("\n");
+    assert.ok(!all.includes("S3cret-pw"), all);
+  }
 });
