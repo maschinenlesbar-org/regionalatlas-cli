@@ -458,7 +458,11 @@ unexpected response shape, unexpected errors), `api` (the hosts' error answers, 
 notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
 and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never
 writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
-commander parses it, so commander's own usage errors are records too: its `error: …` an
+commander parses it (`logFormatFromArgv`, used only for the records of a parse error: it
+takes the first `--log-format`, the one `forbidRepeatedOptions` keeps, and skips the value
+of the program's own value options, as commander does; a `preAction` hook then sets the
+format commander parsed, so `--user-agent --log-format=jsonl` logs text), so commander's
+own usage errors are records too: its `error: …` an
 ERROR of `cli` (a `(Did you mean …?)` line joined to it), the help it shows after one an
 INFO record per line, and a run with options but no command (`regionalatlas --compact`)
 an ERROR "missing command: `regionalatlas <subcommand>`" before that help, so every
