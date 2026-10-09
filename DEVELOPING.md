@@ -436,8 +436,9 @@ the message (text) or the whole JSON object (jsonl), which writes CR and LF as `
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
 forge another one or steer the terminal. Before that a lone surrogate (half a
-character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
-The areas are `cli` (usage errors, commander's messages, validation errors, an
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
+and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
+code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors, an
 unexpected response shape, unexpected errors), `api` (the hosts' error answers, and the
 notes on an empty, cut-off or ambiguous result) and `http` (the connection: network errors
 and their size-cap hints, the cleartext warning). Code logs through `logOf(deps)` and never

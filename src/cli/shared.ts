@@ -6,7 +6,7 @@ import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_CATALOG_URL, type RegionalatlasClientOptions } from "../client/client.js";
 import { DEFAULT_BASE_URL, cleartextProblem } from "../client/engine.js";
-import { queryTokensIn } from "../client/errors.js";
+import { cutForMessage, queryTokensIn } from "../client/errors.js";
 import { resolveLevel } from "../client/levels.js";
 import { RegionalatlasValidationError } from "../client/errors.js";
 import {
@@ -81,7 +81,7 @@ const OPTION_SHAPED = /^(--[A-Za-z][\w-]*|-[A-Za-z])$/;
 export function parseTextArg(value: string): string {
   if (OPTION_SHAPED.test(value)) {
     throw new InvalidArgumentError(
-      `looks like a missing value — "${value}" is the next option, consumed because ` +
+      `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
         "this one was left without a value. Supply the intended term.",
     );
   }

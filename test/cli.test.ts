@@ -656,3 +656,14 @@ test("a catalogue with colliding codes fails every command (exit 1), before any 
     assert.equal(dataCalls(cli.mt.calls).length, 0);
   }
 });
+
+test("an option-shaped value is quoted at most 500 characters long (L3)", async () => {
+  const cli = makeRoutingCli();
+  // commander echoes the whole value itself (the record's cap bounds that); the CLI's own
+  // message quotes it cut.
+  assert.equal(await run(["indicators", "--search", `--${"x".repeat(1500)}`], cli.deps), 2);
+  const record = cli.err.find((line) => line.includes("looks like a missing value")) ?? "";
+  const own = record.slice(record.indexOf("looks like a missing value"));
+  assert.match(own, /^looks like a missing value — "--x+…" is the next option/);
+  assert.ok(own.length < 800, `${own.length}`);
+});
