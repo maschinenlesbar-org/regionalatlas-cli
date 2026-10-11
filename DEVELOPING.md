@@ -14,17 +14,63 @@ it) with the family's two test seams.
 
 ```bash
 npm install
-npm run build       # tsc -> dist/
-npm run typecheck   # tsc --noEmit
-npm test            # pretest builds, then `node --test --test-timeout=5000 dist/test/*.test.js`
-npm start -- --help
+npm run build       # compiles every workspace (tsc -b) to its dist/
+npm run typecheck   # tsc -b over every workspace, as build
+npm test            # pretest builds, then `node --test` over each workspace's dist/test
+npm run coverage    # the same tests in one run, with a coverage report
+npm start -- --help # the locally built CLI (node apps/cli/dist/src/cli/index.js)
+npm run bump -- <patch|minor|major>  # bump apps/cli, commit, tag vX.Y.Z
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+CI (`ci.yml`) type-checks, builds and tests on Node 22/24, then packs the real tarball,
+checks the pack left nothing behind, installs it globally with the registry out of reach
+and runs the bin. `release.yml` (on a `v*` tag, made by `npm run bump`) verifies the tag
+against `apps/cli/package.json`, writes the SBOMs (scoped to the `apps/cli` workspace) and
+runs `npm pack --workspace apps/cli`; `publish.yml` runs `npm publish --workspace apps/cli`.
 
 ## Layout
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/        # typed API client, usable independently of the CLI
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/regionalatlas-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/regionalatlas-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/regionalatlas-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers and fixtures
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { RegionalatlasClient } from
+  "@maschinenlesbar.org/regionalatlas-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/regionalatlas-client/internal/engine`) for what
+  the CLI needs beyond that; `"./test/*"` reaches the client's test helpers and fixtures
+  from the CLI's tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     types.ts     # geo levels, catalogue types, ArcGIS query envelope, RegionRow
     query.ts     # dependency-free query-string builder
     validate.ts  # the library's input rules (Problem functions + assertValid)
@@ -35,8 +81,8 @@ src/
     catalog.ts   # services.json parsing/filtering + the indicator/year allowlist resolvers
     sql.ts       # builds the dynamicLayer SQL from ONLY validated pieces (the guard)
     client.ts    # RegionalatlasClient (themes / indicators / query) + row parsing/filtering
-    index.ts
-  cli/
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O (CliDeps / CliIO), the logger and the clock — no env seam (no auth)
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers (--level, --year, --fields, http-url), global->engine mapping, render
@@ -44,7 +90,6 @@ src/
     program.ts   # assembles the commander program
     run.ts       # parses argv -> exit code (no process.exit; testable)
     index.ts     # #! bin shim
-  index.ts       # library entry
 ```
 
 ## TWO upstream hosts (the repo-specific divergence)
@@ -190,14 +235,14 @@ typ/year (no `;`, `--`, or quotes).
 
 The library owns every rule about what a request may contain; the CLI only turns argv
 into typed values and maps errors to exit codes. The rules are pure functions in
-[`validate.ts`](src/client/validate.ts): a `Problem` returns the reason a value is
+[`validate.ts`](packages/client/src/validate.ts): a `Problem` returns the reason a value is
 invalid, or `undefined`, and `assertValid(name, value, problem)` turns a reason into a
 `RegionalatlasValidationError` with the message `Invalid <name>: <reason>`. Client
 methods check their input before any request (an async method rejects rather than
 throwing synchronously), so a rejected input sends nothing. The CLI's commander parsers
 call the same functions and report the reason as a usage error, and `run.ts` maps a
 `RegionalatlasValidationError` raised in an action, or while the client is built, to
-exit 2 (an `ERROR` record of `regionalatlas.cli`). `test/helpers.ts` has a `parity()` helper that drives one
+exit 2 (an `ERROR` record of `regionalatlas.cli`). `apps/cli/test/helpers.ts` has a `parity()` helper that drives one
 input through `run()` and through the library on one recording mock transport.
 
 What the library refuses with `RegionalatlasValidationError`, before any request:
@@ -318,8 +363,14 @@ What the library refuses with `RegionalatlasValidationError`, before any request
 
 ## Testing
 
-`node --test` on `dist/test/`. No network in the suite — a mock `Transport` routes by
-host (catalogue vs data). Coverage highlights:
+`node --test` on each workspace's `dist/test/`. No network in the suite — a mock `Transport`
+routes by host (catalogue vs data).
+
+The client's tests are in `packages/client/test/` (`catalog`, `sql`, `levels`, `client`,
+`engine`, `http`, `query`), with the transport helpers (`helpers.ts`, which
+`apps/cli/test/helpers.ts` re-exports next to the CLI's own helpers) and the canned
+catalogue and data (`fixtures.ts`); everything that drives the CLI is in `apps/cli/test/`.
+Coverage highlights:
 
 - `catalog.test.ts` — table derivation, theme/indicator parsing, the three filters, and
   the indicator/year allowlist resolvers (accept code & table forms; reject bogus).
@@ -340,7 +391,7 @@ host (catalogue vs data). Coverage highlights:
 - `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
   whose reader has gone) on stdout exit 0, on stderr they are ignored, any other stdout
   error is a record; `stderrAfterStdout`: a record held behind stdout's backlog.
-- `log.test.ts` — the record helpers of `src/cli/log.ts` on their own
+- `log.test.ts` — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`); the CLI-level checks are P23's.
 - `validate.test.ts` — the input rules, `assertValid`, and how `run()` reports a
   `RegionalatlasValidationError`.
@@ -384,8 +435,8 @@ host (catalogue vs data). Coverage highlights:
   and a catalogue token redacted) `}`) is called once per retry right before the sleep, never
   when there is none, and a throw in it is swallowed. The CLI's `action()` sets it to log one
   `WARN` record of `regionalatlas.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s`
-  (`retryMessage`; host only, whole seconds, ms under 1 s). Tests: `test/engine.test.ts`,
-  `test/retry-log.test.ts`.
+  (`retryMessage`; host only, whole seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`,
+  `apps/cli/test/retry-log.test.ts`.
 - **Custom transports:** the engine enforces `timeoutMs` itself for every transport — the
   request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and
   the call rejects then with a `RegionalatlasNetworkError` whether the transport stops or
@@ -440,7 +491,9 @@ and [Fylgja](https://fylgja.dev/) CSS, and deployed by `docs.yml` together with 
 reference under `/api/`. Its content comes from this repository: the README intro and quick
 start, the command tree of the built CLI (`site/scripts/cli-reference.mjs`), `Usage.md`,
 `GLOSSARY.md` and its German version `GLOSSARY.de.md`, the skills, and the skill examples in
-`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` and
+`EXAMPLE.md` and `EXAMPLE.de.md`. The only repo-specific files are `site/_config.yml` (which
+also says where the published manifest and the built program are: `manifest:
+apps/cli/package.json`, `program: apps/cli/dist/src/cli/program.js`) and
 `site/_data/project.yml` (the German intro and the access requirements); the rest of `site/` is
 identical in every maschinenlesbar.org CLI, so change it in all of them together. When the
 README intro changes, update the German intro in `site/_data/project.yml`.
@@ -453,7 +506,7 @@ npm run serve                        # http://127.0.0.1:4000/regionalatlas-cli/
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `regionalatlas.<area>`. `--log-format text` (the
 default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
