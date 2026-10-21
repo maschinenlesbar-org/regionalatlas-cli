@@ -258,12 +258,12 @@ export interface QueryOptions {
    * Geo level: a friendly name (`land`, `kreis`, …) resolved to a `typ`. Defaults to
    * `DEFAULT_LEVEL` (`land`) when omitted (`undefined` or `null`).
    */
-  level?: string;
+  level?: string | undefined;
   /**
    * Year; defaults to the indicator's newest catalogue year. The data host may not have
    * loaded that year yet, in which case the query returns no rows.
    */
-  year?: number;
+  year?: number | undefined;
   /**
    * Client-side region filter (not blank): an AGS (numeric; leading zeros ignored, and a
    * key padded with zeros, such as the official 8-digit key of a kreisfreie Stadt,
@@ -271,10 +271,10 @@ export interface QueryOptions {
    * equals it when there are any, else every row whose name contains it. See
    * `matchRegion`, and `QueryResult.region` for how it matched.
    */
-  region?: string;
+  region?: string | undefined;
   /**
    * Client-side field projection: keep only these value fields. Needs at least one
    * non-blank name; blank entries next to real names are dropped.
    */
-  fields?: string[];
+  fields?: string[] | undefined;
 }

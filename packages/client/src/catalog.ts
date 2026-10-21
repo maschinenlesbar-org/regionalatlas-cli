@@ -246,11 +246,11 @@ export const INDICATOR_FILTER_KEYS: readonly string[] = Object.freeze(["theme", 
 /** Filters for listing indicators. Omit a filter to skip it; a blank one is refused. */
 export interface IndicatorFilter {
   /** Case-insensitive substring on the theme title (not blank). */
-  theme?: string;
+  theme?: string | undefined;
   /** Membership: the indicator must offer this year (a 4-digit year, number or string). */
-  year?: string | number;
+  year?: string | number | undefined;
   /** Case-insensitive substring over code + short + long titles (not blank). */
-  search?: string;
+  search?: string | undefined;
 }
 
 /**

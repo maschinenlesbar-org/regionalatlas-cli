@@ -66,7 +66,7 @@ export interface RegionalatlasClientOptions extends EngineOptions {
    * Full URL of the indicator catalogue (services.json): an `http:`/`https:` URL
    * without whitespace. Defaults to statistikportal.de.
    */
-  catalogUrl?: string;
+  catalogUrl?: string | undefined;
 }
 
 /**

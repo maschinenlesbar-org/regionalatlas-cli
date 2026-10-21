@@ -380,7 +380,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
 routes by host (catalogue vs data).
 
 The client's tests are in `packages/client/test/` (`catalog`, `sql`, `levels`, `client`,
-`engine`, `http`, `query`), with the transport helpers (`helpers.ts`, which
+`engine`, `http`, `query`, `types`), with the transport helpers (`helpers.ts`, which
 `apps/cli/test/helpers.ts` re-exports next to the CLI's own helpers) and the canned
 catalogue and data (`fixtures.ts`); everything that drives the CLI is in `apps/cli/test/`.
 Coverage highlights:
@@ -399,6 +399,12 @@ Coverage highlights:
 - `cli.test.ts` — the three commands, `--level`/`--year` parse-time validation, the
   guard exit codes, and the hardening guards (control-char UA, empty/non-http URL,
   bounded retries, option-shaped filter values).
+- `types.test.ts` — every optional field of the exported option types (`EngineOptions`,
+  `RegionalatlasClientOptions`, `IndicatorFilter`, `QueryOptions`) is `?: T | undefined`, as the
+  runtime treats `undefined` as omitted: it compiles a consumer file with
+  `exactOptionalPropertyTypes` against the built declarations (`new RegionalatlasClient({
+  baseUrl: process.env.REGIONALATLAS_BASE_URL })`; starts `tsc`, 30 s), and checks that every
+  option given as `undefined` means its default.
 - `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
   the scheme guard, and JSON decoding/error mapping.
 - `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
