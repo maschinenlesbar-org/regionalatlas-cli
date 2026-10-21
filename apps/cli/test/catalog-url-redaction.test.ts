@@ -340,3 +340,19 @@ test("on stdout a bare catalogue token is replaced only as a whole value, never 
   assert.notEqual(await run(["--catalog-url", "https://cat.example/services.json?token=Bevölkerung", "themes"], failing), 0);
   assert.ok(!err.join("\n").includes("Bevölkerung"), err.join("\n"));
 });
+
+// Same class as destatis-genesis-cli 02-1 of 2026-10-21 (`116f205`): the stdout redaction ran the
+// backtracking regex `"((?:[^"\\]|\\.)*)"` over the whole output, and V8 overflowed its stack on
+// one long string literal — "Unexpected error: Maximum call stack size exceeded", nothing printed.
+test("with a catalogue token set, an answer holding a string of 10 M characters prints", async () => {
+  const long = "x".repeat(10_000_000);
+  const c = cli(JSON.stringify([{ title: long, children: [] }, { title: "s3cr3tvalue", children: [] }]));
+  assert.equal(await run(["--catalog-url", "https://cat.example/services.json?token=s3cr3tvalue", "themes", "--compact"], c.deps), 0);
+  const out = c.text();
+  assert.ok(out.includes(`"title":"${long}"`));
+  assert.match(out, /"title":"\*\*\*"/);
+  // An escaped quote inside a value doesn't end it, and an unterminated text passes through.
+  const quoted = cli(JSON.stringify([{ title: 'a "s3cr3tvalue" b', children: [] }]));
+  assert.equal(await run(["--catalog-url", "https://cat.example/services.json?token=s3cr3tvalue", "themes", "--compact"], quoted.deps), 0);
+  assert.match(quoted.text(), /"title":"a \\"s3cr3tvalue\\" b"/);
+});

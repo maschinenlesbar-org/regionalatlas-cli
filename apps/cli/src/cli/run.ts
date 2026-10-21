@@ -144,12 +144,35 @@ export interface Redaction {
  * `"***"`. Only whole values: a token inside a longer string on stdout is data and stays,
  * as `-o` writes it (a token `Bevölkerung` turned a theme title into `*** nach Alter`).
  * Values under six characters are skipped, as `redactQueryTokens` does for bare values.
+ *
+ * One linear pass, no regex and no recursion: a string literal is skipped to its closing
+ * quote (past escapes), and only one whose length is that of a token is compared. The regex
+ * this replaces (`"((?:[^"\\]|\\.)*)"`) backtracked per character and overflowed the stack
+ * on one string of some 10 M characters (destatis-genesis-cli 02-1 of 2026-10-21). The text
+ * is copied only when a value is replaced.
  */
 function redactWholeJsonValues(text: string, tokens: ReadonlySet<string>): string {
-  if (tokens.size === 0) return text;
-  return text.replace(/"((?:[^"\\]|\\.)*)"/g, (literal, content: string) =>
-    content.length >= 6 && tokens.has(content) ? '"***"' : literal,
-  );
+  const lengths = new Set<number>();
+  for (const token of tokens) if (token.length >= 6) lengths.add(token.length);
+  if (lengths.size === 0) return text;
+  const parts: string[] = [];
+  let copied = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) !== 0x22) continue;
+    const start = i;
+    for (i++; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      if (c === 0x5c) i++;
+      else if (c === 0x22) break;
+    }
+    if (i >= text.length) break; // no closing quote: no string literal
+    if (!lengths.has(i - start - 1) || !tokens.has(text.slice(start + 1, i))) continue;
+    parts.push(text.slice(copied, start), '"***"');
+    copied = i + 1;
+  }
+  if (parts.length === 0) return text;
+  parts.push(text.slice(copied));
+  return parts.join("");
 }
 
 /**
