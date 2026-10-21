@@ -370,7 +370,9 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   (`Unexpected response from <path or catalogue URL>: the number <N> cannot be represented
   exactly.`, exit 1), never a changed value: out of a double's range (`1e400`), past 2^53 when
   the double prints as another number than the one written (`12345678901234567890` prints as
-  `…7000`), or non-zero and too small (`1e-400` → 0). Past 2^53 the check compares the number
+  `…7000`), non-zero and too small (`1e-400` → 0), or a subnormal (below
+  2.2250738585072014e-308) that prints as another number (`3e-324` → `5e-324`; `5e-324` and
+  `1e-310` print as written and pass). Past 2^53 the check compares the number
   as printed (`String(value)`) with the number as written, so a double a server wrote in its
   shortest form passes: ArcGIS sentinels such as `1.7976931348623157E308` and `1E23` read back
   as written. Below 2^53 a decimal fraction keeps a double's precision. The special-value codes
