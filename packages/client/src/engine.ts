@@ -742,13 +742,23 @@ export class RequestEngine {
     if (res.status === 204 || text.trim().length === 0) {
       return null as T;
     }
+    let parsed: T;
     try {
-      return JSON.parse(text) as T;
+      parsed = JSON.parse(text) as T;
     } catch (cause) {
       throw new RegionalatlasParseError(`Failed to parse JSON response from ${this.redact(source)}`, {
         cause: this.scrubCause(cause),
       });
     }
+    // JSON.parse rounds and overflows numbers silently: refuse the answer rather than return a
+    // changed value.
+    const inexact = firstInexactNumber(text);
+    if (inexact !== undefined) {
+      throw new RegionalatlasParseError(
+        `Unexpected response from ${this.redact(source)}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
+      );
+    }
+    return parsed;
   }
 
   private toApiError(url: string, status: number, body: Buffer, retries = 0): RegionalatlasApiError {
@@ -781,4 +791,61 @@ export class RequestEngine {
     if (detail !== undefined) detail = cutForMessage(this.redact(sanitizeServerText(detail)));
     return new RegionalatlasApiError({ status, url, method: "GET", body: text, detail, retries });
   }
+}
+
+/** A JSON number token, matched at a given position (sticky). */
+const JSON_NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+
+/**
+ * Whether the double `value` (finite) prints as the number `literal` wrote, checked where a
+ * double can be off by a whole number or more: past 2^53, where every double is an integer, and
+ * at 0, which a literal too small for a double becomes. Past 2^53 the CLI prints `String(value)`,
+ * the shortest decimal that reads back as the same double: `12345678901234567890` prints as
+ * `12345678901234567000`, a changed value, while `1E23` or `1.7976931348623157E308` (a double a
+ * server printed in its own shortest form, such as an ArcGIS sentinel) print as the same number.
+ */
+function exactAtTheEdges(literal: string, value: number): boolean {
+  if (value !== 0 && Math.abs(value) <= Number.MAX_SAFE_INTEGER) return true;
+  const written = decimalOf(literal);
+  if (value === 0) return written.digits === "";
+  const printed = decimalOf(String(value));
+  return written.negative === printed.negative && written.digits === printed.digits && written.exponent === printed.exponent;
+}
+
+/** A decimal literal as sign, significant digits (no leading or trailing zeros) and exponent: digits × 10^exponent. */
+function decimalOf(text: string): { negative: boolean; digits: string; exponent: number } {
+  const [, sign = "", whole = "", fraction = "", exp = "0"] = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(text) ?? [];
+  const all = (whole + fraction).replace(/^0+/, "");
+  const digits = all.replace(/0+$/, "");
+  return { negative: sign === "-", digits, exponent: Number(exp) - fraction.length + (all.length - digits.length) };
+}
+
+/**
+ * The first number literal in `json` (JSON that parsed) that JSON.parse cannot carry exactly, or
+ * undefined: one out of a double's range (`1e400` became Infinity, printed as `null`), one past
+ * 2^53 that it rounds, in any form (`12345678901234567890`, `12345678901234567890.0`,
+ * `9007199254740993e0`, `9007199254740992.5`), and a non-zero one too small for a double
+ * (`1e-400` became 0). Below 2^53 a decimal fraction keeps a double's usual precision, as JSON
+ * means it. A linear scan that skips strings; a reviver would recurse per nesting level.
+ */
+function firstInexactNumber(json: string): string | undefined {
+  for (let i = 0; i < json.length; i++) {
+    const c = json.charCodeAt(i);
+    if (c === 0x22) {
+      // a string: skip to its closing quote, past escapes
+      for (i++; i < json.length; i++) {
+        const d = json.charCodeAt(i);
+        if (d === 0x5c) i++;
+        else if (d === 0x22) break;
+      }
+    } else if (c === 0x2d || (c >= 0x30 && c <= 0x39)) {
+      JSON_NUMBER.lastIndex = i;
+      const literal = JSON_NUMBER.exec(json)?.[0];
+      if (literal === undefined) continue;
+      const value = Number(literal);
+      if (!Number.isFinite(value) || !exactAtTheEdges(literal, value)) return literal;
+      i += literal.length - 1;
+    }
+  }
+  return undefined;
 }
