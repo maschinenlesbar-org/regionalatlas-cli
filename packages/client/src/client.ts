@@ -216,7 +216,7 @@ export class RegionalatlasClient {
 
   /** GET the dynamicLayer data query, then throw on the ArcGIS `error` envelope. */
   private async getData(params: Record<string, string | number | boolean>): Promise<ArcGisQueryResponse> {
-    const res: unknown = await this.engine.getJson<unknown>(DATA_PATH, params);
+    const { value: res, text } = await this.engine.getJsonAnswer<unknown>(DATA_PATH, params);
     // The endpoint answers with a JSON envelope object. A null (empty/204 body), an
     // array or a scalar means the endpoint did not return the expected shape.
     if (res === null || typeof res !== "object" || Array.isArray(res)) {
@@ -234,8 +234,9 @@ export class RegionalatlasClient {
       throw new RegionalatlasApiError({
         url: this.engine.buildUrl(DATA_PATH, params),
         method: "GET",
-        // Server text that may echo the request URL: scrubbed like the engine's own errors.
-        body: this.engine.redact(JSON.stringify(res)),
+        // The answer as sent (JSON.stringify of it overflowed the stack on deep nesting), and
+        // server text that may echo the request URL: scrubbed like the engine's own errors.
+        body: this.engine.redact(text),
         arcgisCode: typeof code === "number" ? code : undefined,
         // Message and details, control characters stripped (sanitizeServerText), redacted,
         // then cut at MAX_MESSAGE_VALUE_LENGTH like an HTTP error's detail: a server can

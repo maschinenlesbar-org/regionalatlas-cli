@@ -738,6 +738,15 @@ export class RequestEngine {
 
   /** GET a path on the data host and parse the JSON reply into `T`. */
   async getJson<T>(path: string, query?: QueryParams): Promise<T> {
+    return (await this.getJsonAnswer<T>(path, query)).value;
+  }
+
+  /**
+   * `getJson`, plus the decoded text the value was parsed from: the client keeps it as the
+   * `body` of the ArcGIS error envelope, as sent. Rebuilding it with `JSON.stringify` overflowed
+   * the stack on Node 22 and 24 for an envelope nested 10,000 deep.
+   */
+  async getJsonAnswer<T>(path: string, query?: QueryParams): Promise<{ value: T; text: string }> {
     return this.decodeJson<T>(await this.request(path, query), path);
   }
 
@@ -749,14 +758,14 @@ export class RequestEngine {
     for (const form of credentialForms(url)) this.#credentials.add(form);
     for (const form of credentialsIn(url).flatMap(echoedCredentialForms)) this.#echoed.add(form);
     for (const form of queryTokenForms(url)) this.#tokens.add(form);
-    return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), redactUrl(url));
+    return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), redactUrl(url)).value;
   }
 
   /** Parse a JSON body; `source` names it in the error (a path, or a redacted URL). */
-  private decodeJson<T>(res: RawResponse, source: string): T {
+  private decodeJson<T>(res: RawResponse, source: string): { value: T; text: string } {
     const text = decodeBody(res.data, res.contentType, this.redact(source));
     if (res.status === 204 || text.trim().length === 0) {
-      return null as T;
+      return { value: null as T, text };
     }
     let parsed: T;
     try {
@@ -774,7 +783,7 @@ export class RequestEngine {
         `Unexpected response from ${this.redact(source)}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
       );
     }
-    return parsed;
+    return { value: parsed, text };
   }
 
   private toApiError(url: string, status: number, body: Buffer, retries = 0): RegionalatlasApiError {

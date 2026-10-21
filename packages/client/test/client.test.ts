@@ -349,6 +349,31 @@ test("an ArcGIS error envelope (HTTP 200) is cut like an HTTP error's detail (B0
   );
 });
 
+// 2026-10-21 sweep, Bug 04-1: the error's `body` was built with JSON.stringify(answer), which
+// overflowed the stack on Node 22 and 24 for a `details` nested 10,000 deep (a 20 KB answer):
+// a bare RangeError, "Unexpected error: Maximum call stack size exceeded" on the CLI.
+test("an ArcGIS error envelope nested deeply is the ArcGIS error; its body is the answer as sent", async () => {
+  for (const depth of [10_000, 100_000]) {
+    const text = `{ "error": { "code": 400, "message": "m", "details": ${"[".repeat(depth)}${"]".repeat(depth)} } }`;
+    const mt = makeMockTransport((req) =>
+      new URL(req.url).hostname.includes("statistikportal")
+        ? jsonResponse(fx.catalog)
+        : { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(text) },
+    );
+    const client = new RegionalatlasClient({ transport: mt.transport });
+    await assert.rejects(
+      () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
+      (err) => {
+        assert.ok(err instanceof RegionalatlasApiError, String(err));
+        assert.equal(err.arcgisCode, 400);
+        assert.match(err.message, /^ArcGIS error 400 for GET https:\/\/www\.gis-idmz\.nrw\.de\/\S+: m$/);
+        assert.equal(err.body, text);
+        return true;
+      },
+    );
+  }
+});
+
 test("an ArcGIS error envelope with control chars is stripped before it reaches stderr", async () => {
   const ESC = String.fromCharCode(0x1b);
   const BEL = String.fromCharCode(0x07);

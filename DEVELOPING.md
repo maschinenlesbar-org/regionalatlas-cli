@@ -347,7 +347,9 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   is run through `sanitizeServerText` before it can reach stderr: control and bidi
   characters dropped, whitespace folded to one line; the joined message and details are
   then cut at 500 characters (`cutForMessage`), as for an HTTP error's detail, while
-  `body` keeps the whole answer. The catalogue is a second trust
+  `body` keeps the whole answer, as sent (the decoded text, `getJsonAnswer`; rebuilt with
+  `JSON.stringify` it overflowed the stack on Node 22 and 24 for `details` nested 10,000 deep,
+  a bare `RangeError` instead of the ArcGIS error). The catalogue is a second trust
   domain (`--catalog-url`), so its texts (titles, units, theme names) go through the
   same function when parsed — they appear in error messages such as the list of
   `Available:` columns. As a last net, run.ts strips C0 (except tab/newline), DEL and
