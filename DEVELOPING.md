@@ -428,7 +428,11 @@ Coverage highlights:
   base-URL validation, P5 transport contract, P6 retry policy, P7 pipes and exit codes,
   P8/P9/P13 charset, body shape and error classes, P20 the stderr warning for a plain-`http:`
   URL, P21 README links only to files the npm package ships — others by their GitHub URL,
-  P23 the stderr log: records with timestamp, level and topic, `--log-format text|jsonl`);
+  P23 the stderr log: records with timestamp, level and topic, `--log-format text|jsonl`,
+  P24 an input corpus through every text filter and path id — empty here, as no filter or id
+  is sent, P25 a response corpus: a number a double can't carry exactly is a parse error,
+  one it carries prints as the same value, an empty answer is an error; P26, `-o` integrity,
+  doesn't apply, the CLI has no `-o`);
   copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.
