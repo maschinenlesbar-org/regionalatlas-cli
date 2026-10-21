@@ -328,9 +328,18 @@ export async function run(argv: string[], rawDeps: CliDeps = defaultDeps): Promi
     if (err instanceof RegionalatlasApiError) {
       log.error("api", err.message);
       if (err.status === 404) return EXIT.NOT_FOUND;
-      // A 3xx means the base URL redirected (the canonical host answers directly),
-      // so it is a base-URL misconfiguration — a usage error.
-      if (err.status !== undefined && err.status >= 300 && err.status < 400) return EXIT.USAGE;
+      if (err.status !== undefined && err.status >= 300 && err.status < 400) {
+        // No redirect is followed. From the data host (the canonical host answers directly) a
+        // 3xx means the base URL is wrong: a usage error. A moved catalogue is the host's
+        // change, even with the default URL: exit 1.
+        const catalogue = err.download === "catalogue";
+        log.info(
+          "api",
+          `redirects are not followed. If you trust the target, pass it as ${catalogue ? "--catalog-url" : "--base-url"}` +
+            `${catalogue ? "" : ` (or ${BASE_URL_ENV})`}.`,
+        );
+        return catalogue ? EXIT.OTHER : EXIT.USAGE;
+      }
       return EXIT.OTHER;
     }
     if (err instanceof RegionalatlasNetworkError) {

@@ -731,3 +731,38 @@ test("a malformed catalogue is an ERROR record of regionalatlas.api, exit 1 (L9)
     assert.match(untimed(cli.err[0] ?? ""), /^ERROR \[regionalatlas\.api\] /, cli.err.join("\n"));
   }
 });
+
+// 2026-10-21 sweep, Bug 03-1: a 3xx from the catalogue was a usage error (exit 2), and no
+// message said that redirects are not followed or where the answer pointed.
+test("a redirect names its target and says it is not followed; from the catalogue it exits 1, from the data host 2", async () => {
+  const moved = (req: HttpRequest): HttpResponse =>
+    rawResponse("", "text/html", 301, { location: new URL(req.url).hostname.includes("statistikportal") ? "/new/services.json" : "http://u:pw@example.invalid/x" });
+  const catalogue = makeCli(moved);
+  assert.equal(await run(["themes"], catalogue.deps), 1);
+  const catErr = untimed(catalogue.err.join("\n"));
+  assert.match(
+    catErr,
+    /^ERROR \[regionalatlas\.api\] HTTP 301 for GET https:\/\/regionalatlas\.statistikportal\.de\/taskrunner\/services\.json: redirect to https:\/\/regionalatlas\.statistikportal\.de\/new\/services\.json not followed$/m,
+  );
+  assert.match(catErr, /^INFO  \[regionalatlas\.api\] .*redirects are not followed.*--catalog-url/m);
+
+  const data = makeCli((req) => (new URL(req.url).hostname.includes("statistikportal") ? jsonResponse(fx.catalog) : moved(req)));
+  assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], data.deps), 2);
+  const dataErr = untimed(data.err.join("\n"));
+  assert.match(dataErr, /^ERROR \[regionalatlas\.api\] HTTP 301 for GET https:\/\/www\.gis-idmz\.nrw\.de\/\S+: redirect to http:\/\/\*\*\*@example\.invalid\/x not followed$/m);
+  assert.match(dataErr, /^INFO  \[regionalatlas\.api\] .*redirects are not followed.*--base-url/m);
+  assert.ok(!dataErr.includes("pw"), dataErr);
+
+  // The library says the same, and keeps the target on the error.
+  const { RegionalatlasApiError } = await import("@maschinenlesbar.org/regionalatlas-client/internal/errors");
+  await assert.rejects(new RegionalatlasClient({ transport: makeMockTransport(moved).transport }).themes(), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasApiError);
+    assert.equal(err.location, "https://regionalatlas.statistikportal.de/new/services.json");
+    assert.equal(err.download, "catalogue");
+    return true;
+  });
+  // A 3xx without a Location says so.
+  const bare = makeCli(() => rawResponse("", "text/html", 302));
+  assert.equal(await run(["themes"], bare.deps), 1);
+  assert.match(untimed(bare.err.join("\n")), /services\.json: redirect not followed \(no Location header\)$/m);
+});

@@ -264,6 +264,11 @@ export function retriedSuffix(retries: number): string {
   return retries > 0 ? ` (retried ${retries} ${retries === 1 ? "time" : "times"})` : "";
 }
 
+/** True for the statuses that redirect to a `Location`: 301, 302, 303, 307, 308. */
+export function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
 /** Base class for every error originating from this client. */
 export class RegionalatlasError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
@@ -290,6 +295,13 @@ export class RegionalatlasApiError extends RegionalatlasError {
   readonly body: string;
   /** How many times the request was retried before this error (0 when it was not). */
   readonly retries: number;
+  /**
+   * Where a redirect (3xx) pointed: the `Location` header resolved against the request URL,
+   * credentials redacted, cleaned for printing. The client follows no redirect.
+   */
+  readonly location: string | undefined;
+  /** Which download answered: the indicator catalogue or a data query (undefined when unknown). */
+  readonly download: Download | undefined;
 
   constructor(args: {
     url: string;
@@ -300,10 +312,17 @@ export class RegionalatlasApiError extends RegionalatlasError {
     detail?: string;
     /** How many times the request was retried before this answer (a 429/503 that persisted). */
     retries?: number;
+    location?: string;
+    download?: Download;
   }) {
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);
-    const detailPart = args.detail ? `: ${args.detail}` : "";
+    const parts = args.detail ? [args.detail] : [];
+    // 304 Not Modified and 305/306 are not redirects; 300 is one when it names a target.
+    if (args.status !== undefined && (isRedirectStatus(args.status) || (args.status === 300 && args.location))) {
+      parts.push(args.location ? `redirect to ${args.location} not followed` : "redirect not followed (no Location header)");
+    }
+    const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     const head =
       args.status !== undefined
         ? `HTTP ${args.status}`
@@ -316,6 +335,8 @@ export class RegionalatlasApiError extends RegionalatlasError {
     this.method = args.method;
     this.body = args.body;
     this.detail = args.detail;
+    this.location = args.location;
+    this.download = args.download;
   }
 
   /** True for HTTP statuses the API treats as transient and retry-able. */

@@ -455,8 +455,11 @@ Coverage highlights:
   network → 6; other → 1. The bin shim installs `handleOutputErrors()` (io.ts) before
   `run()`: an EPIPE on stdout (a reader that stops early, `| head`) exits 0 quietly, an
   EPIPE on stderr is ignored so the run's own code stands, and any other stdout error
-  is an ERROR record of `regionalatlas.output` (`Could not write to stdout: …`) and exits 1. **Redirects are NOT followed** (a 3xx surfaces as an error;
-  from the data host that means a base-URL misconfiguration → usage).
+  is an ERROR record of `regionalatlas.output` (`Could not write to stdout: …`) and exits 1. **Redirects are NOT followed** (a 3xx surfaces as an error,
+  `HTTP 301 for GET <url>: redirect to <target> not followed`, the `Location` resolved, redacted
+  and kept as `RegionalatlasApiError.location`, with an INFO record naming the option to change;
+  from the data host that means a base-URL misconfiguration → usage, exit 2; from the catalogue
+  a moved catalogue, the host's change even with the default URL → exit 1 (`download`)).
 - **Retry/backoff:** `429`/`503` and reset connections are retried up to `maxRetries`
   (default 2); a refused connection, a DNS failure and a timeout are not. Each retry waits
   the linear backoff (`retryDelayMs × attempt`, 200 ms, 400 ms, …) at least — a

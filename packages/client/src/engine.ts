@@ -30,6 +30,7 @@ import {
   cutText,
   type Download,
   echoedCredentialForms,
+  isRedirectStatus,
   queryTokensIn,
   redactCredentials,
   redactQueryTokens,
@@ -724,7 +725,8 @@ export class RequestEngine {
       const contentType = String(responseHeaders["content-type"] ?? "");
       if (status < 200 || status >= 300) {
         // A 429/503 that is still there after the retries says so ("retried n times").
-        throw this.toApiError(url, status, body, retryable ? attempt : 0);
+        const location = responseHeaders["location"];
+        throw this.toApiError(url, status, body, retryable ? attempt : 0, download, typeof location === "string" ? location : undefined);
       }
 
       return { data: body, contentType, status };
@@ -786,7 +788,14 @@ export class RequestEngine {
     return { value: parsed, text };
   }
 
-  private toApiError(url: string, status: number, body: Buffer, retries = 0): RegionalatlasApiError {
+  private toApiError(
+    url: string,
+    status: number,
+    body: Buffer,
+    retries: number,
+    download: Download,
+    locationHeader: string | undefined,
+  ): RegionalatlasApiError {
     // The body is kept on the error (`body`) and may echo the request URL: scrub it.
     const text = this.redact(body.toString("utf8"));
     let detail: string | undefined;
@@ -814,7 +823,36 @@ export class RequestEngine {
     // Cut, too: a server can send a 200 kB detail.
     // Redacted again once cleaned: cleaning can turn an echoed token into its cleaned form.
     if (detail !== undefined) detail = cutForMessage(this.redact(sanitizeServerText(detail)));
-    return new RegionalatlasApiError({ status, url, method: "GET", body: text, detail, retries });
+    // Redirects are not followed; name the target, so the user can fix --catalog-url or --base-url.
+    const location =
+      (isRedirectStatus(status) || status === 300) && locationHeader !== undefined ? this.redirectTarget(url, locationHeader) : undefined;
+    return new RegionalatlasApiError({
+      status,
+      url,
+      method: "GET",
+      body: text,
+      retries,
+      download,
+      ...(detail === undefined ? {} : { detail }),
+      ...(location === undefined ? {} : { location }),
+    });
+  }
+
+  /**
+   * The printable form of a `Location` header: resolved against the request URL, userinfo and
+   * a catalogue token redacted, control and bidi characters dropped (it is server text bound
+   * for stderr), cut at MAX_MESSAGE_VALUE_LENGTH. A value that doesn't resolve is shown cleaned
+   * as it came; an empty one is no target.
+   */
+  private redirectTarget(requestUrl: string, location: string): string | undefined {
+    let target: string;
+    try {
+      target = redactUrl(new URL(location, requestUrl).href);
+    } catch {
+      target = redactUrl(location);
+    }
+    const clean = cutForMessage(this.redact(sanitizeServerText(target)));
+    return clean === "" ? undefined : clean;
   }
 }
 

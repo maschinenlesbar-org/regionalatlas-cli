@@ -169,8 +169,8 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 | Code | Meaning |
 |---|---|
 | `0` | success (help/version included); an empty result also exits 0, with an `INFO` note on stderr — from `query` and from `indicators` alike; so does a run whose output reader stops early (`\| head`), quietly |
-| `1` | API/logical error (the ArcGIS `error` envelope), a catalogue the CLI refuses (not the expected shape, or two indicator codes naming the same table, or one naming the boundary table `verwaltungsgrenzen_gesamt`), an answer with a number JSON can't carry exactly (`1e400`, `12345678901234567890`, also when sent as a string: the number … cannot be represented exactly), or a catch-all |
-| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, a `--base-url` with a query, fragment or surrounding whitespace, redirecting base URL) |
+| `1` | API/logical error (the ArcGIS `error` envelope), a catalogue the CLI refuses (not the expected shape, or two indicator codes naming the same table, or one naming the boundary table `verwaltungsgrenzen_gesamt`), a catalogue URL that redirects (a moved catalogue; the message names the target, which is not followed), an answer with a number JSON can't carry exactly (`1e400`, `12345678901234567890`, also when sent as a string: the number … cannot be represented exactly), or a catch-all |
+| `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, a `--base-url` with a query, fragment or surrounding whitespace, a base URL that redirects — the message names the target, which is not followed) |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |
 
