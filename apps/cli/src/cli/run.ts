@@ -6,7 +6,7 @@ import { CommanderError, type Command } from "commander";
 import { BASE_URL_ENV, buildProgram, defaultDeps } from "./program.js";
 import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
-import { stripTerminalControls } from "./shared.js";
+import { OutputError, stripTerminalControls } from "./shared.js";
 import {
   RegionalatlasApiError,
   RegionalatlasError,
@@ -327,6 +327,10 @@ export async function run(argv: string[], rawDeps: CliDeps = defaultDeps): Promi
         );
       }
       return EXIT.NETWORK;
+    }
+    if (err instanceof OutputError) {
+      log.error("output", err.message);
+      return EXIT.OTHER;
     }
     if (err instanceof RegionalatlasError) {
       // A malformed answer (bad JSON, the wrong shape, an empty body, an unknown charset,

@@ -65,7 +65,7 @@ level (`ERROR`, `WARN`, `INFO`) and a topic, the program and the area it comes f
 (`regionalatlas.cli` for usage errors, `regionalatlas.api` for the hosts' answers, an
 ArcGIS `error` envelope and a malformed answer included, and the notes on an empty or
 ambiguous result, `regionalatlas.http` for the connection,
-`regionalatlas.output` when stdout itself can't be written). By
+`regionalatlas.output` when stdout itself can't be written or an answer is nested too deeply to print). By
 default it is written log4j style; `--log-format jsonl` writes one JSON object per line
 instead. A record is always one line: a line break, a control character or a bidi control
 in a message (a server's text, a value you typed) is written as an escape (`\n`,

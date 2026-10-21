@@ -407,6 +407,9 @@ Coverage highlights:
   option given as `undefined` means its default.
 - `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
   the scheme guard, and JSON decoding/error mapping.
+- `output.test.ts` — `renderJson`: an answer nested too deeply to pretty-print is an
+  `ERROR` of `regionalatlas.output` suggesting `--compact`, and which stringify path
+  `--compact` takes (`JSON.stringify` mocked, the path pinned).
 - `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
   whose reader has gone) on stdout exit 0, on stderr they are ignored, any other stdout
   error is a record; `stderrAfterStdout`: a record held behind stdout's backlog.
@@ -553,7 +556,11 @@ errors), `api` (the hosts' answers: an error status, the ArcGIS `error` envelope
 200, a malformed answer — bad JSON, the wrong shape, an empty body, an unknown charset, a
 catalogue the client refuses, all `RegionalatlasParseError` — and the notes on an empty,
 cut-off or ambiguous result), `http` (the connection: network errors
-and their size-cap hints, the cleartext warning) and `output` (a stdout write error). Code logs through `logOf(deps)` and never
+and their size-cap hints, the cleartext warning) and `output` (a stdout write error, and an
+answer nested too deeply to print: `OutputError` in `shared.ts`, exit 1; pretty-printing
+suggests `--compact`, which takes V8's fast, iterative path unless the answer holds a string or
+key of 64 Mi characters or more (`holdsHugeString`): on Node 26 that path aborts the process on
+a ~250 MB string, so such an answer goes through the gap path). Code logs through `logOf(deps)` and never
 writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
 commander parses it (`logFormatFromArgv`, used only for the records of a parse error: it
 takes the first `--log-format`, the one `forbidRepeatedOptions` keeps, and skips the value
