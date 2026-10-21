@@ -353,6 +353,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   Content-Type names, UTF-8 when it names none (`decodeBody`, `TextDecoder`): a Latin-1
   reply from a mirror reads correctly, a BOM is dropped, and an unknown charset label is a
   `RegionalatlasParseError`. Both live hosts send UTF-8.
+- **Printed JSON is terminal-safe** (`escapeControlChars` in `apps/cli/src/cli/shared.ts`):
+  `JSON.stringify` escapes C0 but leaves DEL, C1 (U+0080–U+009F) and the bidi controls
+  (`isBidiControl`) raw, and a terminal acts on them, so they go out as `\uXXXX` escapes;
+  the JSON stays equivalent.
 - **Numbers are exact or an error** (`firstInexactNumber` in engine.ts, both hosts): a 2xx
   JSON body with a number `JSON.parse` can't carry exactly is a `RegionalatlasParseError`
   (`Unexpected response from <path or catalogue URL>: the number <N> cannot be represented

@@ -54,3 +54,15 @@ test("--compact takes the gap path only for an answer holding a huge string, the
   assert.deepEqual(calls.map((args) => (args.length >= 3 ? args[2] : "none")), ["", "none", "", "", 2]);
   assert.deepEqual(out, ['"stub"', '"stub"', '"stub"', '"stub"', '"stub"']);
 });
+
+test("printed JSON escapes DEL, C1 and the bidi controls, which a terminal acts on", async () => {
+  // JSON.stringify leaves them raw; U+202E (RLO) reverses the text that follows on screen.
+  const bidi = ["\u061c", "\u200e", "\u200f", "\u202a", "\u202b", "\u202c", "\u202d", "\u202e", "\u2066", "\u2067", "\u2068", "\u2069"];
+  for (const compact of [false, true]) {
+    const cli = makeCli([{ title: `a\u007fb\u0085c\u009b${bidi.join("")}ü€`, indicatorCount: 1 }]);
+    assert.equal(await run(compact ? ["--compact", "themes"] : ["themes"], cli.deps), 0);
+    const text = cli.out.join("\n");
+    assert.match(text, /a\\u007fb\\u0085c\\u009b\\u061c\\u200e\\u200f\\u202a\\u202b\\u202c\\u202d\\u202e\\u2066\\u2067\\u2068\\u2069ü€/);
+    assert.equal(JSON.parse(text)[0].title, `a\u007fb\u0085c\u009b${bidi.join("")}ü€`);
+  }
+});

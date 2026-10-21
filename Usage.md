@@ -185,6 +185,11 @@ A failed run keeps its exit code when the reader of stderr has gone away (`2>&1 
   CLI detects it and exits 1 with the message.
 - **A result cut off at the server's record limit** (`exceededTransferLimit`, set above
   2,000,000 rows today) is printed with a `WARN` record on stderr saying it is incomplete.
+- **Printed JSON is terminal-safe:** besides the control characters JSON escapes anyway,
+  DEL, the C1 range (U+0080–U+009F) and the bidi controls (U+061C, U+200E/U+200F,
+  U+202A–U+202E, U+2066–U+2069) in a name or title are written as `\uXXXX` escapes, so a
+  region name can't reorder or steer what the terminal shows; `jq` reads them back as the
+  same characters.
 - **Two hosts:** the data query hits `--base-url` (ArcGIS); the indicator list hits
   `--catalog-url` (statistikportal.de). Both are keyless.
 - The data is © the Statistische Ämter des Bundes und der Länder under **dl-de/by-2.0**
