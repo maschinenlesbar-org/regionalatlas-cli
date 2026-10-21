@@ -36,6 +36,7 @@ import {
   redactSecrets,
   redactUrl,
   retriedSuffix,
+  shortenUrl,
 } from "./errors.js";
 import {
   assertValid,
@@ -568,20 +569,38 @@ export class RequestEngine {
   }
 
   /**
+   * `GET <url> failed: `, the start of every network error's message: the request URL with
+   * userinfo and a catalogue token redacted, long parameter values (the `layer` SQL)
+   * shortened as in an HTTP error, cut at MAX_MESSAGE_VALUE_LENGTH. Node's own text ("socket
+   * hang up", "connect ECONNREFUSED …") says nothing about which request failed.
+   */
+  private failedPrefix(url: string): string {
+    return `GET ${cutForMessage(shortenUrl(this.redact(redactUrl(url))))} failed: `;
+  }
+
+  /**
    * What the transport threw, as the error the engine raises. The default transport
    * rejects with `RegionalatlasNetworkError` only; an injected one may throw anything (a
    * string, a `TypeError` from fetch). Every failure becomes a `RegionalatlasNetworkError`
-   * — a `RegionalatlasError` a caller and the CLI can rely on — with the credentials
-   * scrubbed from its message and cause chain; any other `RegionalatlasError` passes
-   * through, and a clean `RegionalatlasNetworkError` stays as it is.
+   * — a `RegionalatlasError` a caller and the CLI can rely on — whose message names the
+   * request (`GET <url> failed: <reason>`), with the credentials scrubbed from it, and
+   * the original (scrubbed too) as its `cause`. A size-cap error stays a
+   * `RegionalatlasSizeLimitError` and learns which download it was about; any other
+   * `RegionalatlasError` passes through.
    */
-  private transportError(cause: unknown, retries = 0): RegionalatlasError {
+  private transportError(cause: unknown, url: string, download: Download, retries = 0): RegionalatlasError {
     if (cause instanceof RegionalatlasError && !(cause instanceof RegionalatlasNetworkError)) return cause;
+    const prefix = this.failedPrefix(url);
+    if (cause instanceof RegionalatlasSizeLimitError) {
+      return new RegionalatlasSizeLimitError(cause.limit, cause.download ?? download, { cause }, prefix);
+    }
     const reason = cause instanceof Error ? cause.message : String(cause);
-    const message = sanitizeServerText(this.redact(reason)) + retriedSuffix(retries);
-    const scrubbed = this.scrubCause(cause);
-    if (cause instanceof RegionalatlasNetworkError && message === cause.message && scrubbed === cause) return cause;
-    return new RegionalatlasNetworkError(message, { cause: scrubbed });
+    const message = sanitizeServerText(this.redact(reason));
+    if (cause instanceof RegionalatlasNetworkError && message.startsWith(prefix) && retries === 0) {
+      const scrubbed = this.scrubCause(cause);
+      return message === cause.message && scrubbed === cause ? cause : new RegionalatlasNetworkError(message, { cause: scrubbed });
+    }
+    return new RegionalatlasNetworkError(prefix + message + retriedSuffix(retries), { cause: this.scrubCause(cause) });
   }
 
   /**
@@ -665,18 +684,15 @@ export class RequestEngine {
           await this.backOff(attempt, this.retryDelayMs * attempt, url);
           continue;
         }
-        // Say which download was too big (the transport doesn't know).
-        if (cause instanceof RegionalatlasSizeLimitError && cause.download === undefined) {
-          throw new RegionalatlasSizeLimitError(cause.limit, download, { cause });
-        }
-        throw this.transportError(cause, hasTransientCode(cause) ? attempt : 0);
+        // Name the request, and say which download was too big (the transport doesn't know).
+        throw this.transportError(cause, url, download, hasTransientCode(cause) ? attempt : 0);
       }
 
       // An injected transport may resolve with anything; a malformed HttpResponse would
       // otherwise surface below as a raw TypeError, outside the RegionalatlasError contract.
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
-        throw new RegionalatlasNetworkError(`The transport returned an invalid response (${invalid}).`);
+        throw new RegionalatlasNetworkError(`${this.failedPrefix(url)}the transport returned an invalid response (${invalid}).`);
       }
       const status = response.status;
       const responseHeaders = plainHeaders(response.headers);
@@ -685,7 +701,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new RegionalatlasSizeLimitError(this.maxResponseBytes, download);
+        throw new RegionalatlasSizeLimitError(this.maxResponseBytes, download, undefined, this.failedPrefix(url));
       }
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {

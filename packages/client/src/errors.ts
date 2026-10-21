@@ -339,8 +339,12 @@ export class RegionalatlasSizeLimitError extends RegionalatlasNetworkError {
   readonly limit: number;
   readonly download: Download | undefined;
 
-  constructor(limit: number, download?: Download, options?: { cause?: unknown }) {
-    super(sizeLimitMessage(limit, download), options);
+  /**
+   * `request`, when given, starts the message (the engine passes `GET <url> failed: `, so
+   * the error names the request like every other network error).
+   */
+  constructor(limit: number, download?: Download, options?: { cause?: unknown }, request = "") {
+    super(request + sizeLimitMessage(limit, download), options);
     this.limit = limit;
     this.download = download;
   }

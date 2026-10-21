@@ -11,6 +11,7 @@ import {
   RegionalatlasApiError,
   RegionalatlasNetworkError,
   RegionalatlasParseError,
+  RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   cutText,
   toWellFormed,
@@ -414,7 +415,7 @@ test("the error after the retries ran out says how many were made", async () => 
   const e = new RequestEngine({ baseUrl: "https://example.test", transport: async () => { throw reset; }, maxRetries: 3, sleep });
   await assert.rejects(
     () => e.getJson("/x"),
-    (err) => err instanceof RegionalatlasNetworkError && err.message === "socket hang up (retried 3 times)",
+    (err) => err instanceof RegionalatlasNetworkError && err.message === "GET https://example.test/x failed: socket hang up (retried 3 times)",
   );
   // Statuses and failures that are never retried carry no suffix.
   const notFound = new RequestEngine({ baseUrl: "https://example.test", transport: async () => jsonResponse({ message: "no" }, 404), maxRetries: 3, sleep });
@@ -422,6 +423,68 @@ test("the error after the retries ran out says how many were made", async () => 
   const refused = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
   const down = new RequestEngine({ baseUrl: "https://example.test", transport: async () => { throw refused; }, maxRetries: 3, sleep });
   await assert.rejects(() => down.getJson("/x"), (err) => err instanceof RegionalatlasNetworkError && !/retried/.test(err.message));
+});
+
+test("a network failure names the request, userinfo and token redacted, with the original as the cause", async () => {
+  const sleep = async (): Promise<void> => {};
+  const base = "https://user:secret@example.test";
+  const failing = (cause: unknown) => async (): Promise<never> => {
+    throw cause;
+  };
+  const cases: Array<[string, unknown, string]> = [
+    ["a timeout", new RegionalatlasNetworkError("Request timed out after 300ms"), "Request timed out after 300ms"],
+    ["a refused connection", Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:1"), { code: "ECONNREFUSED" }), "connect ECONNREFUSED 127.0.0.1:1"],
+    ["a DNS failure", Object.assign(new Error("getaddrinfo ENOTFOUND example.invalid"), { code: "ENOTFOUND" }), "getaddrinfo ENOTFOUND example.invalid"],
+    ["the transport's size cap", new RegionalatlasSizeLimitError(10), "Response exceeded the size limit of 10 bytes (maxResponseBytes; --max-response-bytes on the CLI)"],
+  ];
+  for (const [what, cause, reason] of cases) {
+    const e = new RequestEngine({ baseUrl: base, transport: failing(cause), maxRetries: 0, sleep });
+    await assert.rejects(e.getJson("/x/query", { f: "json" }), (err: unknown) => {
+      assert.ok(err instanceof RegionalatlasNetworkError, what);
+      assert.equal(err.message, `GET https://***@example.test/x/query?f=json failed: ${reason}`, what);
+      assert.equal(err.cause, cause, what);
+      return true;
+    });
+  }
+  // The engine's own deadline and size cap, and the catalogue (a token redacted, the download named).
+  const slow = new RequestEngine({ baseUrl: base, transport: () => new Promise(() => {}), timeoutMs: 20, maxRetries: 0 });
+  await assert.rejects(slow.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasNetworkError);
+    assert.equal(err.message, "GET https://***@example.test/x failed: Request exceeded the 20ms deadline");
+    return true;
+  });
+  const big = new RequestEngine({ transport: async () => jsonResponse({ padding: "x".repeat(100) }), maxResponseBytes: 50 });
+  await assert.rejects(big.getJsonAbsolute("https://cat.test/services.json?token=abcdefgh"), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasSizeLimitError);
+    assert.equal(err.download, "catalogue");
+    assert.equal(
+      err.message,
+      "GET https://cat.test/services.json?token=*** failed: The indicator catalogue exceeded the size limit of 50 bytes (maxResponseBytes; --max-response-bytes on the CLI)",
+    );
+    return true;
+  });
+  const capped = new RequestEngine({ transport: failing(new RegionalatlasSizeLimitError(50)), maxRetries: 0 });
+  await assert.rejects(capped.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasSizeLimitError);
+    assert.equal(err.download, "data");
+    assert.equal(err.limit, 50);
+    assert.match(err.message, /^GET https:\/\/www\.gis-idmz\.nrw\.de\/x failed: Response exceeded the size limit of 50 bytes/);
+    return true;
+  });
+  // A real refused connection through the default transport (a closed port on loopback).
+  const refused = new RequestEngine({ baseUrl: "http://127.0.0.1:1", maxRetries: 0 });
+  await assert.rejects(refused.getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasNetworkError);
+    assert.match(err.message, /^GET http:\/\/127\.0\.0\.1:1\/x failed: connect ECONNREFUSED/);
+    return true;
+  });
+  // The long `layer` parameter is shortened, as in an HTTP error.
+  const long = new RequestEngine({ transport: failing(new Error("boom")), maxRetries: 0 });
+  await assert.rejects(long.getJson("/x", { layer: "y".repeat(500) }), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasNetworkError);
+    assert.equal(err.message, "GET https://www.gis-idmz.nrw.de/x?layer=… failed: boom");
+    return true;
+  });
 });
 
 test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {

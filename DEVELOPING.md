@@ -446,8 +446,8 @@ Coverage highlights:
   (`retryDelayMs × attempt`); `parseRetryAfter` never hands it to a bare `Date.parse`,
   which reads `"1.5"` as a date in 2001 and so retried at once. When the retries run out,
   the final error says so: `HTTP 503 for GET … (retried 2 times)` (a
-  `RegionalatlasApiError` with `retries: 2`), or `socket hang up (retried 2 times)` for a
-  reset connection (`retriedSuffix`, exported). An error that was never retried has no
+  `RegionalatlasApiError` with `retries: 2`), or `GET <url> failed: socket hang up (retried 2
+  times)` for a reset connection (`retriedSuffix`, exported). An error that was never retried has no
   suffix and `retries: 0`.
   Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
   `{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (userinfo
@@ -470,6 +470,13 @@ Coverage highlights:
   becomes a `RegionalatlasNetworkError`, and a malformed response (no status, NaN) too; a
   reset reported as Node's `ECONNRESET`/`EPIPE`/`ECONNABORTED` or undici's
   `UND_ERR_SOCKET` anywhere in the `cause` chain is retried like a 503 (linear backoff).
+- **A network error names the request:** a timeout (the transport's or the engine's
+  deadline), the size cap, a refused connection, a DNS failure, a reset and a malformed
+  transport response all read `GET <url> failed: <reason>` (`failedPrefix`: userinfo and a
+  catalogue `token` redacted, a long `layer` value shortened to `…` as in an HTTP error),
+  with the original as the `cause`, so a library caller making several calls, and the
+  CLI's ERROR record of `regionalatlas.http`, can tell the catalogue from a data query. A
+  size-cap error stays a `RegionalatlasSizeLimitError` with `limit` and `download`.
 - **Unknown option keys are refused** (`assertKnownKeys`): `query`/`queryResult` take
   `indicator`, `level`, `year`, `region`, `fields` (`QUERY_OPTION_KEYS`), `indicators`
   takes `theme`, `year`, `search` (`INDICATOR_FILTER_KEYS`). Any other own key —
