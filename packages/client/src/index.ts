@@ -60,6 +60,7 @@ export {
   normalizeInput,
   isBlank,
   nonEmptyProblem,
+  regionProblem,
   fieldsProblem,
   yearProblem,
   YEAR_SHAPE,

@@ -73,25 +73,46 @@ export function isBlank(value: string): boolean {
   return value.trim() === "";
 }
 
-/**
- * A blank filter ("" or whitespace only) is invalid: the library would otherwise
- * skip it and return the unfiltered set (every indicator, every region row), which
- * reads as a successful filtered answer.
- */
-export const nonEmptyProblem: Problem<unknown> = (value) =>
-  typeof value !== "string" || isBlank(value) ? "Expected a non-empty value." : undefined;
+/** What a wrong-typed value is, for a message: "a number", "an array", "null", "undefined", … */
+export function kindOf(value: unknown): string {
+  if (value === null || value === undefined) return String(value);
+  if (Array.isArray(value)) return "an array";
+  const type = typeof value;
+  return /^[aeiou]/.test(type) ? `an ${type}` : `a ${type}`;
+}
 
 /**
- * A `fields` projection needs at least one non-blank field name; blank entries next
- * to real names are dropped. A list with no name at all would otherwise return the
- * rows unprojected, every value column included.
+ * A text filter must be a string, and a blank one ("" or whitespace only) is invalid: the
+ * library would otherwise skip it and return the unfiltered set (every indicator, every
+ * region row), which reads as a successful filtered answer. A value of another type is
+ * named as such (`Expected a string, got a number.`), not called empty.
  */
-export const fieldsProblem: Problem<unknown> = (value) =>
-  Array.isArray(value) &&
-  value.every((f) => typeof f === "string") &&
-  value.some((f) => !isBlank(f as string))
-    ? undefined
-    : "Expected a comma-separated list of field names.";
+export const nonEmptyProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return `Expected a string, got ${kindOf(value)}.`;
+  return isBlank(value) ? "Expected a non-empty value." : undefined;
+};
+
+/**
+ * `nonEmptyProblem` for a `region`, whose most likely wrong type is a number: an AGS from
+ * plain JavaScript (`region: 9`), where the key's leading zero would be lost anyway.
+ */
+export const regionProblem: Problem<unknown> = (value) =>
+  typeof value === "string" ? nonEmptyProblem(value) : `Expected the region as a string (a name, or an AGS such as "09"), got ${kindOf(value)}.`;
+
+/**
+ * A `fields` projection is an array of field names with at least one non-blank name;
+ * blank entries next to real names are dropped. A list with no name at all would otherwise
+ * return the rows unprojected, every value column included. A string (the CLI's
+ * comma-separated form) is named as such: the library wants the names split.
+ */
+export const fieldsProblem: Problem<unknown> = (value) => {
+  const expected = 'Expected an array of field names (["ai0201", "ai0202"])';
+  if (typeof value === "string") return `${expected}, got a string; split a comma-separated list first.`;
+  if (!Array.isArray(value)) return `${expected}, got ${kindOf(value)}.`;
+  const bad = value.findIndex((f) => typeof f !== "string");
+  if (bad >= 0) return `Expected an array of field names, got an item that is ${kindOf(value[bad])}.`;
+  return value.some((f) => !isBlank(f as string)) ? undefined : "Expected at least one non-blank field name.";
+};
 
 /**
  * A 4-digit year, no leading zero: the shape of a catalogue year key, and of a

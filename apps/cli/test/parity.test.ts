@@ -64,7 +64,7 @@ const blankFilterCases: Array<[string[], (t: Transport) => unknown, RegExp]> = [
   [
     ["query", "AI002-1-5", "--year", "2020", "--fields", " , "],
     (t) => client(t).queryResult({ indicator: "AI002-1-5", level: "land", year: 2020, fields: ["", " "] }),
-    /^Invalid fields: Expected a comma-separated list of field names\.$/,
+    /^Invalid fields: Expected at least one non-blank field name\.$/,
   ],
   [
     ["query", "AI002-1-5", "--year", "2020", "--fields", " "],

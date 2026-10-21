@@ -97,17 +97,40 @@ test("isBlank / nonEmptyProblem: empty and whitespace-only strings are blank", (
     assert.equal(isBlank(v), false, JSON.stringify(v));
     assert.equal(nonEmptyProblem(v), undefined, JSON.stringify(v));
   }
-  assert.equal(nonEmptyProblem(undefined), "Expected a non-empty value.");
-  assert.equal(nonEmptyProblem(42), "Expected a non-empty value.");
+  assert.equal(nonEmptyProblem(undefined), "Expected a string, got undefined.");
+  assert.equal(nonEmptyProblem(42), "Expected a string, got a number.");
 });
 
 test("fieldsProblem: a field list needs at least one non-blank name", () => {
-  const reason = "Expected a comma-separated list of field names.";
-  for (const v of [[], [""], [" "], ["", " ", "\t"], "ai0201", [42], ["ai0201", 42], undefined]) {
-    assert.equal(fieldsProblem(v), reason, JSON.stringify(v));
+  for (const v of [[], [""], [" "], ["", " ", "\t"]]) {
+    assert.equal(fieldsProblem(v), "Expected at least one non-blank field name.", JSON.stringify(v));
+  }
+  for (const v of ["ai0201", [42], ["ai0201", 42], undefined]) {
+    assert.match(fieldsProblem(v) ?? "", /^Expected an array of field names/, JSON.stringify(v));
   }
   for (const v of [["ai0201"], ["ai0201", " "], ["", "AI-Z01"]]) {
     assert.equal(fieldsProblem(v), undefined, JSON.stringify(v));
+  }
+});
+
+// 2026-10-21 sweep, Bug 02-1: a wrong-typed filter was refused with the reason for another
+// mistake: `fields: "ai0201,ai0202"` as "Expected a comma-separated list", `region: 9` (a
+// plausible AGS from plain JavaScript) as "Expected a non-empty value".
+test("a wrong-typed region, fields, theme or search is refused with a reason that names the type", async () => {
+  const c = new RegionalatlasClient({ transport: async () => assert.fail("no request") });
+  const cases: Array<[() => Promise<unknown>, RegExp]> = [
+    [() => c.query({ indicator: "AI002-1-5", region: 9 as unknown as string }), /^Invalid region: Expected the region as a string \(a name, or an AGS such as "09"\), got a number\.$/],
+    [() => c.query({ indicator: "AI002-1-5", region: true as unknown as string }), /^Invalid region: Expected the region as a string .*, got a boolean\.$/],
+    [() => c.query({ indicator: "AI002-1-5", fields: "ai0201,ai0202" as unknown as string[] }), /^Invalid fields: Expected an array of field names \(\["ai0201", "ai0202"\]\), got a string; split a comma-separated list first\.$/],
+    [() => c.query({ indicator: "AI002-1-5", fields: ["ai0201", 7] as unknown as string[] }), /^Invalid fields: Expected an array of field names, got an item that is a number\.$/],
+    [() => c.query({ indicator: "AI002-1-5", fields: {} as unknown as string[] }), /^Invalid fields: Expected an array of field names \(\["ai0201", "ai0202"\]\), got an object\.$/],
+    [() => c.query({ indicator: "AI002-1-5", fields: [" "] }), /^Invalid fields: Expected at least one non-blank field name\.$/],
+    [() => c.indicators({ theme: 5 as unknown as string }), /^Invalid theme: Expected a string, got a number\.$/],
+    [() => c.indicators({ search: ["x"] as unknown as string }), /^Invalid search: Expected a string, got an array\.$/],
+    [() => c.indicators({ search: null as unknown as string }), /^Invalid search: Expected a string, got null\.$/],
+  ];
+  for (const [call, message] of cases) {
+    await assert.rejects(call(), (err: Error) => err instanceof RegionalatlasValidationError && message.test(err.message), String(message));
   }
 });
 

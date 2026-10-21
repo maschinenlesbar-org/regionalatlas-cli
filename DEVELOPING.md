@@ -253,7 +253,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
 - **Blank filters** (`nonEmptyProblem`): `indicators({ theme, search })` and
   `query`/`queryResult({ region })` with `""` or a whitespace-only value, and `fields`
   without a non-blank name (`fieldsProblem`; blank entries next to real names are
-  dropped). A blank filter would otherwise be skipped and return the unfiltered set.
+  dropped). A blank filter would otherwise be skipped and return the unfiltered set. A
+  wrong-typed one is named as such: `Expected a string, got a number.` for `theme`/`search`,
+  `Expected the region as a string (a name, or an AGS such as "09"), got a number.`
+  (`regionProblem`), and for `fields` a string (`"ai0201,ai0202"`) is told to be split.
   `filterIndicators` and `filterByRegion` apply the same rule. The CLI's `--theme`,
   `--search`, `--region` and `--fields` parsers call the same functions.
 - **The `indicators` year filter** (`yearProblem`, `normaliseYearFilter`): an integer

@@ -34,7 +34,7 @@ import {
 } from "./catalog.js";
 import { DEFAULT_LEVEL, resolveLevel } from "./levels.js";
 import { buildLayerParam } from "./sql.js";
-import { assertKnownKeys, assertValid, fieldsProblem, nonEmptyProblem } from "./validate.js";
+import { assertKnownKeys, assertValid, fieldsProblem, regionProblem } from "./validate.js";
 import type {
   ArcGisQueryResponse,
   Indicator,
@@ -162,7 +162,7 @@ export class RegionalatlasClient {
     const level = resolveLevel(opts.level ?? DEFAULT_LEVEL);
     // 1a. The client-side filters, before any request: a blank region or a field
     //     list without a name would otherwise return every row or every column.
-    if (opts.region !== undefined) assertValid("region", opts.region, nonEmptyProblem);
+    if (opts.region !== undefined) assertValid("region", opts.region, regionProblem);
     if (opts.fields !== undefined) assertValid("fields", opts.fields, fieldsProblem);
     // 2. Resolve the indicator against the catalogue allowlist (throws if unknown).
     const indicators = await this.allIndicators();
@@ -485,7 +485,7 @@ function officialKey(digits: string): string {
  * A blank region throws `RegionalatlasValidationError` rather than matching every row.
  */
 export function matchRegion(rows: RegionRow[], region: string): RegionMatch {
-  const trimmed = assertValid("region", region, nonEmptyProblem).trim();
+  const trimmed = assertValid("region", region, regionProblem).trim();
   if (/^\d+$/.test(trimmed)) {
     const keyOf = (r: RegionRow): string => r.ags.replace(/\D/g, "");
     const target = String(Number(trimmed)); // strip leading zeros
