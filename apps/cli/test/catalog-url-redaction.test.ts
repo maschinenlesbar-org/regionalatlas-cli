@@ -269,6 +269,32 @@ test("a catalogue token the server echoes is redacted after its text is cleaned 
   });
 });
 
+// 2026-10-21 sweep, Bug 01-1: the CLI redacted the library's message a second time, and the
+// parameter pattern took `***:` for a token value, so the `:` after the URL was eaten.
+test("the text after a redacted token survives a second redaction: ?token=***: stays as the library wrote it", async () => {
+  const { redactQueryTokens } = await import("../src/index.js");
+  for (const tail of [": boom", ") boom", ", x", "; x", "] x", ""]) {
+    assert.equal(redactQueryTokens(`GET https://h/s.json?token=***${tail}`), `GET https://h/s.json?token=***${tail}`);
+  }
+  // A real value that starts with *** is still a value.
+  assert.equal(redactQueryTokens("https://h/s.json?token=***abc x"), "https://h/s.json?token=*** x");
+  for (const format of ["text", "jsonl"]) {
+    const err: string[] = [];
+    const deps: CliDeps = {
+      io: { out: () => {}, err: (s) => err.push(s) },
+      createClient: (opts) => new RegionalatlasClient({ ...opts, transport: async () => json(500, { message: "boom" }), maxRetries: 0 }),
+    };
+    assert.equal(await run(["--log-format", format, "--catalog-url", "http://127.0.0.1:9/cat/s500?token=s3cr3tvalue", "themes"], deps), 1);
+    const text = err.join("\n");
+    assert.ok(text.includes("s500?token=***: boom"), text);
+    assert.ok(!text.includes("s3cr3tvalue"), text);
+  }
+  // A number the answer can't carry: the message keeps its colon too.
+  const c = cli('[{"title":"T","precision":12345678901234567890,"children":[]}]');
+  assert.equal(await run(["--catalog-url", "http://127.0.0.1:9/cat/big.json?token=s3cr3tvalue", "themes"], c.deps), 1);
+  assert.match(c.text(), /big\.json\?token=\*\*\*: the number 12345678901234567890 cannot be represented exactly/);
+});
+
 test("a short catalogue token echoed as token=<value> without ?/& is redacted (B03-1)", async () => {
   const { redactQueryTokens } = await import("../src/index.js");
   assert.equal(redactQueryTokens("invalid token ab12 (raw token=ab12)", ["ab12"]), "invalid token ab12 (raw token=***)");

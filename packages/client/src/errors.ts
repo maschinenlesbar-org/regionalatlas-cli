@@ -52,6 +52,18 @@ function escapeRegExp(text: string): string {
 }
 
 /**
+ * What follows `***` in a parameter value that is already redacted (`token=***: boom` as a
+ * message the library redacted reads when it is redacted again): the pattern takes the
+ * value up to `&`, `#`, a quote or a space, so a second pass took `***:` for the value and
+ * ate the `:` after the URL. The rest is kept when the value is `***` followed by a
+ * character that can't continue a token (not a letter, a digit or `-._~%+/=`); `""`
+ * otherwise, so a real value that starts with `***` is still replaced whole.
+ */
+function afterRedacted(value: string): string {
+  return /^\*\*\*[^A-Za-z0-9._~%+/=*-]/.test(value) ? value.slice(3) : "";
+}
+
+/**
  * The values of the secret query parameters ({@link SECRET_QUERY_PARAMETERS}) in a
  * URL-like value, exactly as written (percent-encoded), or `[]` when it carries none. Works
  * on values that don't parse as a URL, and on values with a prefix (`--catalog-url=…`).
@@ -70,7 +82,7 @@ export function queryTokensIn(value: string): string[] {
  * `access_token=` too.
  */
 export function redactQueryTokens(text: string, tokens: readonly string[] = []): string {
-  let out = text.replace(SECRET_QUERY_PARAMETER, (_match, head: string) => `${head}***`);
+  let out = text.replace(SECRET_QUERY_PARAMETER, (_match, head: string, value: string) => `${head}***${afterRedacted(value)}`);
   for (const token of tokens) {
     if (token === "") continue;
     if (token.length >= MIN_BARE_TOKEN_LENGTH) out = out.split(token).join("***");

@@ -316,7 +316,9 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   redacted again after cleaning) to what `redact`/`scrubCause` scrub from bodies, details,
   transport text and causes, and `withRedactedOutput` redacts it from CLI output (`queryTokensIn`,
   `redactQueryTokens`; a bare value under six characters only in its `token=` or
-  `access_token=` form, with or without the `?`/`&` a server's echo may drop). On stdout a
+  `access_token=` form, with or without the `?`/`&` a server's echo may drop; a value already
+redacted keeps what follows it, so the CLI's second pass over the library's `…?token=***: boom`
+no longer eats the `:`). On stdout a
   bare value is replaced only as a whole JSON string value (`redactWholeJsonValues`), never
   inside other text, as `-o` writes it. It
   never crosses origins: only the catalogue request carries it, the base URL takes no
