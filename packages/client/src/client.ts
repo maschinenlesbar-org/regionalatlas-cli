@@ -16,7 +16,7 @@
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
 import { RequestEngine, describeArcGisError, exactAtTheEdges, validateHttpUrl, type EngineOptions } from "./engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, redactUrl } from "./errors.js";
+import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, quoteValue, redactUrl } from "./errors.js";
 import {
   assertKnownFields,
   assertLevelPublished,
@@ -292,12 +292,13 @@ function featureAttributes(feature: unknown, index: number): RawFeatureAttribute
 }
 
 /**
- * A plain decimal number, the only string shape accepted as a value: optional sign,
- * digits, optional fractional part. Deliberately NOT `Number()`, which would also
- * accept hex and scientific literals, whitespace padding, the empty string,
- * booleans and an empty array — see `toValue`.
+ * A decimal number, the only string shape accepted as a value: optional sign, digits,
+ * optional fractional part, optional exponent (`"1e3"`, Java's `"1.0E-5"`, as a mirror may
+ * write a double). Deliberately NOT `Number()`, which would also accept hex literals,
+ * `Infinity`, whitespace padding, the empty string, booleans and an empty array — see
+ * `toValue`.
  */
-const DECIMAL = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
+const DECIMAL = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 /**
  * Coerce one raw attribute value to a number or `null`.
@@ -328,6 +329,23 @@ function toValue(value: unknown): number | null | undefined {
     return Number.isFinite(n) && exactAtTheEdges(literal, n) ? n : undefined;
   }
   return null;
+}
+
+/** The longest text an "unreadable value" reason quotes. */
+const MAX_SHOWN_VALUE_LENGTH = 60;
+
+/**
+ * Why a value that is neither a number, a decimal string nor `null` became `null`, for
+ * `RegionRow.missing`: `unreadable value "1,5" (not a number)`. It used to become `null`
+ * silently, which reads as "the indicator has no figure here". A text is quoted (cut,
+ * invisible characters escaped); another type is named, never serialised (a value nested
+ * 200,000 deep would overflow the stack).
+ */
+function unreadableReason(value: unknown): string | undefined {
+  if (value === null || typeof value === "number") return undefined;
+  if (typeof value === "string") return `unreadable value ${quoteValue(value, MAX_SHOWN_VALUE_LENGTH)} (not a number)`;
+  if (typeof value === "boolean") return `unreadable value ${String(value)} (not a number)`;
+  return `unreadable value (${kindOf(value)}, not a number)`;
 }
 
 /**
@@ -439,12 +457,11 @@ export function parseRow(
     // A special-value code is not a measurement: an average or a ranking over it would
     // be off by billions. "nichts vorhanden" (2222222222) becomes 0, the figure it
     // stands for; every other code becomes null like any other missing value. Either
-    // way `missing` names the code.
-    const reason = n === null ? undefined : specialValueReason(n);
-    if (reason === undefined || n === null) {
-      values[key] = n;
-    } else {
-      values[key] = specialValueFigure(n);
+    // way `missing` names the code. A value the client can't read becomes null, and
+    // `missing` says so.
+    const reason = n === null ? unreadableReason(value) : specialValueReason(n);
+    values[key] = n === null || reason === undefined ? n : specialValueFigure(n);
+    if (reason !== undefined) {
       missing ??= Object.create(null) as Record<string, string>;
       missing[key] = reason;
     }

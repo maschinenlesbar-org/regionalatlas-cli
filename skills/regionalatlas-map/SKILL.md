@@ -53,7 +53,7 @@ named Hannover), so report the count you got, not a fixed one.
 | `name` | Gebietsname (region name) |
 | `year` | reporting year |
 | `values` | `{ <valueField>: number\|null }` — the indicator's value columns, keyed by bare codes (`ai0201`). `indicators` gives each column's title and unit |
-| `missing` | only on rows where the upstream sent a special-value code: `{ <valueField>: reason }`; that field's value is `0` for `"nichts vorhanden"` (exactly zero), else `null` |
+| `missing` | only on rows where the upstream sent a special-value code, or a value the client can't read as a number: `{ <valueField>: reason }`; that field's value is `0` for `"nichts vorhanden"` (exactly zero), else `null` (`unreadable value "1,5" (not a number)` for an unreadable one) |
 
 ## Recipes
 

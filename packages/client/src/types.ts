@@ -197,7 +197,9 @@ export interface RegionRow {
    * (e.g. `2222222222`, "nichts vorhanden"): value field → the code's meaning. The
    * matching `values` entry is `0` for "nichts vorhanden" (the Destatis symbol `-`,
    * exactly zero) and `null` for every other code. See `SPECIAL_VALUES` and
-   * `SPECIAL_VALUE_FIGURES`.
+   * `SPECIAL_VALUE_FIGURES`. Also present for a value the client can't read as a number
+   * (`"1,5"`, `true`, an array): its `values` entry is `null`, its reason
+   * `unreadable value "1,5" (not a number)`.
    */
   missing?: Record<string, string>;
 }

@@ -100,7 +100,10 @@ values }, …]`, one row per region. A value the upstream sent as a special-valu
 [GLOSSARY.md](GLOSSARY.md)) is never the code: `2222222222`, the table symbol `-` for
 exactly zero, is `0`, every other code is `null`, and the row then carries a `missing`
 object naming the code's meaning per field (`"missing": {"ai0507": "nichts vorhanden"}`).
-Before 0.5.0 "nichts vorhanden" was `null` too.
+Before 0.5.0 "nichts vorhanden" was `null` too. A value the client can't read as a number
+(`"1,5"`, `true`, `[]` from a mirror) is `null` as well, with `missing` saying so
+(`unreadable value "1,5" (not a number)`); a decimal string, also in exponent form (`"1e3"`),
+is read like a JSON number: exact, or the answer is refused.
 
 `--level` accepts these aliases: `land`/`laender`/`länder`/`bundesland`/`bundesländer` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),

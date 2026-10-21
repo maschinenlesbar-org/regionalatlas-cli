@@ -171,7 +171,7 @@ test("parseRow accepts a number or a plain decimal string, and nothing else", ()
   });
 });
 
-test("parseRow never fabricates a number out of a non-value", () => {
+test("parseRow never fabricates a number out of a non-value, and says so in missing", () => {
   const row = parseRow(
     {
       ags: "01",
@@ -182,20 +182,41 @@ test("parseRow never fabricates a number out of a non-value", () => {
       emptyArray: [],
       emptyObject: {},
       hex: "0x10",
-      scientific: "1e3",
       padded: " 7 ",
       germanComma: "12,5",
       empty: "",
       infinite: "Infinity",
+      nul: null,
     },
     1,
     "land",
     2020,
   );
-  assert.deepEqual(
-    Object.values({ ...row.values }),
-    [null, null, null, null, null, null, null, null, null, null],
-  );
+  assert.deepEqual(Object.values({ ...row.values }), [null, null, null, null, null, null, null, null, null, null]);
+  // 2026-10-21 sweep, Bug 01-2: such a value became null silently, like "no figure here".
+  assert.deepEqual({ ...row.missing }, {
+    yes: "unreadable value true (not a number)",
+    no: "unreadable value false (not a number)",
+    emptyArray: "unreadable value (an array, not a number)",
+    emptyObject: "unreadable value (an object, not a number)",
+    hex: 'unreadable value "0x10" (not a number)',
+    padded: 'unreadable value " 7 " (not a number)',
+    germanComma: 'unreadable value "12,5" (not a number)',
+    empty: 'unreadable value "" (not a number)',
+    infinite: 'unreadable value "Infinity" (not a number)',
+  });
+  // A long or odd text is cut and shown escaped.
+  const odd = parseRow({ ags: "01", gen: "A", a: "x".repeat(200), b: "a\u202eb" }, 1, "land", 2020);
+  assert.equal(odd.missing?.a, `unreadable value "${"x".repeat(60)}"… (not a number)`);
+  assert.equal(odd.missing?.b, 'unreadable value "a\\u202eb" (not a number)');
+});
+
+test("a decimal string in exponent form is read like a JSON number, exact or refused", () => {
+  const row = parseRow({ ags: "01", gen: "A", a: "1e3", b: "1.0E-5", c: "-2.5e+2" }, 1, "land", 2020);
+  assert.deepEqual({ ...row.values }, { a: 1000, b: 0.00001, c: -250 });
+  assert.equal(row.missing, undefined);
+  assert.throws(() => parseRow({ ags: "01", gen: "A", a: "1e400" }, 1, "land", 2020), RegionalatlasParseError);
+  assert.throws(() => parseRow({ ags: "01", gen: "A", a: "12345678901234567890e0" }, 1, "land", 2020), RegionalatlasParseError);
 });
 
 test("a decimal string a double can't carry exactly is a parse error, never a changed value", () => {

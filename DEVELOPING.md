@@ -380,7 +380,11 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   response from the data query (field <f>, region <ags>): the number <N> cannot be represented
   exactly.`, exit 1) for `"12345678901234567890"`, a string of 400 digits or a non-zero
   `"0.000…1"` that rounds to 0, where `Number()` used to round, overflow to `null` or zero
-  silently.
+  silently. A decimal string may carry an exponent (`"1e3"`, `"1.0E-5"`), as JSON's number
+  grammar allows. Any other value (`"1,5"`, `" 12"`, `"0x10"`, `""`, `true`, `[]`) becomes
+  `null` with a `missing` reason, `unreadable value "1,5" (not a number)` (a text quoted and
+  cut at 60, another type only named), where it used to become `null` silently, like "no
+  figure here".
 - **Error messages shorten the URL**: `shortenUrl` replaces every query-parameter value
   longer than 60 characters with `…` (in practice the `layer` parameter, ~750 characters
   of encoded SQL), so the reason is not buried at the end of an 800-character line.

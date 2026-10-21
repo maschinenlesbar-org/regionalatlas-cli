@@ -29,8 +29,9 @@ Regionalatlas terms and fields, as the CLI surfaces them.
   level, year, values }`.
 - **A `null` value** means the indicator has no figure for that region/year. When the
   upstream sent a special-value code instead, the row's `missing` object names the
-  reason (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …); a row without such codes
-  has no `missing` key.
+  reason (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …), and so it does for a value
+  the client can't read as a number (`unreadable value "1,5" (not a number)`); a row
+  without either has no `missing` key.
 - **A `0` with `missing: "nichts vorhanden"`** is the table symbol `-`: nothing there,
   exactly zero. It counts in a sum, an average or a ranking like any other 0 (it used to
   be `null`, since 0.5.0 it is `0`).

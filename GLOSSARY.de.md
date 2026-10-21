@@ -29,8 +29,9 @@ Begriffe und Felder des Regionalatlas, so wie die CLI sie ausgibt.
   level, year, values }`.
 - **Ein `null`-Wert** bedeutet, dass der Indikator für diese Region bzw. dieses Jahr keinen Wert hat.
   Hat der Upstream stattdessen einen Sonderwert geschickt, nennt das Objekt `missing` der Zeile
-  den Grund (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …); eine Zeile ohne Sonderwerte hat
-  keinen `missing`-Schlüssel.
+  den Grund (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …), ebenso für einen Wert, den der
+  Client nicht als Zahl lesen kann (`unreadable value "1,5" (not a number)`); eine Zeile ohne
+  beides hat keinen `missing`-Schlüssel.
 - **Eine `0` mit `missing: "nichts vorhanden"`** ist das Tabellenzeichen `-`: nichts vorhanden,
   genau null. Sie zählt in einer Summe, einem Mittelwert oder einer Rangfolge wie jede andere 0
   (bis 0.4.0 war sie `null`, seit 0.5.0 ist sie `0`).

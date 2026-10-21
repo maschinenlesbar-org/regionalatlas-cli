@@ -109,8 +109,9 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
 - **Watch `null`** — a region with no figure sorts first in jq (`sort_by` puts `null`
   before every number, so `.[0]` of a sorted list is a region *without* a figure); filter
   `select(.!=null)` before `sort_by`/`min`/`max`/`avg`, and say how many regions had no
-  figure. The upstream's special-value codes arrive as `null` with the reason in the
-  row's `missing` object — quote that reason when a compared region has no figure.
+  figure. The upstream's special-value codes, and a value the client can't read as a
+  number, arrive as `null` with the reason in the row's `missing` object — quote that
+  reason when a compared region has no figure.
   The exception is `2222222222`, "nichts vorhanden" (the table symbol `-`): it arrives as
   `0`, with `missing` saying "nichts vorhanden", and it **is** zero — keep it in
   `min`/`max`/`avg` and rankings, and say that the 0 is the upstream's "nichts
