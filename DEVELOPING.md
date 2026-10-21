@@ -367,6 +367,12 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   shortest form passes: ArcGIS sentinels such as `1.7976931348623157E308` and `1E23` read back
   as written. Below 2^53 a decimal fraction keeps a double's precision. The special-value codes
   (`2222222222`, …) are far below 2^53 and pass; `parseRow` then treats them as before.
+  The same rule covers a value sent as a decimal *string* (`toValue` in client.ts, through the
+  engine's `exactAtTheEdges`): `parseRow` throws a `RegionalatlasParseError` (`Unexpected
+  response from the data query (field <f>, region <ags>): the number <N> cannot be represented
+  exactly.`, exit 1) for `"12345678901234567890"`, a string of 400 digits or a non-zero
+  `"0.000…1"` that rounds to 0, where `Number()` used to round, overflow to `null` or zero
+  silently.
 - **Error messages shorten the URL**: `shortenUrl` replaces every query-parameter value
   longer than 60 characters with `…` (in practice the `layer` parameter, ~750 characters
   of encoded SQL), so the reason is not buried at the end of an 800-character line.

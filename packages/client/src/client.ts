@@ -15,7 +15,7 @@
 //   await c.indicators({ search: "bevölkerung" });       // matching indicators
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
-import { RequestEngine, describeArcGisError, validateHttpUrl, type EngineOptions } from "./engine.js";
+import { RequestEngine, describeArcGisError, exactAtTheEdges, validateHttpUrl, type EngineOptions } from "./engine.js";
 import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, redactUrl } from "./errors.js";
 import {
   assertKnownFields,
@@ -311,12 +311,20 @@ const DECIMAL = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/;
  * Non-finite numbers become `null` too: `Infinity` passed `Number.isNaN`, so the
  * library returned it while the CLI printed `null` (what `JSON.stringify` does with
  * it), leaving the two disagreeing about the same row.
+ *
+ * A decimal string a double can't carry exactly is refused (`undefined`), the engine's
+ * rule for JSON number literals (`exactAtTheEdges`): `Number()` rounded
+ * `"12345678901234567890"` to 12345678901234567000, turned 400 digits into Infinity and
+ * a non-zero `"0.000…1"` into 0, all silently. Below 2^53 a decimal fraction keeps a
+ * double's precision, as for a JSON number.
  */
-function toValue(value: unknown): number | null {
+function toValue(value: unknown): number | null | undefined {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string" && DECIMAL.test(value)) {
     const n = Number(value);
-    return Number.isFinite(n) ? n : null;
+    // `decimalOf` reads JSON's form: no `+`, a digit before the point.
+    const literal = value.replace(/^\+/, "").replace(/^(-?)\./, "$10.");
+    return Number.isFinite(n) && exactAtTheEdges(literal, n) ? n : undefined;
   }
   return null;
 }
@@ -399,6 +407,9 @@ const JOIN_FIELDS = new Set([
  * the glossary used to claim, but the year-on-year *Veränderungsrate* — a
  * published value the catalogue names and gives a unit for (percent, or
  * percentage points for a share indicator). See `Indicator.fields`.
+ *
+ * @throws RegionalatlasParseError for a value sent as a decimal string that a double
+ *   can't carry exactly (`"12345678901234567890"`), never a changed value — see `toValue`.
  */
 export function parseRow(
   attrs: RawFeatureAttributes,
@@ -418,6 +429,12 @@ export function parseRow(
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
     const n = toValue(value);
+    if (n === undefined) {
+      throw new RegionalatlasParseError(
+        `Unexpected response from the data query (field ${cutForMessage(key)}, region ${cutForMessage(ags)}): ` +
+          `the number ${cutForMessage(String(value))} cannot be represented exactly.`,
+      );
+    }
     // A special-value code is not a measurement: an average or a ranking over it would
     // be off by billions. "nichts vorhanden" (2222222222) becomes 0, the figure it
     // stands for; every other code becomes null like any other missing value. Either

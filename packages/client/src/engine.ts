@@ -819,8 +819,9 @@ const JSON_NUMBER = /-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
  * the shortest decimal that reads back as the same double: `12345678901234567890` prints as
  * `12345678901234567000`, a changed value, while `1E23` or `1.7976931348623157E308` (a double a
  * server printed in its own shortest form, such as an ArcGIS sentinel) print as the same number.
+ * Exported for the client's decimal-string values (`toValue`); not part of the public barrel.
  */
-function exactAtTheEdges(literal: string, value: number): boolean {
+export function exactAtTheEdges(literal: string, value: number): boolean {
   if (value !== 0 && Math.abs(value) <= Number.MAX_SAFE_INTEGER) return true;
   const written = decimalOf(literal);
   if (value === 0) return written.digits === "";

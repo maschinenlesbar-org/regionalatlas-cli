@@ -198,6 +198,47 @@ test("parseRow never fabricates a number out of a non-value", () => {
   );
 });
 
+test("a decimal string a double can't carry exactly is a parse error, never a changed value", () => {
+  // Number() rounded "12345678901234567890" to 12345678901234567000 without a word: the engine's
+  // rule for JSON number literals (printed vs written), applied to the string path.
+  const huge = "1" + "0".repeat(400);
+  const tiny = "0." + "0".repeat(400) + "1";
+  for (const n of [
+    "12345678901234567890", "-9007199254740993", "+12345678901234567890", "12345678901234567890.0",
+    "9007199254740992.5", huge, tiny, "-" + tiny,
+  ]) {
+    assert.throws(
+      () => parseRow({ ags: "01", gen: "A", ai0201: n }, 1, "land", 2020),
+      (err: unknown) => {
+        assert.ok(err instanceof RegionalatlasParseError, n);
+        assert.equal(
+          err.message,
+          `Unexpected response from the data query (field ai0201, region 01): the number ${n.length > MAX_MESSAGE_VALUE_LENGTH ? `${n.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : n} cannot be represented exactly.`,
+          n,
+        );
+        return true;
+      },
+      n,
+    );
+  }
+  // What a double carries exactly passes, with any sign or a leading dot; below 2^53 a decimal
+  // fraction keeps a double's precision, and 0 comes only from a zero.
+  const exact: Array<[string, number]> = [
+    ["9007199254740991", 9007199254740991], ["9007199254740992", 2 ** 53], ["+9007199254740992", 2 ** 53],
+    ["9007199254740992.0", 2 ** 53], ["-9007199254740992", -(2 ** 53)], ["100000000000000000000000", 1e23],
+    ["0", 0], ["-0.0", -0], ["+0", 0], [".0", 0], [".5", 0.5], ["1.00000000000000001", 1], ["2222222222", 2222222222],
+  ];
+  for (const [n, value] of exact) {
+    const row = parseRow({ ags: "01", gen: "A", ai0201: n }, 1, "land", 2020);
+    // Above 2,000,000,000 a value is a special-value code: `missing` carries it as read.
+    if (value > 2_000_000_000 && value !== 2222222222) {
+      assert.equal(row.missing?.ai0201, `Sonderwert ${String(value)} (special-value code without a label)`, n);
+    } else {
+      assert.equal(row.values.ai0201, value === 2222222222 ? 0 : value, n);
+    }
+  }
+});
+
 test("parseRow maps a non-finite number to null, so library and CLI agree", () => {
   // Infinity passes Number.isNaN, so it used to survive into `values` — where the
   // library saw Infinity and the CLI printed null, JSON.stringify having its way.
