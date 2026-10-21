@@ -365,7 +365,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   `JSON.stringify` escapes C0 but leaves DEL, C1 (U+0080–U+009F) and the bidi controls
   (`isBidiControl`) raw, and a terminal acts on them, so they go out as `\uXXXX` escapes;
   the JSON stays equivalent.
-- **Numbers are exact or an error** (`firstInexactNumber` in engine.ts, both hosts): a 2xx
+- **Numbers are exact or an error** (`scanNumbers` in engine.ts, both hosts): a 2xx
   JSON body with a number `JSON.parse` can't carry exactly is a `RegionalatlasParseError`
   (`Unexpected response from <path or catalogue URL>: the number <N> cannot be represented
   exactly.`, exit 1), never a changed value: out of a double's range (`1e400`), past 2^53 when
@@ -375,7 +375,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   `1e-310` print as written and pass). Past 2^53 the check compares the number
   as printed (`String(value)`) with the number as written, so a double a server wrote in its
   shortest form passes: ArcGIS sentinels such as `1.7976931348623157E308` and `1E23` read back
-  as written. Below 2^53 a decimal fraction keeps a double's precision. The special-value codes
+  as written. Below 2^53 a decimal fraction keeps a double's precision. One linear pass that
+  skips strings, before `JSON.parse`; the engine option `bigIntegerKeys` (a set of member
+  names, none declared here: every figure is a double) would deliver a declared member's
+  number as its exact literal, a JSON string, whatever its size. The special-value codes
   (`2222222222`, …) are far below 2^53 and pass; `parseRow` then treats them as before.
   The same rule covers a value sent as a decimal *string* (`toValue` in client.ts, through the
   engine's `exactAtTheEdges`): `parseRow` throws a `RegionalatlasParseError` (`Unexpected
