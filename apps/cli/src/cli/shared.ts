@@ -15,6 +15,7 @@ import {
   headerValueProblem,
   httpUrlProblem,
   nonEmptyProblem,
+  normalizeInput,
   yearProblem,
   type Problem,
 } from "@maschinenlesbar.org/regionalatlas-client/internal/validate";
@@ -79,7 +80,9 @@ const OPTION_SHAPED = /^(--[A-Za-z][\w-]*|-[A-Za-z])$/;
  * made "--fields" the region and returned no rows.
  */
 export function parseTextArg(value: string): string {
-  if (OPTION_SHAPED.test(value)) {
+  // Judged as the library uses the value (trimmed, NFC): `--region " --fields"` filtered for
+  // "--fields" once the library trimmed it (the class of jobsuche-cli 5487d4f).
+  if (OPTION_SHAPED.test(normalizeInput(value))) {
     throw new InvalidArgumentError(
       `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
         "this one was left without a value. Supply the intended term.",

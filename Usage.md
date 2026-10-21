@@ -23,7 +23,10 @@ regionalatlas [global options] <command> [command options]
 
 Every option takes one value, except `--fields`, which is repeatable (`--fields a --fields b`
 is `--fields a,b`); giving any other option twice is a usage error (exit 2), where the last
-value used to win silently.
+value used to win silently. A `--region`, `--theme` or `--search` value that is one of this
+CLI's options once trimmed (`--region --fields`, `--region " --fields"`) is refused as a
+missing value: the option before it was left without one. A dash inside a text (`-1-5`) is
+text.
 
 `--base-url` and `--catalog-url` accept only `http:`/`https:` URLs without whitespace
 (around or inside them). `--base-url` must not have a query (`?`) or fragment (`#`) (the

@@ -766,3 +766,26 @@ test("a redirect names its target and says it is not followed; from the catalogu
   assert.equal(await run(["themes"], bare.deps), 1);
   assert.match(untimed(bare.err.join("\n")), /services\.json: redirect not followed \(no Location header\)$/m);
 });
+
+// The class of jobsuche-cli bug 1 of 2026-10-21 (`5487d4f`): the guard against a value that is
+// the next option tested the raw value, and the library trims afterwards, so `--region
+// " --fields"` slipped past it and filtered for "--fields".
+test("the option-shaped guard judges the value as the library uses it: a padded one is refused too", async () => {
+  for (const value of ["--fields", " --fields", "\t-h", "\n--theme", " --year "]) {
+    for (const argv of [
+      ["query", "AI002-1-5", "--year", "2020", "--region", value],
+      ["indicators", "--search", value],
+      ["indicators", "--theme", value],
+    ]) {
+      const cli = makeRoutingCli();
+      assert.equal(await run(argv, cli.deps), 2, JSON.stringify(argv));
+      assert.equal(cli.mt.calls.length, 0, JSON.stringify(argv));
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[regionalatlas\.cli\] .*looks like a missing value/, JSON.stringify(argv));
+    }
+  }
+  // A dash inside the text, or a code-like `-1-5`, is a search text like any other.
+  for (const value of ["-1-5", " -1-5", "Halle (Saale)", "-"]) {
+    const cli = makeRoutingCli();
+    assert.equal(await run(["indicators", "--search", value], cli.deps), 0, JSON.stringify(value));
+  }
+});
