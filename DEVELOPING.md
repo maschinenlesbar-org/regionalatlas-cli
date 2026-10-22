@@ -372,7 +372,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
 - **Printed JSON is terminal-safe** (`escapeControlChars` in `apps/cli/src/cli/shared.ts`):
   `JSON.stringify` escapes C0 but leaves DEL, C1 (U+0080–U+009F) and the bidi controls
   (`isBidiControl`) raw, and a terminal acts on them, so they go out as `\uXXXX` escapes;
-  the JSON stays equivalent.
+  the JSON stays equivalent. The output is measured first (each such character becomes six):
+  past V8's longest string it is an `OutputError`, "too large to print (N characters once its
+  control characters are escaped)"; otherwise it is built in 64 Ki chunks, joined once (one
+  `+=` per character made a rope of 100 M pieces on an answer of DEL characters and crashed).
 - **Numbers are exact or an error** (`scanNumbers` in engine.ts, both hosts): a 2xx
   JSON body with a number `JSON.parse` can't carry exactly is a `RegionalatlasParseError`
   (`GET <data or catalogue URL>: the number <N> cannot be represented
@@ -463,7 +466,10 @@ Coverage highlights:
   P24 an input corpus through every text filter and path id — empty here, as no filter or id
   is sent, P25 a response corpus: a number a double can't carry exactly is a parse error,
   one it carries prints as the same value, an empty answer is an error; P26, `-o` integrity,
-  doesn't apply, the CLI has no `-o`);
+  doesn't apply, the CLI has no `-o`; P27 big and odd answers: DEL characters printed escaped
+  within a small heap or refused as too large, a lone surrogate or invalid bytes replaced with
+  U+FFFD and a WARN — its flat-array case is skipped, as a query prints rows, and its mock
+  answers the catalogue too, through the adapter's `hostArgv` and `answerFor`);
   copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.

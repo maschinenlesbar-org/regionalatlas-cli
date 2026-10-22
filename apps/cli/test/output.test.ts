@@ -97,3 +97,17 @@ test("printed JSON escapes DEL, C1 and the bidi controls, which a terminal acts 
     assert.equal(JSON.parse(text)[0].title, `a\u007fb\u0085c\u009b${bidi.join("")}ü€`);
   }
 });
+
+test("terminal controls are escaped in chunks: the same text as one pass, across chunk edges (D7)", () => {
+  const DEL = String.fromCharCode(0x7f);
+  const C1 = String.fromCharCode(0x9b);
+  const RLO = String.fromCharCode(0x202e);
+  // Controls right before, at and after the 64 Ki edges, and a run of them.
+  const text = ["a".repeat(65535), DEL, C1, "b".repeat(65534), RLO, DEL.repeat(70000), "ü😀", C1].join("");
+  const { deps, out } = makeCli(undefined);
+  renderJson(deps, { compact: true }, { text });
+  const expected = JSON.stringify({ text }).replace(/[\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+  assert.equal(out[0], expected);
+  assert.deepEqual(JSON.parse(out[0]!), { text });
+});
