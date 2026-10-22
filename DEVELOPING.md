@@ -437,7 +437,8 @@ Coverage highlights:
 - `engine.test.ts` — URL building for both hosts, the retry ladder incl. `Retry-After`,
   the scheme guard, and JSON decoding/error mapping.
 - `output.test.ts` — `renderJson`: an answer nested too deeply to pretty-print is an
-  `ERROR` of `regionalatlas.output` suggesting `--compact`, and which stringify path
+  `ERROR` of `regionalatlas.output` suggesting `--compact` only where it prints, one too large
+  is called too large, and which stringify path
   `--compact` takes (`JSON.stringify` mocked, the path pinned).
 - `output-errors.test.ts` — `handleOutputErrors`: EPIPE and ENOTCONN (a socket stdout
   whose reader has gone) on stdout exit 0, on stderr they are ignored, any other stdout
@@ -593,8 +594,10 @@ errors), `api` (the hosts' answers: an error status, the ArcGIS `error` envelope
 catalogue the client refuses, all `RegionalatlasParseError` — and the notes on an empty,
 cut-off or ambiguous result), `http` (the connection: network errors
 and their size-cap hints, the cleartext warning) and `output` (a stdout write error, and an
-answer nested too deeply to print: `OutputError` in `shared.ts`, exit 1; pretty-printing
-suggests `--compact`, which takes V8's fast, iterative path unless the answer holds a string or
+answer nested too deeply or too large to print: `OutputError` in `shared.ts`, exit 1, naming
+the cause — "nested too deeply" for a stack overflow, "too large (more than 536870888
+characters of JSON)" for V8's longest string; pretty-printing suggests `--compact` only when
+the compact form of this answer prints (probed: on Node 22 and 24 it overflows too), which takes V8's fast, iterative path unless the answer holds a string or
 key of 64 Mi characters or more (`holdsHugeString`): on Node 26 that path aborts the process on
 a ~250 MB string, so such an answer goes through the gap path). Code logs through `logOf(deps)` and never
 writes diagnostics with `io.err` directly. `run()` builds the logger from argv before
