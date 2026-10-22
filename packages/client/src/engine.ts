@@ -466,17 +466,24 @@ function withDecoded(values: string[]): string[] {
  * ("Baden-W\uFFFDrttemberg", and `--region Württemberg` then matching nothing). An
  * unknown charset label is a RegionalatlasParseError.
  */
-function decodeBody(body: Buffer, contentType: string, source: string): string {
+function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
-    throw new RegionalatlasParseError(
-      `Unsupported response charset "${cutText(sanitizeServerText(charset), 100)}" from ${source}.`,
-    );
+    throw new RegionalatlasParseError(`${request}: unsupported response charset "${cutText(sanitizeServerText(charset), 100)}".`);
   }
   return decoder.decode(body);
+}
+
+/** A parsed JSON answer, with the decoded text it was parsed from and the request as errors name it. */
+export interface JsonAnswer<T> {
+  value: T;
+  /** The decoded body, as sent. */
+  text: string;
+  /** `GET <url>`, userinfo and a catalogue token redacted, long values shortened: the prefix of an answer error. */
+  request: string;
 }
 
 export class RequestEngine {
@@ -609,7 +616,17 @@ export class RequestEngine {
    * hang up", "connect ECONNREFUSED …") says nothing about which request failed.
    */
   private failedPrefix(url: string): string {
-    return `GET ${cutForMessage(shortenUrl(this.redact(redactUrl(url))))} failed: `;
+    return `${this.requestOf(url)} failed: `;
+  }
+
+  /**
+   * `GET <url>`, how every error about a request or its answer names it: userinfo and a
+   * catalogue token redacted, long parameter values (the `layer` SQL) shortened to `…`, cut at
+   * MAX_MESSAGE_VALUE_LENGTH. A parse, shape or number error used to name only the path, so
+   * with a mirror `--base-url` the host was not in the message.
+   */
+  private requestOf(url: string): string {
+    return `GET ${cutForMessage(shortenUrl(this.redact(redactUrl(url))))}`;
   }
 
   /**
@@ -777,49 +794,59 @@ export class RequestEngine {
   }
 
   /**
-   * `getJson`, plus the decoded text the value was parsed from: the client keeps it as the
-   * `body` of the ArcGIS error envelope, as sent. Rebuilding it with `JSON.stringify` overflowed
-   * the stack on Node 22 and 24 for an envelope nested 10,000 deep.
+   * `getJson`, plus the decoded text the value was parsed from (the client keeps it as the
+   * `body` of the ArcGIS error envelope, as sent: rebuilding it with `JSON.stringify` overflowed
+   * the stack on Node 22 and 24 for an envelope nested 10,000 deep) and the request as an error
+   * about the answer names it (`GET <url>`, redacted and shortened).
    */
-  async getJsonAnswer<T>(path: string, query?: QueryParams): Promise<{ value: T; text: string }> {
-    return this.decodeJson<T>(await this.request(path, query), path);
+  async getJsonAnswer<T>(path: string, query?: QueryParams): Promise<JsonAnswer<T>> {
+    const url = this.buildUrl(path, query);
+    return this.decodeJson<T>(await this.requestUrl(url, "application/json", "data"), this.requestOf(url));
   }
 
   /** GET a fully-qualified absolute URL (e.g. the catalogue host) and parse JSON into `T`. */
   async getJsonAbsolute<T>(absoluteUrl: string, query?: QueryParams): Promise<T> {
+    return (await this.getJsonAbsoluteAnswer<T>(absoluteUrl, query)).value;
+  }
+
+  /** `getJsonAbsolute`, plus the decoded text and the request, as `getJsonAnswer` gives them. */
+  async getJsonAbsoluteAnswer<T>(absoluteUrl: string, query?: QueryParams): Promise<JsonAnswer<T>> {
     const url = this.buildAbsoluteUrl(absoluteUrl, query);
     // Its userinfo is as secret as the base URL's, and so is a `?token=`: scrub both from
     // every message too.
     for (const form of credentialForms(url)) this.#credentials.add(form);
     for (const form of credentialsIn(url).flatMap(echoedCredentialForms)) this.#echoed.add(form);
     for (const form of queryTokenForms(url)) this.#tokens.add(form);
-    return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), redactUrl(url)).value;
+    return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), this.requestOf(url));
   }
 
-  /** Parse a JSON body; `source` names it in the error (a path, or a redacted URL). */
-  private decodeJson<T>(res: RawResponse, source: string): { value: T; text: string } {
-    const text = decodeBody(res.data, res.contentType, this.redact(source));
-    if (res.status === 204 || text.trim().length === 0) {
-      return { value: null as T, text };
-    }
+  /**
+   * Parse a JSON body. Every error about the answer names the request (`GET <url>: …`): an
+   * unknown charset, an empty body (a broken answer, not "nothing found": both hosts always
+   * answer with a JSON document), text that is not JSON (naming a Content-Type that isn't JSON,
+   * as a maintenance or proxy page has) and a number JSON can't carry exactly.
+   */
+  private decodeJson<T>(res: RawResponse, request: string): JsonAnswer<T> {
+    const text = decodeBody(res.data, res.contentType, request);
+    if (text.trim() === "") throw new RegionalatlasParseError(`${request}: empty response body.`);
     // Declared big integers are quoted first, so JSON.parse delivers them exactly.
     const { json, inexact } = scanNumbers(text, this.bigIntegerKeys);
     let parsed: T;
     try {
       parsed = JSON.parse(json) as T;
     } catch (cause) {
-      throw new RegionalatlasParseError(`Failed to parse JSON response from ${this.redact(source)}`, {
-        cause: this.scrubCause(cause),
-      });
+      // An HTML maintenance or proxy page is the usual non-JSON answer: name its type, so it
+      // reads as an upstream problem rather than a client bug.
+      const type = res.contentType.split(";")[0]?.trim() ?? "";
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cutText(sanitizeServerText(type), 100)}")` : "";
+      throw new RegionalatlasParseError(`${request}: the answer is not valid JSON${hint}.`, { cause: this.scrubCause(cause) });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than return a
     // changed value.
     if (inexact !== undefined) {
-      throw new RegionalatlasParseError(
-        `Unexpected response from ${this.redact(source)}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
-      );
+      throw new RegionalatlasParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
-    return { value: parsed, text };
+    return { value: parsed, text, request };
   }
 
   private toApiError(

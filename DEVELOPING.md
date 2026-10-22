@@ -294,8 +294,11 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   `JSON.stringify` don't show them, and the engine scrubs the userinfo of both (raw and
   percent-decoded, and the forms a server echoes it back in: the `Basic` value, the
   decoded `user:password`, the password alone from 4 characters) from error bodies, details, transport error text and the `cause`
-  chain (`redact`, `scrubCause`). The catalogue's "Failed to parse JSON response from …"
-  and "returned an empty body" messages name it redacted. Whatever a custom transport
+  chain (`redact`, `scrubCause`). Every error about an answer names the request,
+  `GET <url>: …` with the URL redacted (D9 of the 2026-10-21 round): the answer is not valid
+  JSON (naming a Content-Type that isn't JSON), an empty response body (a 204 too), an
+  unsupported charset, a number that can't be represented exactly, an unexpected shape, a
+  catalogue the client refuses. Whatever a custom transport
   throws reaches the caller as a `RegionalatlasNetworkError` (the original as `cause`).
   A bad value used to be accepted and fail later, after the catalogue request,
   as a `RegionalatlasNetworkError`. The engine keeps its per-request scheme check
@@ -345,7 +348,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   counts (a proxy's bare `"Token Required"` or `true` too); `describeArcGisError` joins
   message and details without repeats, for the 200 envelope and non-2xx replies alike.
   A body that is not a JSON object, or has no `features` array, is a
-  `RegionalatlasParseError` (`Unexpected response shape from <path>: expected …`), not
+  `RegionalatlasParseError` (`GET <url>: unexpected response shape: expected …`), not
   an empty result. The `error.message`
   is run through `sanitizeServerText` before it can reach stderr: control and bidi
   characters dropped, whitespace folded to one line; the joined message and details are
@@ -367,7 +370,7 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   the JSON stays equivalent.
 - **Numbers are exact or an error** (`scanNumbers` in engine.ts, both hosts): a 2xx
   JSON body with a number `JSON.parse` can't carry exactly is a `RegionalatlasParseError`
-  (`Unexpected response from <path or catalogue URL>: the number <N> cannot be represented
+  (`GET <data or catalogue URL>: the number <N> cannot be represented
   exactly.`, exit 1), never a changed value: out of a double's range (`1e400`), past 2^53 when
   the double prints as another number than the one written (`12345678901234567890` prints as
   `…7000`), non-zero and too small (`1e-400` → 0), or a subnormal (below
@@ -381,9 +384,8 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   number as its exact literal, a JSON string, whatever its size. The special-value codes
   (`2222222222`, …) are far below 2^53 and pass; `parseRow` then treats them as before.
   The same rule covers a value sent as a decimal *string* (`toValue` in client.ts, through the
-  engine's `exactAtTheEdges`): `parseRow` throws a `RegionalatlasParseError` (`Unexpected
-  response from the data query (field <f>, region <ags>): the number <N> cannot be represented
-  exactly.`, exit 1) for `"12345678901234567890"`, a string of 400 digits or a non-zero
+  engine's `exactAtTheEdges`): `parseRow` throws a `RegionalatlasParseError` (`GET <url>: the
+  number <N> in field <f> of region <ags> cannot be represented exactly.`, exit 1) for `"12345678901234567890"`, a string of 400 digits or a non-zero
   `"0.000…1"` that rounds to 0, where `Number()` used to round, overflow to `null` or zero
   silently. A decimal string may carry an exponent (`"1e3"`, `"1.0E-5"`), as JSON's number
   grammar allows. Any other value (`"1,5"`, `" 12"`, `"0x10"`, `""`, `true`, `[]`) becomes

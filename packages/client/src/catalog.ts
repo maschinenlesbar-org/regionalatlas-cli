@@ -173,7 +173,7 @@ function assertUsableTable(code: string, table: string, seen: Map<string, string
 export function parseIndicators(raw: unknown): Indicator[] {
   if (!Array.isArray(raw)) {
     throw new RegionalatlasParseError(
-      "Unexpected catalogue shape: expected a JSON array of themes from services.json.",
+      "Unexpected catalogue shape: expected a JSON array of themes.",
     );
   }
   const catalog = raw as RawCatalog;
@@ -223,7 +223,7 @@ export function parseIndicators(raw: unknown): Indicator[] {
 export function parseThemes(raw: unknown): Theme[] {
   if (!Array.isArray(raw)) {
     throw new RegionalatlasParseError(
-      "Unexpected catalogue shape: expected a JSON array of themes from services.json.",
+      "Unexpected catalogue shape: expected a JSON array of themes.",
     );
   }
   // The same checks as `indicators`: a catalogue it refuses is refused here too.

@@ -60,10 +60,12 @@ test("getJson parses and returns the JSON body", async () => {
   assert.deepEqual(await e.getJson("/x/query"), fx.landData);
 });
 
-test("getJson returns null on an empty/204 body", async () => {
-  const mt = makeMockTransport(() => rawResponse("", "application/json", 204));
-  const e = new RequestEngine({ transport: mt.transport });
-  assert.equal(await e.getJson("/x"), null);
+test("getJson refuses an empty body, a 204 too: both hosts always answer with JSON", async () => {
+  for (const status of [200, 204]) {
+    const mt = makeMockTransport(() => rawResponse("", "application/json", status));
+    const e = new RequestEngine({ transport: mt.transport });
+    await assert.rejects(e.getJson("/x"), (err: Error) => err instanceof RegionalatlasParseError && err.message === "GET https://www.gis-idmz.nrw.de/x: empty response body.");
+  }
 });
 
 test("getJson throws RegionalatlasParseError on invalid JSON", async () => {
@@ -87,7 +89,7 @@ test("a number the JSON cannot carry exactly is a parse error, never a changed v
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body(n), "application/json")).transport });
     await assert.rejects(e.getJson("/x/query"), (err: unknown) => {
       assert.ok(err instanceof RegionalatlasParseError, n);
-      assert.equal(err.message, `Unexpected response from /x/query: the number ${n} cannot be represented exactly.`);
+      assert.equal(err.message, `GET https://www.gis-idmz.nrw.de/x/query: the number ${n} cannot be represented exactly.`);
       return true;
     });
   }
@@ -116,7 +118,7 @@ test("the catalogue is checked for inexact numbers too, named by its redacted UR
   const e = new RequestEngine({ transport: mt.transport });
   await assert.rejects(e.getJsonAbsolute("https://u:secret@cat.test/services.json"), (err: unknown) => {
     assert.ok(err instanceof RegionalatlasParseError);
-    assert.equal(err.message, "Unexpected response from https://***@cat.test/services.json: the number 1e400 cannot be represented exactly.");
+    assert.equal(err.message, "GET https://***@cat.test/services.json: the number 1e400 cannot be represented exactly.");
     return true;
   });
 });
@@ -671,4 +673,40 @@ test("bigIntegerKeys: a declared member's number is its exact literal as a strin
   // Without declarations the scan is the plain number check.
   assert.deepEqual(scanNumbers('{"a":"1e400","b":3e-324}'), { json: '{"a":"1e400","b":3e-324}', inexact: "3e-324" });
   assert.deepEqual(scanNumbers('{"a":1}'), { json: '{"a":1}', inexact: undefined });
+});
+
+test("an answer error names the request: method and URL, userinfo and token redacted (D9)", async () => {
+  const answer = (body: string, type = "application/json") => makeMockTransport(() => rawResponse(body, type)).transport;
+  const data = (transport: ReturnType<typeof answer>) => new RequestEngine({ baseUrl: "https://u:pw@data.test", transport });
+  const cases: Array<[ReturnType<typeof answer>, string]> = [
+    [answer("<html>maintenance</html>", "text/html"), 'GET https://***@data.test/x/query?a=1: the answer is not valid JSON (expected JSON, got Content-Type "text/html").'],
+    [answer("{"), "GET https://***@data.test/x/query?a=1: the answer is not valid JSON."],
+    [answer(""), "GET https://***@data.test/x/query?a=1: empty response body."],
+    [answer(" \n"), "GET https://***@data.test/x/query?a=1: empty response body."],
+    [answer("{}", "application/json; charset=x-bogus"), 'GET https://***@data.test/x/query?a=1: unsupported response charset "x-bogus".'],
+    [answer('{"n":1e400}'), "GET https://***@data.test/x/query?a=1: the number 1e400 cannot be represented exactly."],
+  ];
+  for (const [transport, message] of cases) {
+    await assert.rejects(data(transport).getJson("/x/query", { a: 1 }), (err: unknown) => {
+      assert.ok(err instanceof RegionalatlasParseError, String(err));
+      assert.equal(err.message, message);
+      return true;
+    });
+  }
+  // The catalogue: the absolute URL, its token redacted.
+  const e = new RequestEngine({ transport: answer("<html>", "text/html") });
+  await assert.rejects(e.getJsonAbsolute("https://u:pw@cat.test/services.json?token=s3cr3tvalue"), (err: Error) =>
+    err.message === 'GET https://***@cat.test/services.json?token=***: the answer is not valid JSON (expected JSON, got Content-Type "text/html").');
+  // The client's own answer errors too: a wrong shape, a refused catalogue.
+  const c = new RegionalatlasClient({
+    baseUrl: "https://u:pw@data.test",
+    catalogUrl: "https://cat.test/services.json?token=s3cr3tvalue",
+    transport: makeMockTransport((req) => (req.url.includes("cat.test") ? jsonResponse(fx.catalog) : jsonResponse({ status: "maintenance" }))).transport,
+  });
+  await assert.rejects(c.query({ indicator: "AI002-1-5", year: 2020 }), (err: Error) =>
+    err instanceof RegionalatlasParseError && /^GET https:\/\/\*\*\*@data\.test\/arcgis\/\S+: unexpected response shape: expected a features array, got none\.$/.test(err.message));
+  const refused = new RegionalatlasClient({ catalogUrl: "https://cat.test/services.json?token=s3cr3tvalue", transport: answer('{"themes":[]}') });
+  await assert.rejects(refused.themes(), (err: Error) =>
+    err.message === "GET https://cat.test/services.json?token=***: unexpected catalogue shape: expected a JSON array of themes.");
+  await assert.rejects(refused.indicators(), (err: Error) => err.message.startsWith("GET https://cat.test/services.json?token=***: "));
 });

@@ -234,7 +234,7 @@ test("a decimal string a double can't carry exactly is a parse error, never a ch
         assert.ok(err instanceof RegionalatlasParseError, n);
         assert.equal(
           err.message,
-          `Unexpected response from the data query (field ai0201, region 01): the number ${n.length > MAX_MESSAGE_VALUE_LENGTH ? `${n.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : n} cannot be represented exactly.`,
+          `the data query: the number ${n.length > MAX_MESSAGE_VALUE_LENGTH ? `${n.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : n} in field ai0201 of region 01 cannot be represented exactly.`,
           n,
         );
         return true;
@@ -427,7 +427,7 @@ test("an empty 200 data body surfaces as a typed RegionalatlasParseError", async
     () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
     (err) =>
       err instanceof RegionalatlasParseError &&
-      /Unexpected response shape from \S+\/dynamicLayer\/query: expected a JSON object, got an empty body\./.test(
+      /^GET https:\/\/www\.gis-idmz\.nrw\.de\/\S+\/dynamicLayer\/query\?\S+: unexpected response shape: expected a JSON object, got null\.$/.test(
         err.message,
       ),
   );
@@ -456,7 +456,7 @@ test("a feature without an attributes object is a typed parse error", async () =
   const { client } = clientRouting({ features: [{}] });
   await assert.rejects(
     () => client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }),
-    (err) => err instanceof RegionalatlasParseError && /no "attributes" object/.test(err.message),
+    (err) => err instanceof RegionalatlasParseError && /: unexpected response shape: expected feature 0 to have an "attributes" object\.$/.test(err.message),
   );
 });
 

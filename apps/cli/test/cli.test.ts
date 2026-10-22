@@ -450,7 +450,7 @@ test("a maintenance reply exits 1 with the shape error and no empty-result note"
   const cli = makeCli(routeByHost(fx.catalog, { status: "maintenance" }));
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020"], cli.deps), 1);
   assert.equal(cli.out.length, 0);
-  assert.match(untimed(cli.err.join("\n")), /^ERROR \[regionalatlas\.api\] Unexpected response shape from .*expected a features array, got none\.$/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[regionalatlas\.api\] GET https:\/\/www\.gis-idmz\.nrw\.de\/\S+: unexpected response shape: expected a features array, got none\.$/);
   assert.doesNotMatch(untimed(cli.err.join("\n")), /^INFO /m);
 });
 
@@ -653,7 +653,7 @@ test("a catalogue with colliding codes fails every command (exit 1), before any 
   for (const argv of [["themes"], ["indicators"], ["query", "dup_1", "--year", "2020"]]) {
     const cli = makeCli((req) => (new URL(req.url).hostname.includes("statistikportal") ? jsonResponse(bad) : jsonResponse(fx.landData)));
     assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
-    assert.match(cli.err.join("\n"), /Refusing the indicator catalogue: the codes "DUP-1" and "dup_1" name the same table dup_1/);
+    assert.match(cli.err.join("\n"), /GET https:\/\/regionalatlas\.statistikportal\.de\/taskrunner\/services\.json: refusing the indicator catalogue: the codes "DUP-1" and "dup_1" name the same table dup_1/);
     assert.equal(dataCalls(cli.mt.calls).length, 0);
   }
 });

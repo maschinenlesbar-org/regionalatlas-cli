@@ -16,7 +16,7 @@
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
 import { RequestEngine, describeArcGisError, exactAtTheEdges, validateHttpUrl, type EngineOptions } from "./engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, quoteValue, redactUrl } from "./errors.js";
+import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, quoteValue } from "./errors.js";
 import {
   assertKnownFields,
   assertLevelPublished,
@@ -80,7 +80,8 @@ export class RegionalatlasClient {
   // catalogue URL's userinfo.
   readonly #catalogUrl: string;
   private indicatorsCache: Indicator[] | undefined;
-  private rawCatalogCache: unknown;
+  /** The raw services.json and its request (`GET <url>`, redacted), for the errors about it. */
+  private rawCatalogCache: { value: unknown; request: string } | undefined;
 
   constructor(options: RegionalatlasClientOptions | null = {}) {
     // The engine refuses a non-object; `null` counts as no options.
@@ -92,16 +93,11 @@ export class RegionalatlasClient {
       options.catalogUrl === undefined ? DEFAULT_CATALOG_URL : validateHttpUrl("catalogUrl", options.catalogUrl);
   }
 
-  /** Fetch and cache the raw services.json (an array of themes). */
-  private async rawCatalog(): Promise<unknown> {
+  /** Fetch and cache the raw services.json (an array of themes); an empty body is a parse error. */
+  private async rawCatalog(): Promise<{ value: unknown; request: string }> {
     if (this.rawCatalogCache === undefined) {
-      const raw = await this.engine.getJsonAbsolute<unknown>(this.#catalogUrl);
-      if (raw === null || raw === undefined) {
-        throw new RegionalatlasParseError(
-          `The catalogue at ${redactUrl(this.#catalogUrl)} returned an empty body.`,
-        );
-      }
-      this.rawCatalogCache = raw;
+      const { value, request } = await this.engine.getJsonAbsoluteAnswer<unknown>(this.#catalogUrl);
+      this.rawCatalogCache = { value, request };
     }
     return this.rawCatalogCache;
   }
@@ -109,14 +105,16 @@ export class RegionalatlasClient {
   /** Fetch and cache the flat indicator list. */
   private async allIndicators(): Promise<Indicator[]> {
     if (this.indicatorsCache === undefined) {
-      this.indicatorsCache = parseIndicators(await this.rawCatalog());
+      const { value, request } = await this.rawCatalog();
+      this.indicatorsCache = namingRequest(request, () => parseIndicators(value));
     }
     return this.indicatorsCache;
   }
 
   /** The 21 subject areas (Themenbereiche), each with its indicator count. */
   async themes(): Promise<Theme[]> {
-    return parseThemes(await this.rawCatalog());
+    const { value, request } = await this.rawCatalog();
+    return namingRequest(request, () => parseThemes(value));
   }
 
   /**
@@ -179,7 +177,7 @@ export class RegionalatlasClient {
     // 4. Build the SQL from validated pieces only.
     const layer = buildLayerParam(indicator.table, level.typ, year);
 
-    const res = await this.getData({
+    const { value: res, request } = await this.getData({
       layer: JSON.stringify(layer),
       f: "json",
       outFields: "*",
@@ -193,10 +191,10 @@ export class RegionalatlasClient {
     // user looking for a data gap), and a truthy non-array would otherwise reach
     // `.map` below as a raw TypeError.
     if (!Array.isArray(res.features)) {
-      throw shapeError(`a features array, got ${kindOf(res.features)}`);
+      throw shapeError(request, `a features array, got ${kindOf(res.features)}`);
     }
     const rows = res.features.map((f, i) =>
-      parseRow(featureAttributes(f, i), level.typ, level.name, year),
+      parseRow(featureAttributes(f, i, request), level.typ, level.name, year, request),
     );
 
     // 5. Client-side region filter + field projection (no user text upstream).
@@ -215,12 +213,12 @@ export class RegionalatlasClient {
   }
 
   /** GET the dynamicLayer data query, then throw on the ArcGIS `error` envelope. */
-  private async getData(params: Record<string, string | number | boolean>): Promise<ArcGisQueryResponse> {
-    const { value: res, text } = await this.engine.getJsonAnswer<unknown>(DATA_PATH, params);
-    // The endpoint answers with a JSON envelope object. A null (empty/204 body), an
-    // array or a scalar means the endpoint did not return the expected shape.
+  private async getData(params: Record<string, string | number | boolean>): Promise<{ value: ArcGisQueryResponse; request: string }> {
+    const { value: res, text, request } = await this.engine.getJsonAnswer<unknown>(DATA_PATH, params);
+    // The endpoint answers with a JSON envelope object. A `null`, an array or a scalar means
+    // the endpoint did not return the expected shape.
     if (res === null || typeof res !== "object" || Array.isArray(res)) {
-      throw shapeError(`a JSON object, got ${res === null ? "an empty body" : kindOf(res)}`);
+      throw shapeError(request, `a JSON object, got ${kindOf(res)}`);
     }
     // Logical errors arrive as HTTP 200 with a top-level `error` key — sniff for it.
     // Any present, truthy `error` is a failure: ArcGIS writes an object, but a
@@ -244,7 +242,21 @@ export class RegionalatlasClient {
         detail: detail === undefined ? undefined : cutForMessage(this.engine.redact(detail)),
       });
     }
-    return res as ArcGisQueryResponse;
+    return { value: res as ArcGisQueryResponse, request };
+  }
+}
+
+/**
+ * Run a parse of the catalogue, and name its request in a RegionalatlasParseError it throws
+ * (`GET <catalogue url>: unexpected catalogue shape: …`): the parse functions are pure and know
+ * no URL.
+ */
+function namingRequest<T>(request: string, parse: () => T): T {
+  try {
+    return parse();
+  } catch (err) {
+    if (!(err instanceof RegionalatlasParseError)) throw err;
+    throw new RegionalatlasParseError(`${request}: ${err.message.charAt(0).toLowerCase()}${err.message.slice(1)}`, { cause: err });
   }
 }
 
@@ -252,9 +264,9 @@ export class RegionalatlasClient {
 // Row parsing & client-side filtering (exported for tests)
 // --------------------------------------------------------------------------
 
-/** The P12 wording shared with the sibling CLIs for a reply of the wrong shape. */
-function shapeError(expected: string): RegionalatlasParseError {
-  return new RegionalatlasParseError(`Unexpected response shape from ${DATA_PATH}: expected ${expected}.`);
+/** The wording shared with the sibling CLIs for a reply of the wrong shape, naming the request (`GET <url>: …`). */
+function shapeError(request: string, expected: string): RegionalatlasParseError {
+  return new RegionalatlasParseError(`${request}: unexpected response shape: expected ${expected}.`);
 }
 
 /** A short description of a JSON value for a shape error ("none", "an array", "a string", …). */
@@ -275,18 +287,13 @@ function kindOf(value: unknown): string {
  * null (reading 'attributes')" — the one place this client's typed-error discipline
  * leaked an internal message.
  */
-function featureAttributes(feature: unknown, index: number): RawFeatureAttributes {
+function featureAttributes(feature: unknown, index: number, request: string): RawFeatureAttributes {
   if (feature === null || typeof feature !== "object") {
-    throw new RegionalatlasParseError(
-      `Expected feature ${index} of the data query response to be an object, got ` +
-        `${feature === null ? "null" : typeof feature}.`,
-    );
+    throw shapeError(request, `feature ${index} to be an object, got ${kindOf(feature)}`);
   }
   const attrs = (feature as { attributes?: unknown }).attributes;
   if (attrs === null || typeof attrs !== "object") {
-    throw new RegionalatlasParseError(
-      `Feature ${index} of the data query response has no "attributes" object.`,
-    );
+    throw shapeError(request, `feature ${index} to have an "attributes" object`);
   }
   return attrs as RawFeatureAttributes;
 }
@@ -429,12 +436,14 @@ const JOIN_FIELDS = new Set([
  *
  * @throws RegionalatlasParseError for a value sent as a decimal string that a double
  *   can't carry exactly (`"12345678901234567890"`), never a changed value — see `toValue`.
+ *   The message starts with `request` (the client passes `GET <url>`; default "the data query").
  */
 export function parseRow(
   attrs: RawFeatureAttributes,
   typ: 1 | 2 | 3 | 5,
   level: string,
   year: number,
+  request = "the data query",
 ): RegionRow {
   const ags = String(attrs.ags ?? "").trim();
   const rawName = typeof attrs.gen === "string" ? attrs.gen : attrs.gen2;
@@ -450,8 +459,8 @@ export function parseRow(
     const n = toValue(value);
     if (n === undefined) {
       throw new RegionalatlasParseError(
-        `Unexpected response from the data query (field ${cutForMessage(key)}, region ${cutForMessage(ags)}): ` +
-          `the number ${cutForMessage(String(value))} cannot be represented exactly.`,
+        `${request}: the number ${cutForMessage(String(value))} in field ${cutForMessage(key)} of region ${cutForMessage(ags)} ` +
+          "cannot be represented exactly.",
       );
     }
     // A special-value code is not a measurement: an average or a ranking over it would
