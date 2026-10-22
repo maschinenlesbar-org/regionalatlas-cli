@@ -835,3 +835,41 @@ test("a quoted value shows its invisible characters escaped, in every refusal an
   await assert.rejects(c.query({ indicator: `AI002-1-5${WJ}x` , year: 2020 }), (err: Error) => err.message.includes("\\u2060") && !err.message.includes(WJ));
   await assert.rejects(c.query({ indicator: "AI002-1-5", [`le${WJ}vel`]: "land" } as never), (err: Error) => err.message.includes("le\\u2060vel") && !err.message.includes(WJ));
 });
+
+// Kit item T15 (jobsuche-cli 28be809): a URL with a password inside an argument — padded, after
+// a dash, mid-phrase, with a space in the password — was printed raw in the notes and refusals
+// that quote the argument: the redaction read credentials only from an argument that starts
+// with a scheme.
+test("a password in a URL anywhere in an argument is redacted in every record that quotes it (T15)", async () => {
+  const PW = "p w0rd";
+  const url = `https://bob:${PW}@evil.example/x`;
+  const cases: string[][] = [
+    ["query", "AI002-1-5", "--year", "2020", "--region", ` ${url}`],
+    ["query", "AI002-1-5", "--year", "2020", "--region", `see ${url} please`],
+    ["indicators", "--search", `-${url}`],
+    ["indicators", "--theme", `\t${url}`],
+    ["query", ` ${url}`, "--year", "2020"],
+    ["query", "AI002-1-5", "--year", "2020", "--level", ` ${url}`],
+    ["query", "AI002-1-5", "--year", "2020", "--fields", `ai0201,x${url}`],
+    ["query", "AI002-1-5", "--year", `x${url}`],
+  ];
+  for (const argv of cases) {
+    for (const format of ["text", "jsonl"]) {
+      const cli = makeRoutingCli();
+      await run(["--log-format", format, ...argv], cli.deps);
+      const text = [...cli.out, ...cli.err].join("\n");
+      assert.ok(!text.includes("w0rd"), `${format} ${JSON.stringify(argv)}:\n${text}`);
+    }
+  }
+});
+
+// The URL search inside an argument must stay linear: a pattern retried at every position took
+// seconds on a long argument without `://` (40 000 characters: ~3 s).
+test("an argument of 1 MB without a URL is read for credentials in linear time (T15)", async () => {
+  for (const value of ["a".repeat(1_000_000), "a:".repeat(500_000), "a://b@".repeat(100_000)]) {
+    const cli = makeRoutingCli();
+    const started = performance.now();
+    await run(["indicators", "--search", value], cli.deps);
+    assert.ok(performance.now() - started < 1500, `${value.slice(0, 6)}…: ${Math.round(performance.now() - started)} ms`);
+  }
+});

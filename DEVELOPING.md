@@ -289,9 +289,12 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   exact userinfo of every URL argument (`credentialsIn`, exported) and replaces it with `***`
   in everything it prints — commander's usage errors, which echo a rejected
   `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
-  quotes, `#`, `?` or `/` is caught as well as an ordinary one. Only a value that starts
-  with a scheme counts (a bare `a:b@c` is a search text, a region name or a User-Agent as
-  often as a credential), except as the value of `--base-url` or `--catalog-url` or in
+  quotes, `#`, `?` or `/` is caught as well as an ordinary one. Only a URL with a scheme
+  counts (a bare `a:b@c` is a search text, a region name or a User-Agent as often as a
+  credential); it is found anywhere in an argument (`urlsWithin`: each `://` by indexOf, its scheme by
+  walking back, at most 64 per argument, so a 1 MB argument costs one pass), not only at its start, since
+  a filter is used trimmed and the notes and refusals quote it: a padded `" https://u:pw@h"`,
+  one after a dash or inside a phrase, a password with a space, except as the value of `--base-url` or `--catalog-url` or in
   `REGIONALATLAS_BASE_URL`, where a `user:password@host` typed without its scheme is still
   read as a credential. The forms a server echoes
   a userinfo back in are replaced too (`echoedCredentialForms`, `redactSecrets`): the
