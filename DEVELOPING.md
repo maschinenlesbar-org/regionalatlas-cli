@@ -368,7 +368,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   as a JSON escape (`\ud800`, which jq refuses, and the whole output with it), become U+FFFD
   (`wellFormedEscapes`), and the engine option `onWarning` is told how many, naming the
   request; the CLI logs it as a `WARN` record of `regionalatlas.api`. One bad character never
-  sinks a whole answer.
+  sinks a whole answer. A body too large to be one string (512 MB and more, with
+  `--max-response-bytes 0`) is a `RegionalatlasParseError`, `GET <url>: the answer is too large
+  to read as text (N bytes; …)`, never V8's plain Error; an error status with such a body keeps
+  its `RegionalatlasApiError`, without the body.
 - **Printed JSON is terminal-safe** (`escapeControlChars` in `apps/cli/src/cli/shared.ts`):
   `JSON.stringify` escapes C0 but leaves DEL, C1 (U+0080–U+009F) and the bidi controls
   (`isBidiControl`) raw, and a terminal acts on them, so they go out as `\uXXXX` escapes;

@@ -9,6 +9,7 @@
 // fully-qualified absolute URL (`requestAbsolute`) so the catalogue can be fetched
 // without changing the data `baseUrl`.
 
+import { constants } from "node:buffer";
 import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
@@ -487,12 +488,34 @@ function decodeBody(body: Buffer, contentType: string, request: string): { text:
   }
   try {
     return { text: decoder.decode(body), replaced: 0 };
-  } catch {
+  } catch (err) {
+    if (isStringTooLong(err)) throw tooLargeForText(request, body);
     // Not valid in the charset: decode with replacement, and count what was replaced.
-    const text = new TextDecoder(decoder.encoding).decode(body);
+    let text: string;
+    try {
+      text = new TextDecoder(decoder.encoding).decode(body);
+    } catch (again) {
+      if (isStringTooLong(again)) throw tooLargeForText(request, body);
+      throw again;
+    }
     const sent = decoder.encoding === "utf-8" ? countBytes(body, REPLACEMENT_UTF8) : 0;
     return { text, replaced: countChar(text, 0xfffd) - sent };
   }
+}
+
+/**
+ * True for V8's error for a string past its longest one (2^29 − 24 characters on 64-bit): a body
+ * of 512 MB and more, possible once `maxResponseBytes` is lifted, can't be decoded into one.
+ */
+function isStringTooLong(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === "ERR_STRING_TOO_LONG";
+}
+
+/** The parse error for a body too large to decode: it used to escape as a plain Error ("Unexpected error"). */
+function tooLargeForText(request: string, body: Buffer): RegionalatlasParseError {
+  return new RegionalatlasParseError(
+    `${request}: the answer is too large to read as text (${body.byteLength} bytes; the longest string is ${constants.MAX_STRING_LENGTH} characters).`,
+  );
 }
 
 /** U+FFFD in UTF-8. */
@@ -963,8 +986,15 @@ export class RequestEngine {
     download: Download,
     locationHeader: string | undefined,
   ): RegionalatlasApiError {
-    // The body is kept on the error (`body`) and may echo the request URL: scrub it.
-    const text = this.redact(body.toString("utf8"));
+    // The body is kept on the error (`body`) and may echo the request URL: scrub it. One too
+    // large to be a string (maxResponseBytes lifted) is left out: the status is the error.
+    let raw = "";
+    try {
+      raw = body.toString("utf8");
+    } catch (err) {
+      if (!isStringTooLong(err)) throw err;
+    }
+    const text = this.redact(raw);
     let detail: string | undefined;
     try {
       const parsed = JSON.parse(text) as {

@@ -741,3 +741,33 @@ test("text that is not valid is replaced with U+FFFD and reported through onWarn
   assert.equal(await throwing.getJson("/x"), "\ufffd");
   assert.throws(() => new RequestEngine({ onWarning: "log" as unknown as () => void }), RegionalatlasValidationError);
 });
+
+test("an answer longer than V8's longest string is a RegionalatlasParseError naming the request, not a plain Error (T14)", async (t) => {
+  // A real one needs a body of 512 MB and more (possible with maxResponseBytes 0): V8's own
+  // error is stood in for, for the body marked by its length.
+  const huge = Buffer.from('{"features":[]}       ');
+  const tooLong = Object.assign(new Error("Cannot create a string longer than 0x1fffffe8 characters"), { code: "ERR_STRING_TOO_LONG" });
+  const { TextDecoder } = await import("node:util");
+  const decode = TextDecoder.prototype.decode;
+  t.mock.method(TextDecoder.prototype, "decode", function (this: InstanceType<typeof TextDecoder>, input?: Uint8Array, options?: { stream?: boolean }) {
+    if (input !== undefined && input.byteLength === huge.length) throw tooLong;
+    return decode.call(this, input, options);
+  });
+  const toString = Buffer.prototype.toString;
+  t.mock.method(Buffer.prototype, "toString", function (this: Buffer, ...args: Parameters<Buffer["toString"]>) {
+    if (this.length === huge.length && args[0] === "utf8") throw tooLong;
+    return toString.apply(this, args);
+  });
+  const e = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "application/json")).transport });
+  await assert.rejects(e.getJson("/x/query", { f: "json" }), (err: unknown) => {
+    assert.ok(err instanceof RegionalatlasParseError, String(err));
+    assert.equal(
+      err.message,
+      `GET https://www.gis-idmz.nrw.de/x/query?f=json: the answer is too large to read as text (${huge.length} bytes; the longest string is 536870888 characters).`,
+    );
+    return true;
+  });
+  // An error status with such a body is still the API error, without the unreadable body.
+  const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
+  await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof RegionalatlasApiError && err.status === 500 && err.body === "");
+});
