@@ -102,13 +102,16 @@ test("isBlank / nonEmptyProblem: empty and whitespace-only strings are blank", (
 });
 
 test("fieldsProblem: a field list needs at least one non-blank name", () => {
-  for (const v of [[], [""], [" "], ["", " ", "\t"]]) {
-    assert.equal(fieldsProblem(v), "Expected at least one non-blank field name.", JSON.stringify(v));
+  assert.equal(fieldsProblem([]), "Expected at least one value.");
+  for (const v of [[""], [" "], ["\u200b"]]) assert.equal(fieldsProblem(v), "Expected a non-empty value.", JSON.stringify(v));
+  // A blank item next to real names is refused, not dropped (D8).
+  for (const v of [["", " ", "\t"], ["ai0201", " "], ["", "AI-Z01"]]) {
+    assert.match(fieldsProblem(v) ?? "", /^item \d of \d: Expected a non-empty value\.$/, JSON.stringify(v));
   }
   for (const v of ["ai0201", [42], ["ai0201", 42], undefined]) {
     assert.match(fieldsProblem(v) ?? "", /^Expected an array of field names/, JSON.stringify(v));
   }
-  for (const v of [["ai0201"], ["ai0201", " "], ["", "AI-Z01"]]) {
+  for (const v of [["ai0201"], [" ai0201 ", "AI-Z01"]]) {
     assert.equal(fieldsProblem(v), undefined, JSON.stringify(v));
   }
 });
@@ -124,7 +127,7 @@ test("a wrong-typed region, fields, theme or search is refused with a reason tha
     [() => c.query({ indicator: "AI002-1-5", fields: "ai0201,ai0202" as unknown as string[] }), /^Invalid fields: Expected an array of field names \(\["ai0201", "ai0202"\]\), got a string; split a comma-separated list first\.$/],
     [() => c.query({ indicator: "AI002-1-5", fields: ["ai0201", 7] as unknown as string[] }), /^Invalid fields: Expected an array of field names, got an item that is a number\.$/],
     [() => c.query({ indicator: "AI002-1-5", fields: {} as unknown as string[] }), /^Invalid fields: Expected an array of field names \(\["ai0201", "ai0202"\]\), got an object\.$/],
-    [() => c.query({ indicator: "AI002-1-5", fields: [" "] }), /^Invalid fields: Expected at least one non-blank field name\.$/],
+    [() => c.query({ indicator: "AI002-1-5", fields: [" "] }), /^Invalid fields: Expected a non-empty value\.$/],
     [() => c.indicators({ theme: 5 as unknown as string }), /^Invalid theme: Expected a string, got a number\.$/],
     [() => c.indicators({ search: ["x"] as unknown as string }), /^Invalid search: Expected a string, got an array\.$/],
     [() => c.indicators({ search: null as unknown as string }), /^Invalid search: Expected a string, got null\.$/],

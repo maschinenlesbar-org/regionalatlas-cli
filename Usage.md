@@ -26,7 +26,12 @@ is `--fields a,b`); giving any other option twice is a usage error (exit 2), whe
 value used to win silently. A `--region`, `--theme` or `--search` value that is one of this
 CLI's options once trimmed (`--region --fields`, `--region " --fields"`) is refused as a
 missing value: the option before it was left without one. A dash inside a text (`-1-5`) is
-text.
+text. A filter value, the indicator code and a `--fields` name are refused (exit 2) when they
+are blank or hold only invisible characters, or contain half a character (a lone surrogate), a
+control character or an invisible format character (a zero-width space, a soft hyphen, a bidi
+control; ZWJ and ZWNJ are allowed in a filter text): pasted along, such a character made the
+filter match nothing. The refusal shows it escaped (`"Bre\u200bmen" contains an invisible
+character (U+200B).`).
 
 `--base-url` and `--catalog-url` accept only `http:`/`https:` URLs without whitespace
 (around or inside them). `--base-url` must not have a query (`?`) or fragment (`#`) (the
@@ -91,7 +96,7 @@ title, which `--search` also matches (it contains the theme name).
 | `--level <level>` | geo level: `land` \| `regierungsbezirk` \| `kreis` \| `gemeinde` (default `land`) |
 | `--year <yyyy>` | reporting year (default: the newest year in the catalogue, which may not be loaded yet — see below) |
 | `--region <name\|ags>` | keep only the region with this AGS, or this exact name — else every region whose name contains the text (see below) |
-| `--fields <a,b,c>` | keep only these value fields (comma-separated; repeating the option adds to the list); names are checked against the indicator's columns |
+| `--fields <a,b,c>` | keep only these value fields (comma-separated; repeating the option adds to the list); names are checked against the indicator's columns, and an empty item (`ai0201,,ai0202`, a trailing comma) is refused |
 
 The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the table
 form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, typ, level, year,

@@ -68,9 +68,104 @@ export function normalizeInput(value: string): string {
   return value.trim().normalize("NFC");
 }
 
-/** True for an empty or whitespace-only string. */
+/** Characters that never make a value non-blank: whitespace, controls, format characters, combining marks. */
+const INVISIBLE = /[\s\p{Cc}\p{Cf}\p{M}]/gu;
+
+/** A lone surrogate: half of a character, which a JSON printer writes as `\ud800` and jq refuses. */
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * True when nothing in `value` would match anything: it holds only whitespace (U+00A0 and
+ * U+3000 included), control and format characters (a zero-width space, a soft hyphen) and
+ * combining marks. Such a filter reads as "no filter", or matches nothing, so it is refused as
+ * blank.
+ */
 export function isBlank(value: string): boolean {
-  return value.trim() === "";
+  return value.replace(INVISIBLE, "") === "";
+}
+
+/** `U+200B` for the first character of `text` that `pattern` matches. */
+function codePointOf(text: string, pattern: RegExp): string {
+  const ch = pattern.exec(text)?.[0] ?? "";
+  return `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+}
+
+/** A control character inside a text filter: C0 and C1, but not TAB, LF or CR (whitespace in a pasted phrase). */
+const TEXT_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/;
+
+/** A format character inside a text filter, but not ZWNJ/ZWJ (U+200C/U+200D), which some scripts and emoji need. */
+const TEXT_FORMAT = /(?![\u200c\u200d])\p{Cf}/u;
+
+/**
+ * Why `value` cannot be used as a text filter (`theme`, `search`, `region`), or undefined when it
+ * can. Refused, before any request, as it would match nothing or everything:
+ * - a value of another type (`Expected a string, got a number.`);
+ * - a value that is blank once trimmed, or holds only invisible characters and combining marks
+ *   (`isBlank`): an empty filter reads as "no filter", which answers with the whole list;
+ * - a lone surrogate (half of a character);
+ * - a control character (but TAB, LF and CR) or a format character (a zero-width space, a soft
+ *   hyphen, a bidi control; ZWNJ and ZWJ are allowed): pasted along, it makes the filter match
+ *   nothing.
+ * The reason quotes the value with every invisible character escaped (`quoteValue`).
+ */
+export function textProblem(value: unknown): string | undefined {
+  if (typeof value !== "string") return `Expected a string, got ${kindOf(value)}.`;
+  if (isBlank(value)) return "Expected a non-empty value.";
+  if (LONE_SURROGATE.test(value)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TEXT_CONTROL.test(value)) return `${quoteValue(value)} contains a control character (${codePointOf(value, TEXT_CONTROL)}).`;
+  if (TEXT_FORMAT.test(value)) return `${quoteValue(value)} contains an invisible character (${codePointOf(value, TEXT_FORMAT)}).`;
+  return undefined;
+}
+
+/** A control or format character in a token (after trimming): every Cc and every Cf. */
+const TOKEN_INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
+/**
+ * Why `value` cannot be used as a token, or undefined when it can. A token is a value compared
+ * exactly: the indicator code, a value-field name. The rules apply to the value with surrounding
+ * whitespace trimmed, as it is used (`normalizeToken`): not blank (and not only invisible
+ * characters or combining marks), no lone surrogate, and no control or format character at all
+ * (a zero-width space, ZWJ, a soft hyphen, a bidi control), since an invisible character in a
+ * code only ever makes it match nothing. The reason quotes the value visibly.
+ */
+export function tokenProblem(value: unknown): string | undefined {
+  if (typeof value !== "string") return `Expected a string, got ${kindOf(value)}.`;
+  if (isBlank(value)) return "Expected a non-empty value.";
+  const token = value.trim();
+  if (LONE_SURROGATE.test(token)) return `${quoteValue(value)} contains half of a character (a lone surrogate).`;
+  if (TOKEN_INVISIBLE.test(token)) {
+    return `${quoteValue(value)} contains an invisible or control character (${codePointOf(token, TOKEN_INVISIBLE)}).`;
+  }
+  return undefined;
+}
+
+/** A token as it is used: trimmed and in composed Unicode (NFC). Check it with {@link tokenProblem} first. */
+export function normalizeToken(value: string): string {
+  return value.trim().normalize("NFC");
+}
+
+/**
+ * The items of a comma-separated list option (`--fields a,b`), as typed: each item is checked
+ * (`listProblem`) and canonicalised (`normalizeToken`) on its own, so `"a, b"` uses `b`, and
+ * `"a,,b"`, `"a,"` and `","` are refused rather than dropped.
+ */
+export function splitList(value: string): string[] {
+  return value.split(",");
+}
+
+/**
+ * Why `items` cannot be used as a list, or undefined when it can: not an array of strings, no
+ * item at all, or an item that `itemProblem` refuses (by default {@link tokenProblem}: a blank
+ * item is refused, never dropped). The reason names the item.
+ */
+export function listProblem(items: readonly string[], itemProblem: Problem<unknown> = tokenProblem): string | undefined {
+  if (!Array.isArray(items)) return "Expected a list of strings.";
+  if (items.length === 0) return "Expected at least one value.";
+  for (let i = 0; i < items.length; i++) {
+    const problem = itemProblem(items[i]);
+    if (problem !== undefined) return items.length === 1 ? problem : `item ${i + 1} of ${items.length}: ${problem}`;
+  }
+  return undefined;
 }
 
 /** What a wrong-typed value is, for a message: "a number", "an array", "null", "undefined", … */
@@ -89,7 +184,7 @@ export function kindOf(value: unknown): string {
  */
 export const nonEmptyProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return `Expected a string, got ${kindOf(value)}.`;
-  return isBlank(value) ? "Expected a non-empty value." : undefined;
+  return value.trim() === "" ? "Expected a non-empty value." : undefined;
 };
 
 /**
@@ -97,13 +192,13 @@ export const nonEmptyProblem: Problem<unknown> = (value) => {
  * plain JavaScript (`region: 9`), where the key's leading zero would be lost anyway.
  */
 export const regionProblem: Problem<unknown> = (value) =>
-  typeof value === "string" ? nonEmptyProblem(value) : `Expected the region as a string (a name, or an AGS such as "09"), got ${kindOf(value)}.`;
+  typeof value === "string" ? textProblem(value) : `Expected the region as a string (a name, or an AGS such as "09"), got ${kindOf(value)}.`;
 
 /**
- * A `fields` projection is an array of field names with at least one non-blank name;
- * blank entries next to real names are dropped. A list with no name at all would otherwise
- * return the rows unprojected, every value column included. A string (the CLI's
- * comma-separated form) is named as such: the library wants the names split.
+ * A `fields` projection is a non-empty array of field names, each a token (`tokenProblem`): a
+ * blank or invisible item is refused, never dropped (a list with no name at all would return
+ * the rows unprojected, every value column included). A string (the CLI's comma-separated form)
+ * is named as such: the library wants the names split.
  */
 export const fieldsProblem: Problem<unknown> = (value) => {
   const expected = 'Expected an array of field names (["ai0201", "ai0202"])';
@@ -111,7 +206,7 @@ export const fieldsProblem: Problem<unknown> = (value) => {
   if (!Array.isArray(value)) return `${expected}, got ${kindOf(value)}.`;
   const bad = value.findIndex((f) => typeof f !== "string");
   if (bad >= 0) return `Expected an array of field names, got an item that is ${kindOf(value[bad])}.`;
-  return value.some((f) => !isBlank(f as string)) ? undefined : "Expected at least one non-blank field name.";
+  return listProblem(value as string[]);
 };
 
 /**

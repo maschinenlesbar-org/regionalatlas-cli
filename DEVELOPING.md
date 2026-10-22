@@ -250,10 +250,19 @@ input through `run()` and through the library on one recording mock transport.
 
 What the library refuses with `RegionalatlasValidationError`, before any request:
 
-- **Blank filters** (`nonEmptyProblem`): `indicators({ theme, search })` and
-  `query`/`queryResult({ region })` with `""` or a whitespace-only value, and `fields`
-  without a non-blank name (`fieldsProblem`; blank entries next to real names are
-  dropped). A blank filter would otherwise be skipped and return the unfiltered set. A
+- **Every value is canonicalised or refused** (D8 of the 2026-10-21 round; none is sent
+  upstream, but each decides what the client matches). Free text — `indicators({ theme,
+  search })` and `query`/`queryResult({ region })` — passes `textProblem`: refused when blank
+  once trimmed or holding only invisible characters and combining marks (`isBlank`: `""`, a
+  whitespace-only value, a lone zero-width space), with a lone surrogate, a control character
+  other than TAB/LF/CR, or a format character other than ZWJ/ZWNJ (a zero-width space, a soft
+  hyphen, a bidi control), which only made the filter match nothing; it is matched trimmed and
+  in NFC. Tokens — the indicator code and every `fields` name — pass `tokenProblem` (no control
+  or format character at all) and are used trimmed and in NFC (`normalizeToken`). `fields` is a
+  list (`listProblem`, the CLI splits `--fields` with `splitList`): an empty or invisible item
+  is refused, naming it (`item 2 of 3: …`), where blank entries next to real names used to be
+  dropped. The refusal quotes the value visibly (`quoteValue`). A blank filter would otherwise
+  be skipped and return the unfiltered set. A
   wrong-typed one is named as such: `Expected a string, got a number.` for `theme`/`search`,
   `Expected the region as a string (a name, or an AGS such as "09"), got a number.`
   (`regionProblem`), and for `fields` a string (`"ai0201,ai0202"`) is told to be split.

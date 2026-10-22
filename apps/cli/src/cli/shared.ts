@@ -17,6 +17,9 @@ import {
   httpUrlProblem,
   nonEmptyProblem,
   normalizeInput,
+  normalizeToken,
+  splitList,
+  textProblem,
   yearProblem,
   type Problem,
 } from "@maschinenlesbar.org/regionalatlas-client/internal/validate";
@@ -81,6 +84,9 @@ const OPTION_SHAPED = /^(--[A-Za-z][\w-]*|-[A-Za-z])$/;
  * made "--fields" the region and returned no rows.
  */
 export function parseTextArg(value: string): string {
+  // The library's text rule first (textProblem, checked again by the client): a blank value,
+  // one of only invisible characters, a lone surrogate, a control or format character.
+  check(value, textProblem);
   // Judged as the library uses the value (trimmed, NFC): `--region " --fields"` filtered for
   // "--fields" once the library trimmed it (the class of jobsuche-cli 5487d4f).
   if (OPTION_SHAPED.test(normalizeInput(value))) {
@@ -89,8 +95,7 @@ export function parseTextArg(value: string): string {
         "this one was left without a value. Supply the intended term.",
     );
   }
-  // A blank filter is the library's rule (nonEmptyProblem), checked again by the client.
-  return parseNonEmpty(value);
+  return value;
 }
 
 /**
@@ -110,18 +115,16 @@ export function parseLevel(value: string): string {
 }
 
 /**
- * commander value-parser for a comma-separated field list. Splits on commas and
- * applies the library's fieldsProblem (at least one non-blank name), then trims and
- * drops the empty entries. Field names are validated/projected client-side later.
- * A repeated option adds to the list (commander passes the previous value):
- * `--fields a --fields b` is `--fields a,b`, where it used to keep only the last one.
+ * commander value-parser for a comma-separated field list. Splits on commas (`splitList`) and
+ * applies the library's fieldsProblem item by item (`listProblem`: an empty or invisible item
+ * is refused, never dropped), then canonicalises each name (`normalizeToken`). Field names are
+ * validated/projected client-side later. A repeated option adds to the list (commander passes
+ * the previous value): `--fields a --fields b` is `--fields a,b`, where it used to keep only
+ * the last one.
  */
 export function parseFieldList(value: string, previous?: string[]): string[] {
-  const parts = value.split(",");
-  const reason = fieldsProblem(parts);
-  if (reason !== undefined) throw new InvalidArgumentError(reason);
-  const fields = parts.map((f) => f.trim()).filter((f) => f !== "");
-  return [...(previous ?? []), ...fields];
+  const parts = check(splitList(value), fieldsProblem);
+  return [...(previous ?? []), ...parts.map(normalizeToken)];
 }
 
 /** The accumulating parsers: options using them take several values on purpose. */

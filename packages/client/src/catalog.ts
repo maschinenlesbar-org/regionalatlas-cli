@@ -22,7 +22,7 @@ const MAX_LISTED_ITEM_LENGTH = 60;
 import { GEO_LEVELS } from "./levels.js";
 import { sanitizeServerText } from "./engine.js";
 import { BOUNDARY_TABLE } from "./sql.js";
-import { assertKnownKeys, assertValid, nonEmptyProblem, normalizeInput, YEAR_SHAPE, yearProblem } from "./validate.js";
+import { assertKnownKeys, assertValid, normalizeInput, textProblem, tokenProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
 
 /** Derive the SQL table name from a catalogue code: lowercase, `-` → `_`. */
 export function tableForCode(code: string): string {
@@ -265,9 +265,9 @@ export function assertIndicatorFilter(filter: IndicatorFilter): void {
     throw new RegionalatlasValidationError("Invalid indicator filter: expected an object (theme, year, search).");
   }
   assertKnownKeys("indicator filter", filter, INDICATOR_FILTER_KEYS);
-  if (filter.theme !== undefined) assertValid("theme", filter.theme, nonEmptyProblem);
+  if (filter.theme !== undefined) assertValid("theme", filter.theme, textProblem);
   if (filter.year !== undefined) normaliseYearFilter(filter.year);
-  if (filter.search !== undefined) assertValid("search", filter.search, nonEmptyProblem);
+  if (filter.search !== undefined) assertValid("search", filter.search, textProblem);
 }
 
 /**
@@ -413,6 +413,8 @@ export function assertIndicatorInput(input: unknown): asserts input is string {
   if (input.trim() === "") {
     throw new RegionalatlasValidationError("An indicator code is required (e.g. AI002-1-5).");
   }
+  // A code is compared exactly: an invisible or control character only makes it unknown.
+  assertValid("indicator", input, tokenProblem);
 }
 
 /** Check a query year's type before any request: an integer (its range is checked against the catalogue). */

@@ -64,7 +64,7 @@ const blankFilterCases: Array<[string[], (t: Transport) => unknown, RegExp]> = [
   [
     ["query", "AI002-1-5", "--year", "2020", "--fields", " , "],
     (t) => client(t).queryResult({ indicator: "AI002-1-5", level: "land", year: 2020, fields: ["", " "] }),
-    /^Invalid fields: Expected at least one non-blank field name\.$/,
+    /^Invalid fields: item 1 of 2: Expected a non-empty value\.$/,
   ],
   [
     ["query", "AI002-1-5", "--year", "2020", "--fields", " "],
@@ -86,8 +86,8 @@ for (const [argv, call, message] of blankFilterCases) {
 
 test("parity: non-blank filters give the same requests and result on both sides", async () => {
   await assertSameResult(
-    ["query", "AI002-1-5", "--year", "2020", "--region", "Bremen", "--fields", "ai0201, ,"],
-    (t) => client(t).query({ indicator: "AI002-1-5", level: "land", year: 2020, region: "Bremen", fields: ["ai0201", " ", ""] }),
+    ["query", "AI002-1-5", "--year", "2020", "--region", " Bremen ", "--fields", " ai0201 ,AI0202"],
+    (t) => client(t).query({ indicator: "AI002-1-5", level: "land", year: 2020, region: " Bremen ", fields: [" ai0201 ", "AI0202"] }),
   );
 });
 
@@ -262,4 +262,60 @@ test("indicators prints what client.indicators() returns: years as an array, lev
   await assertSameResult(["indicators", "--theme", "bevölkerung", "--year", "2020"], (t) =>
     client(t).indicators({ theme: "bevölkerung", year: 2020 }),
   );
+});
+
+// Kit item T8 (D8): every value is canonicalised or refused. Nothing a filter holds is sent
+// upstream here (P24 has no input to check), so the same corpora go through the client-side
+// filters: a blank, invisible, control or half character is refused before any request, on both
+// sides, shown escaped (D10); a list is checked item by item, and an empty item is refused, not
+// dropped.
+const REFUSED = [
+  "", " ", "\u00a0", "\n\t", "\u3000", "\u200b", "\u00ad", "\u200d", "\ufeff", "\u0301\u0308", " \u200b ",
+  "a\u200bb", "M\u00fcl\u00adler", "\u202eabc", "a\u0000b", "a\u001bb", "a\u0085b", "\ud800", "a\udc00b", "x\ud83d",
+];
+const LIST_REFUSED = ["", ",", " , ", "ai0201,,ai0202", "ai0201,", ",ai0201", "ai0201,\u200b", "ai0201,ai\u200b0202", "\ud800,ai0201"];
+const INVISIBLE = /[\p{Cc}\p{Cf}]|[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u;
+const textInputs: Array<[string, (v: string) => string[], (t: Transport, v: string) => unknown]> = [
+  ["--region", (v) => ["query", "AI002-1-5", "--year", "2020", "--region", v], (t, v) => client(t).query({ indicator: "AI002-1-5", year: 2020, region: v })],
+  ["--theme", (v) => ["indicators", "--theme", v], (t, v) => client(t).indicators({ theme: v })],
+  ["--search", (v) => ["indicators", "--search", v], (t, v) => client(t).indicators({ search: v })],
+  ["indicator", (v) => ["query", v, "--year", "2020"], (t, v) => client(t).query({ indicator: v, year: 2020 })],
+];
+
+/** Both refuse before any request, and a control, format or half character is shown escaped, never raw. */
+async function refusedVisibly(argv: string[], call: (t: Transport) => unknown, value: string, label: string): Promise<void> {
+  const { cli, lib } = await parity(argv, call, routes);
+  assert.equal(cli.code, 2, `${label}: CLI exit ${cli.code} ${cli.err}`);
+  assert.deepEqual(cli.requests, [], `${label}: the CLI sent a request`);
+  assert.equal(lib.ok, false, `${label}: the library accepted it`);
+  assert.deepEqual(lib.requests, [], `${label}: the library sent a request`);
+  if (lib.ok) return;
+  assert.ok(lib.error instanceof RegionalatlasValidationError, `${label}: ${String(lib.error)}`);
+  const blank = value.replace(/[\s\p{Cc}\p{Cf}\p{M}]/gu, "") === "";
+  const ch = INVISIBLE.exec(value.trim())?.[0];
+  if (ch === undefined || blank) return;
+  const escape = `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`;
+  assert.ok(cli.err.toLowerCase().includes(escape), `${label}: the CLI's refusal doesn't show ${escape}: ${cli.err}`);
+  assert.ok(!cli.err.includes(ch), `${label}: the CLI's refusal shows the character raw`);
+  assert.ok((lib.error as Error).message.toLowerCase().includes(escape), `${label}: ${(lib.error as Error).message}`);
+}
+
+test("parity: every client-side filter refuses a blank, invisible, control or half character, showing it escaped (T8)", async () => {
+  for (const [name, argv, call] of textInputs) {
+    for (const value of REFUSED) await refusedVisibly(argv(value), (t) => call(t, value), value, `${name} ${JSON.stringify(value)}`);
+  }
+  for (const value of LIST_REFUSED) {
+    await refusedVisibly(
+      ["query", "AI002-1-5", "--year", "2020", "--fields", value],
+      (t) => client(t).query({ indicator: "AI002-1-5", year: 2020, fields: value.split(",") }),
+      value.split(",").find((item) => INVISIBLE.test(item)) ?? "",
+      `--fields ${JSON.stringify(value)}`,
+    );
+  }
+  // Text keeps ZWJ/ZWNJ and an inner tab (scripts, emoji, a pasted phrase): only a match decides.
+  for (const value of ["Bre\u200dmen", "a\tb", "Mu\u0308nchen"]) {
+    const { cli, lib } = await parity(["query", "AI002-1-5", "--year", "2020", "--region", value], (t) => client(t).query({ indicator: "AI002-1-5", year: 2020, region: value }), routes);
+    assert.equal(cli.code, 0, `${JSON.stringify(value)}: ${cli.err}`);
+    assert.ok(lib.ok, JSON.stringify(value));
+  }
 });
