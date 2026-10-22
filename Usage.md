@@ -185,6 +185,9 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |
 
+stdout redirected to a file that can't take all of it (a full disk, a file-size limit) is an
+`ERROR` record of `regionalatlas.output` and exit 1, never a file cut short with exit 0.
+
 A failed run keeps its exit code when the reader of stderr has gone away (`2>&1 | true`).
 
 ## Notes

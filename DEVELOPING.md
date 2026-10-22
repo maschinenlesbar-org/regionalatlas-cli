@@ -477,8 +477,9 @@ Coverage highlights:
   P23 the stderr log: records with timestamp, level and topic, `--log-format text|jsonl`,
   P24 an input corpus through every text filter and path id — empty here, as no filter or id
   is sent, P25 a response corpus: a number a double can't carry exactly is a parse error,
-  one it carries prints as the same value, an empty answer is an error; P26, `-o` integrity,
-  doesn't apply, the CLI has no `-o`; P27 big and odd answers: DEL characters printed escaped
+  one it carries prints as the same value, an empty answer is an error; P26 output
+  integrity: stdout redirected to a file and cut short (`ulimit -f`) exits 1 with an ERROR of
+  `regionalatlas.output` — its `-o` cases are skipped (`HAS_OUTPUT_OPTION = false`); P27 big and odd answers: DEL characters printed escaped
   within a small heap or refused as too large, a lone surrogate or invalid bytes replaced with
   U+FFFD and a WARN — its flat-array case is skipped, as a query prints rows, and its mock
   answers the catalogue too, through the adapter's `hostArgv` and `answerFor`);
@@ -493,7 +494,11 @@ Coverage highlights:
   network → 6; other → 1. The bin shim installs `handleOutputErrors()` (io.ts) before
   `run()`: an EPIPE on stdout (a reader that stops early, `| head`) exits 0 quietly, an
   EPIPE on stderr is ignored so the run's own code stands, and any other stdout error
-  is an ERROR record of `regionalatlas.output` (`Could not write to stdout: …`) and exits 1. **Redirects are NOT followed** (a 3xx surfaces as an error,
+  is an ERROR record of `regionalatlas.output` (`Could not write to stdout: …`) and exits 1.
+  When stdout is a regular file (`> out.json`), `defaultIO.out` writes every byte itself
+  (`stdoutWriter`, a `writeSync` loop): Node's stream ignored a short count, so a file-size
+  limit or a full disk cut the output short with exit 0; a failure (EFBIG, ENOSPC) now reaches
+  that handler. **Redirects are NOT followed** (a 3xx surfaces as an error,
   `HTTP 301 for GET <url>: redirect to <target> not followed`, the `Location` resolved, redacted
   and kept as `RegionalatlasApiError.location`, with an INFO record naming the option to change;
   from the data host that means a base-URL misconfiguration → usage, exit 2; from the catalogue
