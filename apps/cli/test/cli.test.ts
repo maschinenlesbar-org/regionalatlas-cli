@@ -789,3 +789,22 @@ test("the option-shaped guard judges the value as the library uses it: a padded 
     assert.equal(await run(["indicators", "--search", value], cli.deps), 0, JSON.stringify(value));
   }
 });
+
+// 2026-10-21 sweep, Bug 04-2: a lone high surrogate in a region name was printed as `\ud800`,
+// and jq refused the whole output ("Invalid \uXXXX\uXXXX surrogate pair escape"), every row.
+test("a lone surrogate in a region name is printed as U+FFFD with a WARN record; the output stays well-formed", async () => {
+  const body = '{"features":[{"attributes":{"ags":"15002","gen":"Halle\\ud800","jahr":2020,"typ":1,"ai0201":1}},' +
+    '{"attributes":{"ags":"02","gen":"Hamburg\\udc00","jahr":2020,"typ":1,"ai0201":2}}]}';
+  for (const compact of [true, false]) {
+    const cli = makeCli((req) => (new URL(req.url).hostname.includes("statistikportal") ? jsonResponse(fx.catalog) : rawResponse(body, "application/json")));
+    assert.equal(await run([...(compact ? ["--compact"] : []), "query", "AI002-1-5", "--year", "2020"], cli.deps), 0);
+    const out = cli.out.join("\n");
+    assert.doesNotMatch(out, /\\u[dD][89a-fA-F][0-9a-fA-F]{2}/, out);
+    assert.doesNotMatch(out, /[\ud800-\udfff]/u, out);
+    assert.deepEqual((JSON.parse(out) as Array<{ name: string }>).map((r) => r.name), ["Halle�", "Hamburg�"]);
+    assert.match(
+      untimed(cli.err.join("\n")),
+      /^WARN  \[regionalatlas\.api\] GET https:\/\/www\.gis-idmz\.nrw\.de\/\S+: 2 characters of the answer were not valid text \(invalid bytes or a lone surrogate\) and replaced with U\+FFFD\.$/m,
+    );
+  }
+});

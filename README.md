@@ -63,7 +63,8 @@ exit code are unchanged.
 Data goes to stdout as JSON; each line on stderr is a **log record**: a timestamp (UTC), a
 level (`ERROR`, `WARN`, `INFO`) and a topic, the program and the area it comes from
 (`regionalatlas.cli` for usage errors, `regionalatlas.api` for the hosts' answers, an
-ArcGIS `error` envelope and a malformed answer included, and the notes on an empty or
+ArcGIS `error` envelope and a malformed answer included, a `WARN` when characters of an
+answer were not valid text and were replaced with U+FFFD, and the notes on an empty or
 ambiguous result, `regionalatlas.http` for the connection,
 `regionalatlas.output` when stdout itself can't be written or an answer is nested too deeply or too large to print). By
 default it is written log4j style; `--log-format jsonl` writes one JSON object per line

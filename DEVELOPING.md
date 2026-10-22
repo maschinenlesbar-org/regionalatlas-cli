@@ -363,7 +363,12 @@ What the library refuses with `RegionalatlasValidationError`, before any request
 - **Charset:** a JSON body (data and catalogue) is decoded by the charset its
   Content-Type names, UTF-8 when it names none (`decodeBody`, `TextDecoder`): a Latin-1
   reply from a mirror reads correctly, a BOM is dropped, and an unknown charset label is a
-  `RegionalatlasParseError`. Both live hosts send UTF-8.
+  `RegionalatlasParseError`. Both live hosts send UTF-8. Text is never changed silently
+  (D2 of the 2026-10-21 round): bytes not valid in the charset, and a lone surrogate written
+  as a JSON escape (`\ud800`, which jq refuses, and the whole output with it), become U+FFFD
+  (`wellFormedEscapes`), and the engine option `onWarning` is told how many, naming the
+  request; the CLI logs it as a `WARN` record of `regionalatlas.api`. One bad character never
+  sinks a whole answer.
 - **Printed JSON is terminal-safe** (`escapeControlChars` in `apps/cli/src/cli/shared.ts`):
   `JSON.stringify` escapes C0 but leaves DEL, C1 (U+0080–U+009F) and the bidi controls
   (`isBidiControl`) raw, and a terminal acts on them, so they go out as `\uXXXX` escapes;
@@ -590,7 +595,7 @@ character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellF
 and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
 code point and ends in `… (N more characters)`. The areas are `cli` (usage errors, commander's messages, validation errors, unexpected
 errors), `api` (the hosts' answers: an error status, the ArcGIS `error` envelope on HTTP
-200, a malformed answer — bad JSON, the wrong shape, an empty body, an unknown charset, a
+200, text replaced with U+FFFD (a `WARN`), a malformed answer — bad JSON, the wrong shape, an empty body, an unknown charset, a
 catalogue the client refuses, all `RegionalatlasParseError` — and the notes on an empty,
 cut-off or ambiguous result), `http` (the connection: network errors
 and their size-cap hints, the cleartext warning) and `output` (a stdout write error, and an
