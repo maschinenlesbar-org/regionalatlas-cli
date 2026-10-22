@@ -9,7 +9,7 @@ import { resolveIndicator, resolveYear, type IndicatorFilter } from "@maschinenl
 import { DEFAULT_LEVEL } from "@maschinenlesbar.org/regionalatlas-client/internal/levels";
 import type { Indicator, QueryOptions, QueryResult, RegionRow } from "@maschinenlesbar.org/regionalatlas-client/internal/types";
 import { sanitizeServerText } from "@maschinenlesbar.org/regionalatlas-client/internal/engine";
-import { cutForMessage } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
+import { cutForMessage, quoteValue } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
 import {
   action,
   parseFieldList,
@@ -126,7 +126,7 @@ export function regionNote(
   match: NonNullable<QueryResult["region"]>,
   rows: readonly RegionRow[],
 ): string | undefined {
-  const asked = JSON.stringify(cutForMessage(input.trim()));
+  const asked = quoteValue(input.trim());
   if (match.by === "ags-filled" && rows[0] !== undefined) {
     return (
       `no row at level ${level} has the key ${asked}; matched ${regionList(rows)}, ` +
@@ -158,9 +158,9 @@ export function regionNote(
  */
 function emptyIndicatorsNote(filter: IndicatorFilter, all: Indicator[]): string {
   const applied: string[] = [];
-  if (filter.theme !== undefined) applied.push(`--theme ${JSON.stringify(cutForMessage(filter.theme))}`);
+  if (filter.theme !== undefined) applied.push(`--theme ${quoteValue(filter.theme)}`);
   if (filter.year !== undefined) applied.push(`--year ${filter.year}`);
-  if (filter.search !== undefined) applied.push(`--search ${JSON.stringify(cutForMessage(filter.search))}`);
+  if (filter.search !== undefined) applied.push(`--search ${quoteValue(filter.search)}`);
   if (applied.length === 0) {
     return "the catalogue lists no indicators at all — check --catalog-url.";
   }
@@ -190,7 +190,7 @@ function emptyResultNote(indicator: Indicator, query: QueryOptions, fetched: num
   if (fetched > 0) {
     return (
       `none of the ${fetched} rows for ${where} match --region ` +
-      `${JSON.stringify(cutForMessage(query.region ?? ""))} (a name, a part of one, or an AGS).`
+      `${quoteValue(query.region ?? "")} (a name, a part of one, or an AGS).`
     );
   }
   let note =

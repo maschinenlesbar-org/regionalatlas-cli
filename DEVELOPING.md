@@ -547,7 +547,13 @@ Coverage highlights:
   `assertIndicatorFilter`), never a raw `TypeError`; `null` options count as none. Echoed
   values and server text in messages are cut at 500 characters (`cutForMessage`,
   `MAX_MESSAGE_VALUE_LENGTH`, exported), never inside a surrogate pair (`cutText`), so the
-  message stays well-formed; a string option value is quoted. A message that lists
+  message stays well-formed; a string option value is quoted. A value typed by the user is
+  quoted visibly (`quoteValue`, D10 of the 2026-10-21 round): every format character (a zero-width
+  space, a word joiner, a soft hyphen, a bidi control), DEL, C1 and U+2028/U+2029 escaped as
+  `\uXXXX`, cut at 500 with the `…` after the closing quote (`"AAAA"…`) — the unknown indicator,
+  level, field and option key, the dash guard, the `--region`/`--theme`/`--search` notes; and
+  commander's own echo of a rejected value has its format characters escaped too
+  (`escapeFormatChars` in run.ts). A message that lists
   catalogue columns, unknown `--fields` names or catalogue years shows at most
   `MAX_LISTED_ITEMS` (40, exported) and counts the rest (`… (N more)`), each column code
   and title cut at 60 characters; the CLI's region notes cut each region they name, the

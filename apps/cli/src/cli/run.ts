@@ -73,7 +73,7 @@ function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged
   if (text.trim() === "") return;
   if (text.startsWith("error: ")) {
     state.errorLogged = true;
-    log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
+    log.error("cli", escapeFormatChars(text.slice("error: ".length)).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
     return;
   }
   if (!state.errorLogged) {
@@ -81,6 +81,17 @@ function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged
     log.error("cli", `missing command: \`${commandPath(command)} <subcommand>\``);
   }
   for (const line of text.split("\n")) if (line.trim() !== "") log.info("cli", line.trimEnd());
+}
+
+/**
+ * `text` with every Unicode format character (General Category Cf: a zero-width space, a word
+ * joiner, a soft hyphen, a bidi control) written as its `\uXXXX` escape. Commander echoes a
+ * rejected value as typed (`argument 'kreis<U+2060>' is invalid`), where an invisible character
+ * made two values that look the same read alike; the library's own messages quote values with
+ * `quoteValue`, which escapes the same characters (D10).
+ */
+export function escapeFormatChars(text: string): string {
+  return text.replace(/\p{Cf}/gu, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
 /**
@@ -204,6 +215,8 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
       secrets.add(secret);
       secrets.add(stripTerminalControls(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));
+      // As commander's echo of it reaches the log (format characters escaped).
+      secrets.add(escapeFormatChars(stripTerminalControls(secret)));
       // What a server echoes back: the Basic value and the decoded user:password on
       // stdout and stderr, the password alone (it may well occur in the data) on stderr.
       const [basic, pair, password] = echoedCredentialForms(secret);
@@ -216,6 +229,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
       tokens.add(token);
       tokens.add(stripTerminalControls(token));
       tokens.add(JSON.stringify(token).slice(1, -1));
+      tokens.add(escapeFormatChars(stripTerminalControls(token)));
       try {
         tokens.add(decodeURIComponent(token));
       } catch {

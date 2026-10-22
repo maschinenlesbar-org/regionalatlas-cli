@@ -665,7 +665,7 @@ test("an option-shaped value is quoted at most 500 characters long (L3)", async 
   assert.equal(await run(["indicators", "--search", `--${"x".repeat(1500)}`], cli.deps), 2);
   const record = cli.err.find((line) => line.includes("looks like a missing value")) ?? "";
   const own = record.slice(record.indexOf("looks like a missing value"));
-  assert.match(own, /^looks like a missing value — "--x+…" is the next option/);
+  assert.match(own, /^looks like a missing value — "--x+"… is the next option/);
   assert.ok(own.length < 800, `${own.length}`);
 });
 
@@ -807,4 +807,28 @@ test("a lone surrogate in a region name is printed as U+FFFD with a WARN record;
       /^WARN  \[regionalatlas\.api\] GET https:\/\/www\.gis-idmz\.nrw\.de\/\S+: 2 characters of the answer were not valid text \(invalid bytes or a lone surrogate\) and replaced with U\+FFFD\.$/m,
     );
   }
+});
+
+// Kit item T10 (D10): a refusal or note that quotes the user's value shows an invisible or
+// format character escaped (`⁠`), never raw, so two values that look the same read apart.
+test("a quoted value shows its invisible characters escaped, in every refusal and note (T10)", async () => {
+  const WJ = "⁠";
+  const cases: Array<[string[], RegExp]> = [
+    [["query", `AI002${WJ}-1-5`, "--year", "2020"], /Unknown indicator "AI002\\u2060-1-5"/],
+    [["query", "AI002-1-5", "--year", "2020", "--level", `kreis${WJ}`], /Unknown geo level "kreis\\u2060"/],
+    [["query", "AI002-1-5", "--year", "2020", "--fields", `ai0201${WJ}`], /Unknown value field "ai0201\\u2060"/],
+    [["query", "AI002-1-5", "--year", "2020", "--region", `Bremen${WJ}`], /--region "Bremen\\u2060"/],
+    [["indicators", "--search", `Bev${WJ}`], /--search "Bev\\u2060"/],
+  ];
+  for (const [argv, shown] of cases) {
+    const cli = makeRoutingCli();
+    await run(argv, cli.deps);
+    const err = cli.err.join("\n");
+    assert.match(err, shown, `${argv.join(" ")}: ${err}`);
+    assert.ok(!err.includes(WJ), `${argv.join(" ")}: raw ${err}`);
+  }
+  // The library's own messages quote it the same way.
+  const c = new RegionalatlasClient({ transport: makeMockTransport(routeByHost(fx.catalog, fx.landData)).transport });
+  await assert.rejects(c.query({ indicator: `AI002${WJ}-1-5` }), (err: Error) => err.message.includes("AI002\\u2060-1-5") && !err.message.includes(WJ));
+  await assert.rejects(c.query({ indicator: "AI002-1-5", [`le${WJ}vel`]: "land" } as never), (err: Error) => err.message.includes("le\\u2060vel") && !err.message.includes(WJ));
 });

@@ -7,7 +7,7 @@ import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
 import { DEFAULT_CATALOG_URL, type RegionalatlasClientOptions } from "@maschinenlesbar.org/regionalatlas-client/internal/client";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/regionalatlas-client/internal/engine";
-import { cutForMessage, queryTokensIn } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
+import { queryTokensIn, quoteValue } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
 import { resolveLevel } from "@maschinenlesbar.org/regionalatlas-client/internal/levels";
 import { RegionalatlasError, RegionalatlasValidationError } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
 import {
@@ -85,7 +85,7 @@ export function parseTextArg(value: string): string {
   // "--fields" once the library trimmed it (the class of jobsuche-cli 5487d4f).
   if (OPTION_SHAPED.test(normalizeInput(value))) {
     throw new InvalidArgumentError(
-      `looks like a missing value — "${cutForMessage(value)}" is the next option, consumed because ` +
+      `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
         "this one was left without a value. Supply the intended term.",
     );
   }

@@ -163,7 +163,7 @@ test("assertKnownFields bounds its message: field list, titles and the unknown n
     (err: unknown) => {
       assert.ok(err instanceof RegionalatlasValidationError);
       assert.ok(err.message.length < 4000, `${err.message.length}`);
-      assert.match(err.message, /^Unknown value fields "nosuch", "x+…" for indicator "AI99"\. Available: ai990000 \(T+…\); ai990001 \(Titel 1\)/);
+      assert.match(err.message, /^Unknown value fields "nosuch", "x+"… for indicator "AI99"\. Available: ai990000 \(T+…\); ai990001 \(Titel 1\)/);
       assert.match(err.message, new RegExp(`; … \\(${2002 - MAX_LISTED_ITEMS} more\\)\\.$`));
       return true;
     },

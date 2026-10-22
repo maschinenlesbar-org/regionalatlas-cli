@@ -15,7 +15,7 @@ import type {
   RawCatalogTheme,
   Theme,
 } from "./types.js";
-import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, listForMessage } from "./errors.js";
+import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, listForMessage, quoteValue } from "./errors.js";
 
 /** The longest column code or title (in characters) the unknown-field message lists. */
 const MAX_LISTED_ITEM_LENGTH = 60;
@@ -326,7 +326,7 @@ export function resolveIndicator(indicators: Indicator[], input: string): Indica
   const match = indicators.find((ind) => ind.table === key);
   if (match === undefined) {
     throw new RegionalatlasValidationError(
-      `Unknown indicator "${cutForMessage(input)}". It is not in the catalogue — list indicators with ` +
+      `Unknown indicator ${quoteValue(input)}. It is not in the catalogue — list indicators with ` +
         `\`regionalatlas indicators\` (accepts the code form AI002-1-5 or the table form ai002_1_5).`,
     );
   }
@@ -356,7 +356,7 @@ export function assertKnownFields(indicator: Indicator, fields: string[]): void 
   );
   throw new RegionalatlasValidationError(
     `Unknown value ${unknown.length > 1 ? "fields" : "field"} ` +
-      `${listForMessage(unknown.map((f) => JSON.stringify(cutForMessage(f, MAX_LISTED_ITEM_LENGTH))), ", ")} ` +
+      `${listForMessage(unknown.map((f) => quoteValue(f, MAX_LISTED_ITEM_LENGTH)), ", ")} ` +
       `for indicator "${indicator.code}". Available: ${listForMessage(available, "; ")}.`,
   );
 }

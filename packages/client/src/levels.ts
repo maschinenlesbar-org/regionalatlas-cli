@@ -3,7 +3,7 @@
 // the SQL query. An unknown level is rejected before any SQL is built.
 
 import type { GeoLevel, GeoLevelInfo } from "./types.js";
-import { RegionalatlasValidationError, cutForMessage } from "./errors.js";
+import { RegionalatlasValidationError, quoteValue } from "./errors.js";
 import { normalizeInput } from "./validate.js";
 
 /** The canonical level definitions (order defines display order). */
@@ -73,7 +73,7 @@ export function resolveLevel(input: unknown): GeoLevelInfo {
   if (level === undefined) {
     const names = GEO_LEVELS.map((l) => l.name).join(", ");
     throw new RegionalatlasValidationError(
-      `Unknown geo level "${cutForMessage(String(input))}". Use one of: ${names} (aliases: ${LEVEL_ALIASES.join(", ")}).`,
+      `Unknown geo level ${quoteValue(String(input))}. Use one of: ${names} (aliases: ${LEVEL_ALIASES.join(", ")}).`,
     );
   }
   return level;

@@ -164,7 +164,7 @@ test("CLI: the region notes quote region names and --region cut (B01-2)", async 
   assert.equal(await run(["query", "AI002-1-5", "--year", "2020", "--region", "R".repeat(100_000)], none.deps), 0);
   assert.equal(none.err.length, 1);
   assert.ok(none.err[0]!.length < 1000, `${none.err[0]!.length}`);
-  assert.match(untimed(none.err[0]!), /^INFO  \[regionalatlas\.api\] none of the 4 rows for AI002-1-5 at level land in 2020 match --region "R+…" \(a name/);
+  assert.match(untimed(none.err[0]!), /^INFO  \[regionalatlas\.api\] none of the 4 rows for AI002-1-5 at level land in 2020 match --region "R+"… \(a name/);
 });
 
 test("CLI: the empty indicators note quotes --theme and --search cut (B01-2)", async () => {
@@ -172,5 +172,5 @@ test("CLI: the empty indicators note quotes --theme and --search cut (B01-2)", a
   assert.equal(await run(["indicators", "--search", "q".repeat(100_000), "--theme", "t".repeat(100_000)], c.deps), 0);
   assert.equal(c.err.length, 1);
   assert.ok(c.err[0]!.length < 1500, `${c.err[0]!.length}`);
-  assert.match(untimed(c.err[0]!), /^INFO  \[regionalatlas\.api\] none of the \d+ catalogue indicators match --theme "t+…" \+ --search "q+…"\.$/);
+  assert.match(untimed(c.err[0]!), /^INFO  \[regionalatlas\.api\] none of the \d+ catalogue indicators match --theme "t+"… \+ --search "q+"…\.$/);
 });
