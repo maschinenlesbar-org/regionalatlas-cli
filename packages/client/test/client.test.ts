@@ -171,6 +171,17 @@ test("parseRow accepts a number or a plain decimal string, and nothing else", ()
   });
 });
 
+test("parseRow checks a decimal string with a long run of zeros in linear time (security audit 2026-10-27, A)", () => {
+  // The same check as a number literal in the answer: `/0+$/` made it quadratic in the zero run.
+  const started = performance.now();
+  assert.throws(
+    () => parseRow({ ags: "01", gen: "A", v: `1${"0".repeat(100_000)}1e-9999999` }, 1, "land", 2020),
+    (err: unknown) => err instanceof RegionalatlasParseError && /cannot be represented exactly/.test(err.message) && err.message.length < 1000,
+  );
+  const ms = performance.now() - started;
+  assert.ok(ms < 1000, `${Math.round(ms)} ms`);
+});
+
 test("parseRow never fabricates a number out of a non-value, and says so in missing", () => {
   const row = parseRow(
     {

@@ -134,6 +134,23 @@ test("the number check skips strings and costs one pass over the text", async ()
   assert.equal((await f.getJson<number[]>("/x")).length, 200_000);
 });
 
+test("a number with a long run of zeros is refused in linear time (security audit 2026-10-27, A)", async () => {
+  // 1.<100 000 zeros>1e300 took about 15 s with the trailing-zero regex `/0+$/`; the linear check
+  // takes milliseconds. A value of 0 (1<zeros>1e-9999999) reaches the same check.
+  for (const n of [`1.${"0".repeat(100_000)}1e300`, `1${"0".repeat(100_000)}1e-9999999`]) {
+    const body = `{"features":[{"attributes":{"ags":"01","ai0201":${n}}}]}`;
+    const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(body, "application/json")).transport });
+    const started = performance.now();
+    await assert.rejects(e.getJson("/x/query"), (err: unknown) => {
+      assert.ok(err instanceof RegionalatlasParseError && /cannot be represented exactly/.test(err.message), String(err));
+      assert.ok(err.message.length < 1000, "the message quotes the literal cut");
+      return true;
+    });
+    const ms = performance.now() - started;
+    assert.ok(ms < 1000, `${Math.round(ms)} ms`);
+  }
+});
+
 test("a non-2xx surfaces as a RegionalatlasApiError with the parsed error.message", async () => {
   const mt = makeMockTransport(() => jsonResponse({ error: { message: "kaputt" } }, 400));
   const e = new RequestEngine({ transport: mt.transport });
