@@ -16,6 +16,7 @@ import {
   RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   cutText,
+  redactUrlUserinfo,
   toWellFormed,
 } from "../src/errors.js";
 import { RegionalatlasClient } from "../src/client.js";
@@ -787,4 +788,27 @@ test("an answer longer than V8's longest string is a RegionalatlasParseError nam
   // An error status with such a body is still the API error, without the unreadable body.
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/x"), (err: unknown) => err instanceof RegionalatlasApiError && err.status === 500 && err.body === "");
+});
+
+test("redactUrlUserinfo hides every URL's userinfo in one linear pass, however many URLs (security audit 2026-10-27, B)", () => {
+  // The URL regex this replaces (a scheme tried at every word start) took about 3 s on this.
+  const elapsed = (fn: () => unknown): number => {
+    const started = performance.now();
+    fn();
+    return performance.now() - started;
+  };
+  assert.ok(elapsed(() => redactUrlUserinfo("a.".repeat(30_000))) < 1000);
+  assert.equal(redactUrlUserinfo("a -https://u:p@h/x and x-ftp://v@w?q, mail@example.org"), "a -https://***@h/x and x-ftp://***@w?q, mail@example.org");
+  assert.equal(redactUrlUserinfo("1://u:p@h ://u:p@h"), "1://u:p@h ://u:p@h");
+  assert.equal(redactUrlUserinfo("https://h/p?u=a@b"), "https://h/p?u=a@b");
+  assert.equal(redactUrlUserinfo("HTTPS://u:p@h https://a@b@c/x 'https://u:p@h'"), "HTTPS://***@h https://***@c/x 'https://***@h'");
+  // A URL glued to the authority before it (its scheme inside that authority) is still found,
+  // as the regex found it.
+  assert.equal(redactUrlUserinfo("https://u:p@x://v:q@w"), "https://***@x://***@w");
+  assert.equal(redactUrlUserinfo("https://host://u:p@h"), "https://host://***@h");
+  for (const text of ["a".repeat(1_000_000), "a.".repeat(500_000), "://".repeat(100_000), ":/".repeat(100_000), `https://${"u".repeat(1_000_000)}`]) {
+    assert.equal(redactUrlUserinfo(text), text);
+  }
+  assert.equal(redactUrlUserinfo("https://u:p@h ".repeat(100_000)), "https://***@h ".repeat(100_000));
+  assert.equal(redactUrlUserinfo("a://u@".repeat(100_000)), "a://***@".repeat(100_000));
 });

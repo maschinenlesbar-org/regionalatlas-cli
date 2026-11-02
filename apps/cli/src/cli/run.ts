@@ -20,6 +20,7 @@ import {
   redactCredentials,
   redactQueryTokens,
   redactSecrets,
+  redactUrlUserinfo,
 } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
 
 /**
@@ -108,15 +109,6 @@ function valueOptionsOf(program: Command): Set<string> {
     if (option.short !== undefined) names.add(option.short);
   }
   return names;
-}
-
-/**
- * Replace the userinfo of every URL in `text` with `***`, the form `redactUrl` gives
- * (`https://user:secret@host` becomes `https://***@host`). Text-based, so it also
- * covers a URL that does not parse; a backstop behind the exact-string redaction.
- */
-export function redactUserinfo(text: string): string {
-  return text.replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/?#']*@/gi, "$1***@");
 }
 
 /**
@@ -244,7 +236,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const echoedList = [...echoed].sort((a, b) => b.length - a.length);
   const passwordList = [...passwords].sort((a, b) => b.length - a.length);
   const withoutCredentials = (text: string): string =>
-    redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList);
+    redactSecrets(redactUrlUserinfo(redactCredentials(text, list)), echoedList);
   const tokenSet = new Set(tokenList);
   return {
     // The `token=` parameter anywhere; the bare value only as a whole JSON string value.
@@ -264,7 +256,7 @@ const SCHEME_CHAR = /[A-Za-z0-9+.-]/;
  * starting with a letter), for `credentialsIn`, which reads a URL at the start of its input only.
  * A filter is used trimmed, and the notes and refusals quote it, so a padded
  * `" https://user:pw@host"`, one after a dash or inside a phrase reached stderr; the text-based
- * backstop (`redactUserinfo`) can't delimit a password with a space. Each `://` is found with
+ * backstop (`redactUrlUserinfo`) can't delimit a password with a space. Each `://` is found with
  * indexOf and its scheme by walking back, never by a pattern retried at every position (that
  * took seconds on a long argument without `://`); at most MAX_URLS_WITHIN are read from one
  * argument, since each is parsed whole (as reisewarnungen-cli 5844bfb).

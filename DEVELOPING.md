@@ -296,7 +296,11 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   a filter is used trimmed and the notes and refusals quote it: a padded `" https://u:pw@h"`,
   one after a dash or inside a phrase, a password with a space, except as the value of `--base-url` or `--catalog-url` or in
   `REGIONALATLAS_BASE_URL`, where a `user:password@host` typed without its scheme is still
-  read as a credential. The forms a server echoes
+  read as a credential. Behind the exact strings, any other `scheme://user:pw@` in the text
+  becomes `scheme://***@` (`redactUrlUserinfo`, in the client's `errors.ts`): one linear pass,
+  each `://` by indexOf and its scheme by walking back, since it runs over everything printed
+  on stdout once a run has a credential (a scheme regex tried at every word start was
+  quadratic on host text such as `a.a.a.…`). The forms a server echoes
   a userinfo back in are replaced too (`echoedCredentialForms`, `redactSecrets`): the
   `Basic` value and the decoded `user:password` on stdout and stderr, the password alone
   (4 characters or more) on stderr only, since it may well occur in the data. `redactUrl` falls back to
