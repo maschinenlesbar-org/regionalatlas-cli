@@ -35,6 +35,7 @@ import {
   echoedCredentialForms,
   isRedirectStatus,
   queryTokensIn,
+  quoteValue,
   redactCredentials,
   redactQueryTokens,
   redactSecrets,
@@ -236,12 +237,14 @@ export function cleanServerText(text: string): string {
  * string as is, or an `{code, message, details}` object's `message` and `details`
  * joined with "; ". Empty parts and repeats are dropped (the server can send
  * `"message": ""` with the reason only in `details`, or the same text in both).
- * Every part goes through `sanitizeServerText` (which reads at most 16 384 characters of
- * it). The parts are read only until the joined text is longer than the message keeps
+ * Every part goes through `scrub` first (the engine passes its scrub of the base and catalogue
+ * URLs' credentials), then `sanitizeServerText` (which reads at most 16 384 characters of it),
+ * so neither that cut nor the caller's never splits a credential the scrub would have matched
+ * whole. The parts are read only until the joined text is longer than the message keeps
  * (MAX_MESSAGE_VALUE_LENGTH, the caller's cut): an envelope of a million `details` costs no
  * more than one. Returns `undefined` when nothing readable is left.
  */
-export function describeArcGisError(error: unknown): string | undefined {
+export function describeArcGisError(error: unknown, scrub: (text: string) => string = (text) => text): string | undefined {
   let message: unknown;
   let details: readonly unknown[] = [];
   if (typeof error === "string") message = error;
@@ -256,7 +259,7 @@ export function describeArcGisError(error: unknown): string | undefined {
   for (let i = -1; i < details.length && joined <= MAX_MESSAGE_VALUE_LENGTH; i++) {
     const part = i < 0 ? message : details[i];
     if (typeof part !== "string") continue;
-    const text = sanitizeServerText(part);
+    const text = sanitizeServerText(scrub(part));
     if (text === "" || seen.has(text)) continue;
     seen.add(text);
     joined += text.length + 2;
@@ -490,9 +493,44 @@ export function assertHeaderValue(name: string, value: string): string {
   return assertValid(name, value, headerValueProblem);
 }
 
-/** The userinfo of a URL, as written and percent-decoded, for scrubbing text that echoes it. */
+/**
+ * The userinfo of a URL as typed and as WHATWG sends it (it percent-encodes some of its
+ * characters: `p"ä` is sent as `p%22%C3%A4`, which a server echoes with the request URL).
+ */
+function userinfosOf(url: string): string[] {
+  let href = url;
+  try {
+    href = new URL(url).href;
+  } catch {
+    // checked before: every URL the engine requests parses
+  }
+  return [...new Set([...credentialsIn(url), ...credentialsIn(href)])];
+}
+
+/** The userinfo of a URL, as written, as sent and percent-decoded, for scrubbing text that echoes it. */
 function credentialForms(url: string): string[] {
-  return withDecoded(credentialsIn(url));
+  return withDecoded(userinfosOf(url));
+}
+
+/**
+ * The forms a server echoes a URL's userinfo back in (`echoedCredentialForms`), each also
+ * percent-encoded as a URL spells it (`urlSpellings`).
+ */
+function echoedForms(url: string): string[] {
+  return userinfosOf(url).flatMap(echoedCredentialForms).flatMap(urlSpellings);
+}
+
+/**
+ * `form` and its spelling in a URL (`encodeURIComponent`): a server that puts a credential into
+ * a URL, a redirect's Location, percent-encodes it. A form that has no such spelling (a lone
+ * surrogate) is kept as it is.
+ */
+function urlSpellings(form: string): string[] {
+  try {
+    return [form, encodeURIComponent(form)];
+  } catch {
+    return [form];
+  }
 }
 
 /** The secret query-parameter values of a URL (`?token=`), as written and percent-decoded. */
@@ -521,17 +559,23 @@ function withDecoded(values: string[]): string[] {
  * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into a
  * parse error; a Latin-1 body from a mirror is no longer misread as UTF-8
  * ("Baden-W\uFFFDrttemberg", and `--region Württemberg` then matching nothing). An
- * unknown charset label is a RegionalatlasParseError naming `request`. Bytes that are not
+ * unknown charset label is a RegionalatlasParseError naming `request` and quoting the label,
+ * the credentials scrubbed (`scrub`). Bytes that are not
  * valid in the charset become U+FFFD, and `replaced` counts them: exactly for UTF-8 and the
  * single-byte charsets; for UTF-16 a U+FFFD the server sent counts too.
  */
-function decodeBody(body: Buffer, contentType: string, request: string): { text: string; replaced: number } {
+function decodeBody(
+  body: Buffer,
+  contentType: string,
+  request: string,
+  scrub: (text: string) => string,
+): { text: string; replaced: number } {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset, { fatal: true });
   } catch {
-    throw new RegionalatlasParseError(`${request}: unsupported response charset "${cutText(sanitizeServerText(charset), 100)}".`);
+    throw new RegionalatlasParseError(`${request}: unsupported response charset "${cutText(sanitizeServerText(scrub(charset)), 100)}".`);
   }
   try {
     return { text: decoder.decode(body), replaced: 0 };
@@ -684,7 +728,7 @@ export class RequestEngine {
       options.baseUrl === undefined ? DEFAULT_BASE_URL : validateHttpUrl("baseUrl", options.baseUrl, { base: true });
     this.#baseUrl = baseUrl.replace(/\/+$/, "");
     for (const form of credentialForms(this.#baseUrl)) this.#credentials.add(form);
-    for (const form of credentialsIn(this.#baseUrl).flatMap(echoedCredentialForms)) this.#echoed.add(form);
+    for (const form of echoedForms(this.#baseUrl)) this.#echoed.add(form);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only undefined selects the default; a blank or unsendable value is refused
     // here rather than sent blank or failing late with Node's raw TypeError.
@@ -751,6 +795,45 @@ export class RequestEngine {
     // Longest first, so a password never leaves half of the user:password around it.
     const echoed = [...this.#echoed].sort((a, b) => b.length - a.length);
     return redactQueryTokens(redactSecrets(redactCredentials(text, [...this.#credentials]), echoed), [...this.#tokens]);
+  }
+
+  /**
+   * An answer's text, already scrubbed as sent (`redact`), as `RegionalatlasApiError.body` keeps
+   * it: when it is JSON with an escape in it, checked decoded too. An escape (`\"`, `\u00e4`)
+   * hides an echoed credential from the scrub of the text as sent, while a caller who parses the
+   * body sees it. Such a body is kept as the decoded JSON written again (`JSON.stringify`, one
+   * spelling per character) with the credential scrubbed in that spelling. A body that doesn't
+   * parse is text nobody decodes, and stays as sent; one too deeply nested to write again is left
+   * out (""). The client uses it for the ArcGIS envelope on HTTP 200 too.
+   */
+  scrubBody(scrubbed: string): string {
+    const secrets = [...this.#echoed, ...this.#tokens];
+    if (secrets.length === 0 || !scrubbed.includes("\\")) return scrubbed;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(scrubbed);
+    } catch {
+      return scrubbed;
+    }
+    let rewritten: string;
+    try {
+      rewritten = JSON.stringify(decoded);
+    } catch {
+      return "";
+    }
+    // Longest first, so a password never leaves half of the user:password around it.
+    const spelled = [...new Set(secrets.map((form) => JSON.stringify(form).slice(1, -1)))].sort((a, b) => b.length - a.length);
+    return spelled.some((form) => rewritten.includes(form)) ? this.redact(redactSecrets(rewritten, spelled)) : scrubbed;
+  }
+
+  /**
+   * A value from an answer quoted for an error message or a note (`quoteValue`, cut at `max`),
+   * the base and catalogue URLs' credentials scrubbed first, before the cut: a 2xx answer (a
+   * value a row can't read, a field name or key a number error names) can echo them as well as an
+   * error body. API code quotes server values with this.
+   */
+  quoteServerValue(value: string, max?: number): string {
+    return quoteValue(this.redact(value), max);
   }
 
   /**
@@ -981,7 +1064,7 @@ export class RequestEngine {
     // Its userinfo is as secret as the base URL's, and so is a `?token=`: scrub both from
     // every message too.
     for (const form of credentialForms(url)) this.#credentials.add(form);
-    for (const form of credentialsIn(url).flatMap(echoedCredentialForms)) this.#echoed.add(form);
+    for (const form of echoedForms(url)) this.#echoed.add(form);
     for (const form of queryTokenForms(url)) this.#tokens.add(form);
     return this.decodeJson<T>(await this.requestUrl(url, "application/json", "catalogue"), this.requestOf(url));
   }
@@ -993,7 +1076,7 @@ export class RequestEngine {
    * as a maintenance or proxy page has) and a number JSON can't carry exactly.
    */
   private decodeJson<T>(res: RawResponse, request: string): JsonAnswer<T> {
-    const decoded = decodeBody(res.data, res.contentType, request);
+    const decoded = decodeBody(res.data, res.contentType, request, (text) => this.redact(text));
     const text = decoded.text;
     if (text.trim() === "") throw new RegionalatlasParseError(`${request}: empty response body.`);
     // Text is never changed silently: a lone surrogate written as a JSON escape becomes U+FFFD
@@ -1009,7 +1092,7 @@ export class RequestEngine {
       // An HTML maintenance or proxy page is the usual non-JSON answer: name its type, so it
       // reads as an upstream problem rather than a client bug.
       const type = res.contentType.split(";")[0]?.trim() ?? "";
-      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cutText(sanitizeServerText(type), 100)}")` : "";
+      const hint = type !== "" && !/json/i.test(type) ? ` (expected JSON, got Content-Type "${cutText(sanitizeServerText(this.redact(type)), 100)}")` : "";
       throw new RegionalatlasParseError(`${request}: the answer is not valid JSON${hint}.`, { cause: this.scrubCause(cause) });
     }
     // JSON.parse rounds and overflows numbers silently: refuse the answer rather than return a
@@ -1051,7 +1134,9 @@ export class RequestEngine {
         message?: unknown;
         detail?: unknown;
       };
-      const arcgis = parsed?.error ? describeArcGisError(parsed.error) : undefined;
+      // Decoded text: scrubbed again (a JSON escape hid the credential from the scrub above), each
+      // part before it is cleaned and joined.
+      const arcgis = parsed?.error ? describeArcGisError(parsed.error, (part) => this.redact(part)) : undefined;
       if (arcgis !== undefined) detail = arcgis;
       else if (typeof parsed?.message === "string") detail = parsed.message;
       else if (typeof parsed?.detail === "string") detail = parsed.detail;
@@ -1069,7 +1154,7 @@ export class RequestEngine {
     // into stderr via the error message.
     // Cut, too: a server can send a 200 kB detail.
     // Redacted again once cleaned: cleaning can turn an echoed token into its cleaned form.
-    if (detail !== undefined) detail = cutForMessage(this.redact(sanitizeServerText(detail)));
+    if (detail !== undefined) detail = cutForMessage(this.redact(sanitizeServerText(this.redact(detail))));
     // Redirects are not followed; name the target, so the user can fix --catalog-url or --base-url.
     const location =
       (isRedirectStatus(status) || status === 300) && locationHeader !== undefined ? this.redirectTarget(url, locationHeader) : undefined;
@@ -1077,7 +1162,7 @@ export class RequestEngine {
       status,
       url,
       method: "GET",
-      body: text,
+      body: this.scrubBody(text),
       retries,
       download,
       ...(detail === undefined ? {} : { detail }),

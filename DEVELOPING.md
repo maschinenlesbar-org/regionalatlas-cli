@@ -309,8 +309,14 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   catalogue URL in real `#private` fields, so `console.log(client)`, `util.inspect` and
   `JSON.stringify` don't show them, and the engine scrubs the userinfo of both (raw and
   percent-decoded, and the forms a server echoes it back in: the `Basic` value, the
-  decoded `user:password`, the password alone from 4 characters) from error bodies, details, transport error text and the `cause`
-  chain (`redact`, `scrubCause`). Every error about an answer names the request,
+  decoded `user:password`, the password alone from 4 characters, each also percent-encoded as a
+  URL spells it, and the userinfo as WHATWG sends it, `p%22%C3%A4` for a typed `p"ä`) from error
+  bodies, details, transport error text and the `cause` chain (`redact`, `scrubCause`). Decoded
+  server text is scrubbed again before it is cleaned and cut, and a value the client quotes from
+  a 2xx answer — the number error's value, field and region, a row's `unreadable value "…"`
+  reason, the catalogue codes a refusal names, a Content-Type or charset a parse error quotes —
+  is scrubbed before it is cut (`RequestEngine.quoteServerValue` for API code; `parseRow` takes
+  the scrub as its last argument). Every error about an answer names the request,
   `GET <url>: …` with the URL redacted (D9 of the 2026-10-21 round): the answer is not valid
   JSON (naming a Content-Type that isn't JSON), an empty response body (a 204 too), an
   unsupported charset, a number that can't be represented exactly, an unexpected shape, a
@@ -374,10 +380,15 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   line, each step one regex replace (one `+=` per character exhausted a small heap on a 16 MB
   error message). `describeArcGisError` reads the `details` only until the joined text is past
   the cut, so an envelope of a million details costs no more than one; the joined message and
-  details are then cut at 500 characters (`cutForMessage`), as for an HTTP error's detail, while
-  `body` keeps the whole answer, as sent (the decoded text, `getJsonAnswer`; rebuilt with
-  `JSON.stringify` it overflowed the stack on Node 22 and 24 for `details` nested 10,000 deep,
-  a bare `RangeError` instead of the ArcGIS error). The catalogue is a second trust
+  details are then cut at 500 characters (`cutForMessage`), as for an HTTP error's detail. Each
+  part is scrubbed of the URLs' credentials before it is cleaned, joined and cut
+  (`describeArcGisError`'s `scrub`), so neither cut splits a password into a prefix no exact
+  string matches. `body` keeps the whole answer, as sent and scrubbed (the decoded text,
+  `getJsonAnswer`; rebuilt with `JSON.stringify` it overflowed the stack on Node 22 and 24 for
+  `details` nested 10,000 deep, a bare `RangeError` instead of the ArcGIS error), unless a
+  credential hides behind a JSON escape in it (`\u002d`, `\"`): then it is the decoded JSON
+  written again, scrubbed in that spelling (`RequestEngine.scrubBody`, the same for an HTTP
+  error's body), or `""` when it is nested too deeply to write again. The catalogue is a second trust
   domain (`--catalog-url`), so its texts (titles, units, theme names) are cleaned the
   same way when parsed (`cleanServerText`) — they appear in error messages such as the list of
   `Available:` columns — but whole, as they are data on stdout too. The answers the engine

@@ -917,3 +917,86 @@ test("scanNumbers quotes millions of declared members within a small heap", STAR
   const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(out, String(n * 10 + 1));
 });
+
+test("a credential echoed with JSON escapes is scrubbed from the message, the detail and the decoded body (D)", async () => {
+  // The body was scrubbed as sent and then decoded: `s3cret-pw` passed the exact-string scrub
+  // and came back as `s3cret-pw` in the message and the detail.
+  const pw = "s3cret-pw";
+  const base = `https://alice:${pw}@mirror.example`;
+  for (const body of [
+    '{"message":"denied for s3cret\\u002dpw"}',
+    '{"error":{"code":499,"message":"bad","details":["user alice:s3cret\\u002dpw"]}}',
+    '{"detail":"\\u0073\\u0033\\u0063\\u0072\\u0065\\u0074\\u002d\\u0070\\u0077"}',
+    // Scrubbed before it is cleaned: the cleaning reads 16 384 characters and folds whitespace, so
+    // a password cut there would land inside the message as a prefix no exact string matches.
+    `{"message":"${" ".repeat(16_380)}s3cret\\u002dpw"}`,
+    `{"error":{"message":"${" ".repeat(16_380)}s3cret\\u002dpw"}}`,
+  ]) {
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse(body, "application/json", 401) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof RegionalatlasApiError, String(err));
+    for (const text of [err.message, err.detail ?? "", JSON.stringify(JSON.parse(err.body))]) {
+      assert.ok(!text.includes("s3cr"), `${body.slice(0, 40)}: ${text.slice(-80)}`);
+    }
+  }
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse(body, "application/json", 500) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof RegionalatlasApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+  // Deeply nested: written again where this runtime can, else left out (probed, not assumed:
+  // whether JSON.stringify recurses depends on the Node version).
+  const deep = `${"[".repeat(200_000)}"s3cret\\u002dpw"${"]".repeat(200_000)}`;
+  let parses = true;
+  let writes = true;
+  try {
+    const value: unknown = JSON.parse(deep);
+    try {
+      JSON.stringify(value);
+    } catch {
+      writes = false;
+    }
+  } catch {
+    parses = false;
+  }
+  if (parses) {
+    const body = await bodyOf(deep);
+    assert.ok(!body.includes("s3cret"), body.slice(199_990, 200_030));
+    assert.equal(body === "", !writes);
+  }
+});
+
+test("a value quoted from an answer is scrubbed before it is cut, so no part of a credential stays", async () => {
+  const pw = "s3cret-Pw-long";
+  const e = new RequestEngine({ baseUrl: `https://alice:${pw}@mirror.example` });
+  for (const at of [0, 490, 495, 499]) {
+    const quoted = e.quoteServerValue(`${"x".repeat(at)}${pw}${"y".repeat(600)}`);
+    assert.ok(!quoted.includes("s3cret"), `${at}: ${quoted}`);
+  }
+  assert.equal(new RequestEngine().quoteServerValue('a"b'), '"a\\"b"');
+});
+
+test("an echo of the request URL as sent is scrubbed, a short password too", async () => {
+  // Typed raw; WHATWG sends `p%22%C3%A4` in the URL, which a server echoes.
+  const e = new RequestEngine({
+    baseUrl: 'https://alice:p"ä@mirror.example',
+    transport: async (req) => rawResponse(JSON.stringify({ message: `no access: ${new URL(req.url).href}` }), "application/json", 403),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof RegionalatlasApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});

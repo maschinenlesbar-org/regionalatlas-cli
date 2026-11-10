@@ -106,7 +106,7 @@ export class RegionalatlasClient {
   private async allIndicators(): Promise<Indicator[]> {
     if (this.indicatorsCache === undefined) {
       const { value, request } = await this.rawCatalog();
-      this.indicatorsCache = namingRequest(request, () => parseIndicators(value));
+      this.indicatorsCache = namingRequest(request, () => parseIndicators(value), (text) => this.engine.redact(text));
     }
     return this.indicatorsCache;
   }
@@ -114,7 +114,7 @@ export class RegionalatlasClient {
   /** The 21 subject areas (Themenbereiche), each with its indicator count. */
   async themes(): Promise<Theme[]> {
     const { value, request } = await this.rawCatalog();
-    return namingRequest(request, () => parseThemes(value));
+    return namingRequest(request, () => parseThemes(value), (text) => this.engine.redact(text));
   }
 
   /**
@@ -194,7 +194,7 @@ export class RegionalatlasClient {
       throw shapeError(request, `a features array, got ${kindOf(res.features)}`);
     }
     const rows = res.features.map((f, i) =>
-      parseRow(featureAttributes(f, i, request), level.typ, level.name, year, request),
+      parseRow(featureAttributes(f, i, request), level.typ, level.name, year, request, (text) => this.engine.redact(text)),
     );
 
     // 5. Client-side region filter + field projection (no user text upstream).
@@ -228,18 +228,19 @@ export class RegionalatlasClient {
     if (err) {
       const code =
         typeof err === "object" ? (err as { code?: unknown }).code : undefined;
-      const detail = describeArcGisError(err);
+      // Each part scrubbed before it is cleaned, joined and cut.
+      const detail = describeArcGisError(err, (part) => this.engine.redact(part));
       throw new RegionalatlasApiError({
         url: this.engine.buildUrl(DATA_PATH, params),
         method: "GET",
         // The answer as sent (JSON.stringify of it overflowed the stack on deep nesting), and
         // server text that may echo the request URL: scrubbed like the engine's own errors.
-        body: this.engine.redact(text),
+        body: this.engine.scrubBody(this.engine.redact(text)),
         arcgisCode: typeof code === "number" ? code : undefined,
-        // Message and details, control characters stripped (sanitizeServerText), redacted,
-        // then cut at MAX_MESSAGE_VALUE_LENGTH like an HTTP error's detail: a server can
-        // send a 200 kB message, or thousands of details.
-        detail: detail === undefined ? undefined : cutForMessage(this.engine.redact(detail)),
+        // Message and details, each redacted, then control characters stripped
+        // (sanitizeServerText), then cut at MAX_MESSAGE_VALUE_LENGTH like an HTTP error's
+        // detail: a server can send a 200 kB message, or thousands of details.
+        detail: detail === undefined ? undefined : cutForMessage(detail),
       });
     }
     return { value: res as ArcGisQueryResponse, request };
@@ -251,12 +252,15 @@ export class RegionalatlasClient {
  * (`GET <catalogue url>: unexpected catalogue shape: …`): the parse functions are pure and know
  * no URL.
  */
-function namingRequest<T>(request: string, parse: () => T): T {
+function namingRequest<T>(request: string, parse: () => T, scrub: (text: string) => string): T {
   try {
     return parse();
   } catch (err) {
     if (!(err instanceof RegionalatlasParseError)) throw err;
-    throw new RegionalatlasParseError(`${request}: ${err.message.charAt(0).toLowerCase()}${err.message.slice(1)}`, { cause: err });
+    // The refusal quotes catalogue codes: scrubbed of the URLs' credentials, and the original
+    // (unscrubbed) kept as the cause only when there was nothing to scrub.
+    const message = scrub(err.message);
+    throw new RegionalatlasParseError(`${request}: ${message.charAt(0).toLowerCase()}${message.slice(1)}`, message === err.message ? { cause: err } : undefined);
   }
 }
 
@@ -348,9 +352,9 @@ const MAX_SHOWN_VALUE_LENGTH = 60;
  * invisible characters escaped); another type is named, never serialised (a value nested
  * 200,000 deep would overflow the stack).
  */
-function unreadableReason(value: unknown): string | undefined {
+function unreadableReason(value: unknown, scrub: (text: string) => string): string | undefined {
   if (value === null || typeof value === "number") return undefined;
-  if (typeof value === "string") return `unreadable value ${quoteValue(value, MAX_SHOWN_VALUE_LENGTH)} (not a number)`;
+  if (typeof value === "string") return `unreadable value ${quoteValue(scrub(value), MAX_SHOWN_VALUE_LENGTH)} (not a number)`;
   if (typeof value === "boolean") return `unreadable value ${String(value)} (not a number)`;
   return `unreadable value (${kindOf(value)}, not a number)`;
 }
@@ -437,6 +441,8 @@ const JOIN_FIELDS = new Set([
  * @throws RegionalatlasParseError for a value sent as a decimal string that a double
  *   can't carry exactly (`"12345678901234567890"`), never a changed value — see `toValue`.
  *   The message starts with `request` (the client passes `GET <url>`; default "the data query").
+ * @param scrub Applied to the server text a message or a `missing` reason quotes, before it is
+ *   cut (the client passes its engine's scrub of the base and catalogue URLs' credentials).
  */
 export function parseRow(
   attrs: RawFeatureAttributes,
@@ -444,6 +450,7 @@ export function parseRow(
   level: string,
   year: number,
   request = "the data query",
+  scrub: (text: string) => string = (text) => text,
 ): RegionRow {
   const ags = String(attrs.ags ?? "").trim();
   const rawName = typeof attrs.gen === "string" ? attrs.gen : attrs.gen2;
@@ -459,7 +466,7 @@ export function parseRow(
     const n = toValue(value);
     if (n === undefined) {
       throw new RegionalatlasParseError(
-        `${request}: the number ${cutForMessage(String(value))} in field ${cutForMessage(key)} of region ${cutForMessage(ags)} ` +
+        `${request}: the number ${cutForMessage(scrub(String(value)))} in field ${cutForMessage(scrub(key))} of region ${cutForMessage(scrub(ags))} ` +
           "cannot be represented exactly.",
       );
     }
@@ -468,7 +475,7 @@ export function parseRow(
     // stands for; every other code becomes null like any other missing value. Either
     // way `missing` names the code. A value the client can't read becomes null, and
     // `missing` says so.
-    const reason = n === null ? unreadableReason(value) : specialValueReason(n);
+    const reason = n === null ? unreadableReason(value, scrub) : specialValueReason(n);
     values[key] = n === null || reason === undefined ? n : specialValueFigure(n);
     if (reason !== undefined) {
       missing ??= Object.create(null) as Record<string, string>;

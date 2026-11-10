@@ -15,6 +15,7 @@ import {
 } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, queryOf, routeByHost } from "./helpers.js";
 import type { HttpRequest } from "../src/http.js";
+import type { RegionRow } from "../src/types.js";
 import * as fx from "./fixtures.js";
 
 /** A client wired to a host-routing transport (catalogue + data). */
@@ -580,4 +581,34 @@ test("an ArcGIS error names the query URL without the long encoded layer, reason
       return true;
     },
   );
+});
+
+test("an ArcGIS envelope's parts are scrubbed before they are cleaned, joined and cut (D)", async () => {
+  // On HTTP 200 the envelope's message and details were cleaned (which reads at most 16 384
+  // characters and folds whitespace) and joined first, then scrubbed: a password cut there left
+  // its prefix inside the message. A value a row quotes (`missing`) and a number error quote
+  // server text too, cut at 60 and 500.
+  const pw = "s3cret-Pw-long";
+  const baseUrl = `https://alice:${pw}@www.gis-idmz.nrw.de`;
+  const run = async (data: unknown): Promise<unknown> => {
+    const mt = makeMockTransport(routeByHost(fx.catalog, data));
+    const client = new RegionalatlasClient({ baseUrl, transport: mt.transport });
+    return client.query({ indicator: "AI002-1-5", level: "land", year: 2020 }).catch((caught: unknown) => caught);
+  };
+  for (const lead of [...[480, 490, 495, 499].map((n) => "x".repeat(n)), " ".repeat(16_380)]) {
+    for (const error of [{ code: 400, message: `${lead}${pw}` }, { code: 400, message: "", details: [`${lead}${pw}`] }]) {
+      const err = await run({ error });
+      assert.ok(err instanceof RegionalatlasApiError, String(err));
+      for (const text of [err.message, err.detail ?? ""]) assert.ok(!text.includes("s3cr"), `${lead.length}: ${text.slice(-60)}`);
+    }
+  }
+  const at = (n: number): string => `${"x".repeat(n)}${pw}`;
+  const rows = (await run({ features: [{ attributes: { ags: "01", gen: "A", ai0201: at(40) } }] })) as RegionRow[];
+  assert.ok(Array.isArray(rows), String(rows));
+  assert.ok(!JSON.stringify(rows[0]?.missing).includes("s3cr"), JSON.stringify(rows[0]?.missing));
+  for (const attributes of [{ ags: at(490), gen: "A", ai0201: "12345678901234567890" }, { ags: "01", gen: "A", [at(490)]: "12345678901234567890" }]) {
+    const err = await run({ features: [{ attributes }] });
+    assert.ok(err instanceof RegionalatlasParseError, String(err));
+    assert.ok(!err.message.includes("s3cr"), err.message.slice(-120));
+  }
 });
