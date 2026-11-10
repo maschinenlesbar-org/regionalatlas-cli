@@ -25,9 +25,16 @@ node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 
 CI (`ci.yml`) type-checks, builds and tests on Node 22/24/26, then packs the real tarball,
 checks the pack left nothing behind, installs it globally with the registry out of reach
-and runs the bin. `release.yml` (on a `v*` tag, made by `npm run bump`) verifies the tag
-against `apps/cli/package.json`, writes the SBOMs (scoped to the `apps/cli` workspace) and
-runs `npm pack --workspace apps/cli`; `publish.yml` runs `npm publish --workspace apps/cli`.
+and runs the bin. `release.yml` (on a `v*` tag, made by `npm run bump`) has three jobs:
+`pack` (read-only: verifies the tag against `apps/cli/package.json`, writes the changelog, runs
+the tests and `npm pack --workspace apps/cli`, and records the files' sha256 as job outputs),
+`sbom` (read-only: the CycloneDX tool from the lockfile-pinned `tools/sbom/`, installed with
+`npm ci --ignore-scripts --prefix tools/sbom`, writes the two SBOMs scoped to the `apps/cli`
+workspace) and `release` (the only job with `contents: write`: no checkout, no npm; it checks the
+digests and runs `gh release create`). To update the SBOM tool, change its version in
+`tools/sbom/package.json` and run `npm install --package-lock-only --ignore-scripts` there;
+don't chain that install into an npm script (the `tools/docs/` rule). `publish.yml` runs
+`npm publish --workspace apps/cli`.
 
 ## Layout
 
@@ -46,6 +53,7 @@ packages/client/     # @maschinenlesbar.org/regionalatlas-client — private, sh
   test/              # tests that only touch the client, + the transport helpers and fixtures
 tools/pack/          # prepack/postpack: ship the client (dist/node_modules) and commander in the tarball
 tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tools/sbom/          # the CycloneDX SBOM tool, lockfile-pinned, for release.yml only
 tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
 ```
 
