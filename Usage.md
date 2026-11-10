@@ -40,7 +40,8 @@ part is sent as Basic auth and shown as `***@` in everything the CLI prints — 
 messages, commander's usage errors (which quote a rejected value), help — whatever
 characters the password contains. When a server echoes them back in an error, the
 `Basic` value and the decoded `user:password` are shown as `***` too, and on stderr also
-the password alone. A `%` in the user name or password must start an escape
+the password alone. A `TOKEN@` without a password is a token: its Basic value (`TOKEN:`),
+`TOKEN:` and, on stderr, the token alone are shown as `***` the same way. A `%` in the user name or password must start an escape
 (write a literal `%` as `%25`); a bare one is a usage error (exit 2). The library checks `baseUrl` and `catalogUrl` by the
 same rules when the client is built.
 

@@ -20,6 +20,7 @@ import {
   RegionalatlasValidationError,
   TextBuilder,
   cutText,
+  echoedCredentialForms,
   redactUrlUserinfo,
   toWellFormed,
 } from "../src/errors.js";
@@ -1036,5 +1037,29 @@ test("a credential in a redirect's Location is scrubbed before it is resolved, i
       assert.ok(!/s3cret/.test(text) && !text.includes(Buffer.from(`alice:${pw}`).toString("base64")), `${location}: ${text}`);
     }
     assert.ok((err.location ?? "").includes("***"), err.location);
+  }
+});
+
+test("echoedCredentialForms treats a userinfo without a password as a token (Basic `TOKEN:`)", () => {
+  const basic = (pair: string): string => Buffer.from(pair, "utf8").toString("base64");
+  assert.deepEqual(echoedCredentialForms("alice:s3cret"), [basic("alice:s3cret"), "alice:s3cret", "s3cret"]);
+  assert.deepEqual(echoedCredentialForms("T0ken"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T0ken:"), [basic("T0ken:"), "T0ken:", "T0ken"]);
+  assert.deepEqual(echoedCredentialForms("T%C3%B6k"), [basic("Tök:"), "Tök:"]); // short: not alone
+  assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
+  assert.deepEqual(echoedCredentialForms(""), []);
+  assert.deepEqual(echoedCredentialForms(":"), []);
+});
+
+test("a token userinfo (no password) is scrubbed from library errors in every echoed form (E)", async () => {
+  const token = "T0kenS3cret";
+  for (const base of [`https://${token}@mirror.example`, `https://${token}:@mirror.example`]) {
+    const echo = `basic ${Buffer.from(`${token}:`).toString("base64")} pair ${token}: alone ${token}`;
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse(JSON.stringify({ message: echo }), "application/json", 401) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof RegionalatlasApiError, String(err));
+    for (const text of [err.message, err.detail ?? "", err.body]) {
+      assert.ok(!text.includes(token) && !text.includes(Buffer.from(`${token}:`).toString("base64")), `${base}: ${text}`);
+    }
   }
 });

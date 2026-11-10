@@ -303,7 +303,9 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   quadratic on host text such as `a.a.a.…`). The forms a server echoes
   a userinfo back in are replaced too (`echoedCredentialForms`, `redactSecrets`): the
   `Basic` value and the decoded `user:password` on stdout and stderr, the password alone
-  (4 characters or more) on stderr only, since it may well occur in the data. `redactUrl` falls back to
+  (4 characters or more) on stderr only, since it may well occur in the data. A userinfo
+  without a password (`TOKEN@host`, `TOKEN:@host`) is a token: its forms are the Basic value of
+  `TOKEN:` (as Node sends it), `TOKEN:` and the token alone. `redactUrl` falls back to
   the same text-based cut for a value that doesn't parse as a URL. The library keeps
   them out of logged objects too: the engine holds the base URL and the client the
   catalogue URL in real `#private` fields, so `console.log(client)`, `util.inspect` and
