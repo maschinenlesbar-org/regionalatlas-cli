@@ -19,6 +19,7 @@ import {
   RegionalatlasSizeLimitError,
   RegionalatlasValidationError,
   TextBuilder,
+  credentialsIn,
   cutText,
   echoedCredentialForms,
   redactUrlUserinfo,
@@ -1062,4 +1063,63 @@ test("a token userinfo (no password) is scrubbed from library errors in every ec
       assert.ok(!text.includes(token) && !text.includes(Buffer.from(`${token}:`).toString("base64")), `${base}: ${text}`);
     }
   }
+});
+
+test("credentialsIn ends the authority of a special scheme at a backslash, as WHATWG does (F)", () => {
+  for (const scheme of ["http", "https", "HTTPS", "ws", "wss", "ftp"]) {
+    assert.deepEqual(credentialsIn(`${scheme}://u:p@a.example\\@b.example/x`), ["u:p"], scheme);
+    assert.equal(new URL(`${scheme}://u:p@a.example\\@b.example/x`).password, "p", scheme);
+  }
+  // Another scheme's authority runs on to "/", "?" or "#".
+  assert.deepEqual(credentialsIn("foo://u:p@a.example\\@b.example/x"), ["u:p@a.example\\"]);
+  assert.deepEqual(credentialsIn("https://u:p@a.example/x\\@y"), ["u:p"]);
+});
+
+test("credentialsIn skips the slashes and backslashes WHATWG skips after a special scheme (F3)", () => {
+  // `http:///u:pw@h`, `https:\\u:pw@h` and `http:u:pw@h` all carry `u:pw` for WHATWG; read
+  // after "://", the userinfo was missed, so a refused --base-url echoed the password in clear.
+  for (const value of [
+    "http:alice:pw@h.example",
+    "http:/alice:pw@h.example",
+    "http:///alice:pw@h.example/x",
+    "https:////alice:pw@h.example",
+    "HTTPS:\\\\alice:pw@h.example",
+    "wss:\\/alice:pw@h.example",
+    "ftp:alice:pw@h.example",
+  ]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+    assert.equal(new URL(value).password, "pw", value);
+  }
+  // Another scheme needs "//" before an authority: `foo:u:p@h` and `foo:///u:p@h` carry none.
+  assert.deepEqual(credentialsIn("foo:u:p@h.example"), []);
+  assert.deepEqual(credentialsIn("foo:///u:p@h.example"), []);
+  assert.equal(new URL("foo:///u:p@h.example").password, "");
+});
+
+test("a base URL with a backslash or a repaired scheme is refused at construction, never echoing the password (F, F4)", () => {
+  for (const [baseUrl, reason] of [
+    ["http:alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["https:/alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["http:///alice:s3cret@h.example", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["HTTPS:h.example/v1", 'Expected an absolute http(s) URL ("https://" and the host).'],
+    ["https:\\\\alice:s3cret@h.example", 'A base URL cannot contain a backslash (\\); write "/" instead.'],
+    ["https://alice:s3cret@api.example\\@evil.example", 'A base URL cannot contain a backslash (\\); write "/" instead.'],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    assert.throws(
+      () => new RequestEngine({ transport: mt.transport, baseUrl }),
+      (err: unknown) =>
+        err instanceof RegionalatlasValidationError && err.message === `Invalid baseUrl: ${reason}` && !err.message.includes("s3cret"),
+      baseUrl,
+    );
+    assert.throws(() => new RegionalatlasClient({ transport: mt.transport, catalogUrl: `${baseUrl}/services.json` }), RegionalatlasValidationError, baseUrl);
+    assert.equal(mt.calls.length, 0, baseUrl);
+  }
+});
+
+test("requests go to the base URL as it parses, the reading every check of it makes (F)", async () => {
+  const mt = makeMockTransport(() => jsonResponse({}));
+  const e = new RequestEngine({ transport: mt.transport, baseUrl: "https://alice:pw@API.Example:443/Mirror/" });
+  await e.getJson("/x/query", { f: "json" });
+  assert.equal(mt.last().url, "https://alice:pw@api.example/Mirror/x/query?f=json");
 });

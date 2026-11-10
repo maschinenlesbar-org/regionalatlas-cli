@@ -199,9 +199,12 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const tokens = new Set<string>();
   const echoed = new Set<string>();
   const passwords = new Set<string>();
-  // A base or catalogue URL typed without its scheme is read as if it had one.
+  // A base or catalogue URL typed without its scheme is read as if it had one. One with a
+  // special scheme but not "//" (`http:///u:pw@h`, `https:\\u:pw@h`, `http:u:pw@h`) has one:
+  // credentialsIn reads its userinfo as WHATWG does, where a prefixed `http://` would end the
+  // authority at "http:".
   const baseUrls = [...flagValues(argv, BASE_URL_FLAGS), env[BASE_URL_ENV] ?? ""].map((value) =>
-    value === "" || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`,
+    value === "" || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || credentialsIn(value).length > 0 ? value : `http://${value}`,
   );
   for (const source of [...[...argv, ...values].flatMap(urlsWithin), ...baseUrls]) {
     for (const secret of credentialsIn(source)) {

@@ -258,7 +258,9 @@ export const headerNameProblem: Problem<unknown> = (value) =>
  * as is), parsable, `http:`/`https:` only — and for a base URL no query or
  * fragment, because request paths are appended to it as a string. Userinfo is
  * allowed (Node sends it as Basic auth; messages redact it), but a `%` in it must start
- * a valid escape (`%25` for a literal one). The reasons never repeat the value.
+ * a valid escape (`%25` for a literal one). No backslash (WHATWG ends an http(s) host at one,
+ * text-based code reads on), and the scheme followed by exactly `//` and the host (WHATWG
+ * repairs `http:host`, `http:/host`, `http:///host` silently). The reasons never repeat the value.
  */
 function urlProblem(value: unknown, base: boolean): string | undefined {
   const label = base ? "A base URL" : "A URL";
@@ -273,6 +275,9 @@ function urlProblem(value: unknown, base: boolean): string | undefined {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http: and https: URLs are supported.";
   if (base && /[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // WHATWG reads a "\" in an http(s) URL as "/", so it ends the host: in
+  // `https://u:pw@a.example\@b.example` every reader of the URL has to agree where.
+  if (value.includes("\\")) return `${label} cannot contain a backslash (\\); write "/" instead.`;
   // Node decodes the userinfo for the Basic-auth header and fails at request time on a
   // "%" that starts no escape; refuse it here, as a usage error, without echoing it.
   for (const part of [url.username, url.password]) {
@@ -282,6 +287,10 @@ function urlProblem(value: unknown, base: boolean): string | undefined {
       return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
     }
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed,
+  // and a userinfo read after "://" would be missed.
+  if (!/^https?:\/\/[^/]/i.test(value)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   return undefined;
 }
 

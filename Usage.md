@@ -33,8 +33,9 @@ control; ZWJ and ZWNJ are allowed in a filter text): pasted along, such a charac
 filter match nothing. The refusal shows it escaped (`"Bre\u200bmen" contains an invisible
 character (U+200B).`).
 
-`--base-url` and `--catalog-url` accept only `http:`/`https:` URLs without whitespace
-(around or inside them). `--base-url` must not have a query (`?`) or fragment (`#`) (the
+`--base-url` and `--catalog-url` accept only `http:`/`https:` URLs written as
+`https://` and the host, without whitespace (around or inside them) and without a backslash
+(`http:host`, `http:///host` and `https:\\host` are usage errors, exit 2). `--base-url` must not have a query (`?`) or fragment (`#`) (the
 CLI appends the data path to it); a path prefix for a mirror is fine. A `user:password@`
 part is sent as Basic auth and shown as `***@` in everything the CLI prints — its own error
 messages, commander's usage errors (which quote a rejected value), help — whatever

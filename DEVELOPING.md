@@ -283,7 +283,15 @@ What the library refuses with `RegionalatlasValidationError`, before any request
 - **URLs** (`httpUrlProblem`, `baseUrlProblem`, `validateHttpUrl` in engine.ts), checked
   when the client is built: `baseUrl` and `catalogUrl` must be non-blank `http:`/`https:`
   URLs without surrounding or interior whitespace or control characters; `baseUrl` also
-  without a query or fragment. Userinfo is allowed (sent as Basic auth, redacted in
+  without a query or fragment. Neither may hold a backslash (WHATWG ends an http(s) host at
+  one, as at a `/`, while text-based code reads on: `https://u:pw@a.example\@b.example` was
+  read as b.example by such code), and the scheme must be followed by exactly `//` and the host
+  (`http:host`, `http:/host`, `http:///host` are refused: WHATWG repairs them silently, so the
+  host requested was not the one typed). The engine requests the base URL as WHATWG parses it
+  (host lower-cased, a default port dropped, the path percent-encoded where WHATWG does it), the
+  reading every check makes; the catalogue URL, refused in those spellings too, is requested as
+  given. `credentialsIn` reads a special scheme's userinfo after the slashes and backslashes
+  WHATWG skips (`http:///u:pw@h`) and ends it at a backslash. Userinfo is allowed (sent as Basic auth, redacted in
   messages), but a `%` in it must start a valid escape (`%25` for a literal one): Node
   decodes it for the Basic-auth header and would fail only at request time. The CLI also redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the
   exact userinfo of every URL argument (`credentialsIn`, exported) and replaces it with `***`

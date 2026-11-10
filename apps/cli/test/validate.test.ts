@@ -174,3 +174,27 @@ test("httpUrlProblem / baseUrlProblem: the URL rules, in order", () => {
   assert.equal(baseUrlProblem("https://h/?q=1"), "A base URL cannot have a query (?) or fragment (#).");
   assert.equal(httpUrlProblem(42), "Expected a non-empty value.");
 });
+
+test("a backslash, or a scheme not followed by exactly // and the host, is refused in both URLs (F, F4)", () => {
+  // WHATWG ends an http(s) host at "\" and repairs `http:host`, `http:/host`, `http:///host`
+  // silently, so the host a text-based reader saw was not the one requested.
+  const BACKSLASH = 'cannot contain a backslash (\\); write "/" instead.';
+  const FORM = 'Expected an absolute http(s) URL ("https://" and the host).';
+  for (const [value, reason] of [
+    ["https://u:pw@a.example\\@b.example", BACKSLASH],
+    ["https://h.example/a\\b", BACKSLASH],
+    ["https:\\\\h.example", BACKSLASH],
+    ["http:h.example", FORM],
+    ["https:/h.example", FORM],
+    ["http:///h.example", FORM],
+    ["http:u:s3cret@h.example", FORM],
+    ["HTTPS:h.example", FORM],
+  ] as const) {
+    assert.equal(baseUrlProblem(value), reason === BACKSLASH ? `A base URL ${reason}` : reason, value);
+    assert.equal(httpUrlProblem(`${value}/services.json`), reason === BACKSLASH ? `A URL ${reason}` : reason, value);
+  }
+  for (const value of ["HTTPS://H.example/v1", "http://alice:pw@h.example:8080"]) {
+    assert.equal(baseUrlProblem(value), undefined, value);
+    assert.equal(httpUrlProblem(value), undefined, value);
+  }
+});

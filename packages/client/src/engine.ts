@@ -726,7 +726,13 @@ export class RequestEngine {
     // `/m?token=abc/arcgis/...`). Only undefined selects the default.
     const baseUrl =
       options.baseUrl === undefined ? DEFAULT_BASE_URL : validateHttpUrl("baseUrl", options.baseUrl, { base: true });
-    this.#baseUrl = baseUrl.replace(/\/+$/, "");
+    // Requests go to the base URL as WHATWG parses it, the reading every check of it makes (the
+    // host, the cleartext warning, the Authorization header Node derives), not to a text-based
+    // reading of the string: a transport that reads the URL as text reaches the same host.
+    this.#baseUrl = new URL(baseUrl).href.replace(/\/+$/, "");
+    // The userinfo as typed too (WHATWG percent-encodes some of its characters in the href).
+    for (const form of credentialForms(baseUrl)) this.#credentials.add(form);
+    for (const form of echoedForms(baseUrl)) this.#echoed.add(form);
     for (const form of credentialForms(this.#baseUrl)) this.#credentials.add(form);
     for (const form of echoedForms(this.#baseUrl)) this.#echoed.add(form);
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
