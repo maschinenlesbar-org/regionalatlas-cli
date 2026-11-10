@@ -76,20 +76,25 @@ export function queryTokensIn(value: string): string[] {
  * `text` with the value of every secret query parameter replaced by `***`
  * (`?token=abc` → `?token=***`), and every listed token value (as `queryTokensIn` returns
  * them, or decoded) replaced wherever it occurs alone — a server's "invalid token abc"
- * echoes it without the parameter name. Values shorter than six characters are only
- * redacted in their `token=` form, which a server may echo without the `?` or `&`
- * (`raw token=ab12`): a listed value is redacted after a bare `token=` or
- * `access_token=` too.
+ * echoes it without the parameter name. A listed value is replaced whole in its `token=` or
+ * `access_token=` form first, with or without the `?`/`&` a server's echo may drop: the
+ * pattern ends a value at a space, and a token sent percent-encoded (`ab%20cd`) is echoed
+ * decoded, so the pattern alone replaced only its first word and left the rest. Values shorter
+ * than six characters are only redacted in that form; with `bare: false` (the CLI's stdout,
+ * where a bare value is data) no value is replaced alone.
  */
-export function redactQueryTokens(text: string, tokens: readonly string[] = []): string {
-  let out = text.replace(SECRET_QUERY_PARAMETER, (_match, head: string, value: string) => `${head}***${afterRedacted(value)}`);
-  for (const token of tokens) {
-    if (token === "") continue;
+export function redactQueryTokens(text: string, tokens: readonly string[] = [], options: { bare?: boolean } = {}): string {
+  let out = text;
+  // Longest first, so a token never leaves half of a longer one around it.
+  const listed = [...new Set(tokens)].filter((token) => token !== "").sort((a, b) => b.length - a.length);
+  for (const token of listed) {
+    const named = new RegExp(`(?<![A-Za-z0-9_])((?:token|access_token)=)${escapeRegExp(token)}(?![A-Za-z0-9._~%+/=-])`, "gi");
+    out = out.replace(named, "$1***");
+  }
+  out = out.replace(SECRET_QUERY_PARAMETER, (_match, head: string, value: string) => `${head}***${afterRedacted(value)}`);
+  if (options.bare === false) return out;
+  for (const token of listed) {
     if (token.length >= MIN_BARE_TOKEN_LENGTH) out = out.split(token).join("***");
-    else {
-      const named = new RegExp(`(?<![A-Za-z0-9_])((?:token|access_token)=)${escapeRegExp(token)}(?![A-Za-z0-9._~%+/=-])`, "gi");
-      out = out.replace(named, "$1***");
-    }
   }
   return out;
 }

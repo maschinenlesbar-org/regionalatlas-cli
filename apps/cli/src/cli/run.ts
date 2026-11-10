@@ -241,7 +241,7 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const tokenSet = new Set(tokenList);
   return {
     // The `token=` parameter anywhere; the bare value only as a whole JSON string value.
-    out: (text) => redactWholeJsonValues(redactQueryTokens(withoutCredentials(text)), tokenSet),
+    out: (text) => redactWholeJsonValues(redactQueryTokens(withoutCredentials(text), tokenList, { bare: false }), tokenSet),
     err: (text) => redactSecrets(redactQueryTokens(withoutCredentials(text), tokenList), passwordList),
   };
 }

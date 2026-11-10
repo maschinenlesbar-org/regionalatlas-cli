@@ -356,3 +356,26 @@ test("with a catalogue token set, an answer holding a string of 10 M characters 
   assert.equal(await run(["--catalog-url", "https://cat.example/services.json?token=s3cr3tvalue", "themes", "--compact"], quoted.deps), 0);
   assert.match(quoted.text(), /"title":"a \\"s3cr3tvalue\\" b"/);
 });
+
+test("a catalogue token with an inner space is redacted whole in its token= form, on stdout and stderr (D detail)", async () => {
+  // `?token=` ended the value at the first space and replaced only the first word; the whole token
+  // then matched nowhere, and its later words stayed on stdout and in the record.
+  const url = "https://cat.example/services.json?token=ab%20cd%20ef%20gh";
+  const ok = cli(JSON.stringify([{ title: "see https://cat.example/services.json?token=ab cd ef gh", children: [] }]));
+  assert.equal(await run(["--catalog-url", url, "themes", "--compact"], ok.deps), 0, ok.text());
+  const err: string[] = [];
+  const failing: CliDeps = {
+    io: { out: () => {}, err: (s) => err.push(s) },
+    createClient: (opts) =>
+      new RegionalatlasClient({
+        ...opts,
+        maxRetries: 0,
+        transport: async () => ({ status: 500, headers: { "content-type": "text/plain" }, body: Buffer.from("bad /services.json?token=ab cd ef gh") }),
+      }),
+  };
+  assert.notEqual(await run(["--catalog-url", url, "themes"], failing), 0);
+  for (const text of [ok.text(), err.join("\n")]) {
+    assert.match(text, /token=\*\*\*/);
+    for (const word of ["cd ef", "ef gh"]) assert.ok(!text.includes(word), text);
+  }
+});

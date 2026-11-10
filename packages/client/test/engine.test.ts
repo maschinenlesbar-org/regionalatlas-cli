@@ -1000,3 +1000,19 @@ test("an echo of the request URL as sent is scrubbed, a short password too", asy
     assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
   }
 });
+
+test("a secret with an inner space is scrubbed whole, not from its second word on (D detail)", async () => {
+  // A password and a catalogue token may hold spaces (sent percent-encoded); a server echoes them
+  // decoded. The `token=` pattern ended the value at the space and replaced only its first word,
+  // so the whole token no longer matched and its later words stayed.
+  const e = new RequestEngine({
+    baseUrl: "https://alice:pa%20ss%20word@mirror.example",
+    transport: async () =>
+      rawResponse(JSON.stringify({ message: "bad login pa ss word; bad /services.json?token=ab cd ef gh; again ab cd ef gh" }), "application/json", 401),
+  });
+  const err = await e.getJsonAbsolute("https://cat.example/services.json?token=ab%20cd%20ef%20gh").catch((caught: unknown) => caught);
+  assert.ok(err instanceof RegionalatlasApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    for (const word of ["pa ss", "ss word", "ab cd", "cd ef", "ef gh"]) assert.ok(!text.includes(word), `${word}: ${text}`);
+  }
+});

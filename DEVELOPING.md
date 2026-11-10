@@ -343,8 +343,10 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   decoded, and cleaned as `sanitizeServerText` leaves an echo of it, the detail being
   redacted again after cleaning) to what `redact`/`scrubCause` scrub from bodies, details,
   transport text and causes, and `withRedactedOutput` redacts it from CLI output (`queryTokensIn`,
-  `redactQueryTokens`; a bare value under six characters only in its `token=` or
-  `access_token=` form, with or without the `?`/`&` a server's echo may drop; a value already
+  `redactQueryTokens`; a known value is replaced whole in its `token=` or `access_token=` form
+  first, so a token with an inner space, sent percent-encoded and echoed decoded, never keeps
+  its later words (the pattern ends a value at a space); a bare value under six characters only
+  in that form, with or without the `?`/`&` a server's echo may drop; a value already
   redacted keeps what follows it, so the CLI's second pass over the library's `…?token=***: boom`
   no longer eats the `:`). On stdout a
   bare value is replaced only as a whole JSON string value (`redactWholeJsonValues`, one linear
