@@ -84,6 +84,8 @@ const test = (name: string, options: { timeout?: number } | (() => Promise<void>
   void nodeTest(name, name.includes("large flat answer") ? { ...opts, skip: NOT_FREE_FORM } : opts, run);
 };
 import { test as nodeTest } from "node:test";
+/** The method of `call`'s request, as the log names it (`WARN [<bin>.api] GET <url>: …`). */
+const METHOD = "GET";
 // --------------------------------------------------------------------------------------
 
 // These tests start the built CLI as a process: 30 s instead of the suite's 5 s.
@@ -208,7 +210,7 @@ test("P27: a lone surrogate or invalid bytes are replaced with U+FFFD and report
     assert.ok(WELL_FORMED(o.cli.out), `${label}: ${o.cli.out}`);
     assert.equal(fromCli(o.cli.out), expected, label);
     const warn = new RegExp(
-      `^WARN  \\[${PROGRAM}\\.api\\] GET \\S+: ${count} characters? of the answer (was|were) not valid text .*replaced with U\\+FFFD\\.$`,
+      `^WARN  \\[${PROGRAM}\\.api\\] ${METHOD} \\S+: ${count} characters? of the answer (was|were) not valid text .*replaced with U\\+FFFD\\.$`,
     );
     assert.match(o.cli.err, warn, `${label}: ${o.cli.err}`);
     assert.equal(o.lib.ok, true, `${label}: ${o.lib.error?.message}`);

@@ -79,7 +79,8 @@ const hostArgv = (base: string): string[] => ["--base-url", base, "--catalog-url
 /** The status and body the bin's mock answers the request for `path` with (default: the test's); here the catalogue first. */
 const answerFor = (path: string, status: number, body: Buffer): [number, Buffer] =>
   path === "/services.json" ? [200, Buffer.from(JSON.stringify(catalog))] : [status, body];
-// --------------------------------------------------------------------------------------
+/** The method of `call`'s request, as the log names it (`WARN [<bin>.api] GET <url>: …`). */
+const METHOD = "GET";
 // --------------------------------------------------------------------------------------
 
 // These tests start the built CLI as a process: 30 s instead of the suite's 5 s.
@@ -183,7 +184,7 @@ test("P28: an answer of millions of lone surrogate escapes is repaired within a 
   const run = await runWithAnswer(200, Buffer.from(bodyWith(`"${"\\ud800".repeat(n)}"`)), 128);
   noCrash(run, "lone surrogates");
   assert.equal(run.code, 0, run.stderr.slice(0, 500));
-  assert.match(run.stderr, new RegExp(`WARN  \\[${PROGRAM}\\.api\\] GET \\S+: ${n} characters of the answer were not valid text`));
+  assert.match(run.stderr, new RegExp(`WARN  \\[${PROGRAM}\\.api\\] ${METHOD} \\S+: ${n} characters of the answer were not valid text`));
 });
 
 // A password with characters a JSON writer escapes (a quote) or may write as \u00XX (an umlaut),
