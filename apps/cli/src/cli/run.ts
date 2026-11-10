@@ -21,6 +21,7 @@ import {
   redactQueryTokens,
   redactSecrets,
   redactUrlUserinfo,
+  TextBuilder,
 } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
 
 /**
@@ -158,7 +159,7 @@ function redactWholeJsonValues(text: string, tokens: ReadonlySet<string>): strin
   const lengths = new Set<number>();
   for (const token of tokens) if (token.length >= 6) lengths.add(token.length);
   if (lengths.size === 0) return text;
-  const parts: string[] = [];
+  const parts = new TextBuilder();
   let copied = 0;
   for (let i = 0; i < text.length; i++) {
     if (text.charCodeAt(i) !== 0x22) continue;
@@ -173,9 +174,9 @@ function redactWholeJsonValues(text: string, tokens: ReadonlySet<string>): strin
     parts.push(text.slice(copied, start), '"***"');
     copied = i + 1;
   }
-  if (parts.length === 0) return text;
+  if (copied === 0) return text;
   parts.push(text.slice(copied));
-  return parts.join("");
+  return parts.toString();
 }
 
 /**

@@ -20,7 +20,7 @@ import { RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, l
 /** The longest column code or title (in characters) the unknown-field message lists. */
 const MAX_LISTED_ITEM_LENGTH = 60;
 import { GEO_LEVELS } from "./levels.js";
-import { sanitizeServerText } from "./engine.js";
+import { cleanServerText, sanitizeServerText } from "./engine.js";
 import { BOUNDARY_TABLE } from "./sql.js";
 import { assertKnownKeys, assertValid, normalizeInput, textProblem, tokenProblem, YEAR_SHAPE, yearProblem } from "./validate.js";
 
@@ -42,10 +42,11 @@ function asString(value: unknown): string {
  * A text of the catalogue (a title, a unit, a theme name), made safe for stderr.
  * The catalogue is a separate host from the data host (`--catalog-url`), and its
  * texts end up in error messages ("Available: ai0201 (<title>)"), so a control or
- * bidi character in it must not reach the terminal (`sanitizeServerText`).
+ * bidi character in it must not reach the terminal. They are also data the CLI prints on
+ * stdout, so they are cleaned whole (`cleanServerText`), not cut as an error's server text is.
  */
 function catalogText(value: unknown): string {
-  return typeof value === "string" ? sanitizeServerText(value) : "";
+  return typeof value === "string" ? cleanServerText(value) : "";
 }
 
 /**

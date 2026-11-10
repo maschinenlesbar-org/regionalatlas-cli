@@ -366,15 +366,24 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   A body that is not a JSON object, or has no `features` array, is a
   `RegionalatlasParseError` (`GET <url>: unexpected response shape: expected …`), not
   an empty result. The `error.message`
-  is run through `sanitizeServerText` before it can reach stderr: control and bidi
-  characters dropped, whitespace folded to one line; the joined message and details are
-  then cut at 500 characters (`cutForMessage`), as for an HTTP error's detail, while
+  is run through `sanitizeServerText` before it can reach stderr: it reads at most the first
+  16 384 characters, drops whole escape sequences (a CSI, an OSC or other control string up to
+  its terminator, which ends at ESC or another introducer, so an unterminated run of them is
+  cleaned in linear time), then the remaining C0/C1 controls, DEL and every Unicode format
+  character (bidi controls, zero-width characters, a soft hyphen), and folds whitespace to one
+  line, each step one regex replace (one `+=` per character exhausted a small heap on a 16 MB
+  error message). `describeArcGisError` reads the `details` only until the joined text is past
+  the cut, so an envelope of a million details costs no more than one; the joined message and
+  details are then cut at 500 characters (`cutForMessage`), as for an HTTP error's detail, while
   `body` keeps the whole answer, as sent (the decoded text, `getJsonAnswer`; rebuilt with
   `JSON.stringify` it overflowed the stack on Node 22 and 24 for `details` nested 10,000 deep,
   a bare `RangeError` instead of the ArcGIS error). The catalogue is a second trust
-  domain (`--catalog-url`), so its texts (titles, units, theme names) go through the
-  same function when parsed — they appear in error messages such as the list of
-  `Available:` columns. As a last net, run.ts strips C0 (except tab/newline), DEL and
+  domain (`--catalog-url`), so its texts (titles, units, theme names) are cleaned the
+  same way when parsed (`cleanServerText`) — they appear in error messages such as the list of
+  `Available:` columns — but whole, as they are data on stdout too. The answers the engine
+  rewrites (a lone surrogate repaired, a declared big integer quoted) are put together in a
+  `TextBuilder` (errors.ts: pieces joined in batches), as is the redaction of stdout, so memory
+  follows the text, not the number of pieces. As a last net, run.ts strips C0 (except tab/newline), DEL and
   C1 from everything written to stderr, which covers arguments quoted back as typed.
 - **Charset:** a JSON body (data and catalogue) is decoded by the charset its
   Content-Type names, UTF-8 when it names none (`decodeBody`, `TextDecoder`): a Latin-1

@@ -335,15 +335,17 @@ test("catalogue texts lose control and bidi characters and line breaks before an
     },
   ];
   const [ind] = parseIndicators(raw);
-  assert.equal(ind!.theme, "Th]0;pwneme");
+  // Whole escape sequences go, not only their control bytes (the OSC title, the CSI colour; the
+  // 8-bit CSI U+009B takes the final byte after it, "z").
+  assert.equal(ind!.theme, "Theme");
   assert.equal(ind!.titleShort, "Shorttitle");
   assert.equal(ind!.titleLong, "Long title");
-  assert.deepEqual(ind!.fields, [{ code: "ai0201", title: "t]0;TITLE[31mRED", unit: "Prozent" }]);
-  assert.deepEqual(parseThemes(raw), [{ title: "Th]0;pwneme", indicatorCount: 1 }]);
+  assert.deepEqual(ind!.fields, [{ code: "ai0201", title: "tRED", unit: "Proent" }]);
+  assert.deepEqual(parseThemes(raw), [{ title: "Theme", indicatorCount: 1 }]);
   assert.throws(
     () => assertKnownFields(ind!, ["nope"]),
     (err: unknown) =>
-      err instanceof Error && err.message.endsWith("Available: ai0201 (t]0;TITLE[31mRED).") &&
+      err instanceof Error && err.message.endsWith("Available: ai0201 (tRED).") &&
       !/[\u0000-\u001f\u007f-\u009f]/.test(err.message),
   );
 });
