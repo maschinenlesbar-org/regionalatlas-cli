@@ -302,7 +302,9 @@ What the library refuses with `RegionalatlasValidationError`, before any request
   WHATWG skips (`http:///u:pw@h`) and ends it at a backslash. Userinfo is allowed (sent as Basic auth, redacted in
   messages), but a `%` in it must start a valid escape (`%25` for a literal one): Node
   decodes it for the Basic-auth header and would fail only at request time. The CLI also redacts on output: `run.ts` (`redactionFor`, `withRedactedOutput`) takes the
-  exact userinfo of every URL argument (`credentialsIn`, exported) and replaces it with `***`
+  exact userinfo of every URL argument (`credentialsIn`, exported; a base URL is read as a URL however its scheme is typed,
+`typedUrlCredentials`: missing, `alice:pw@host`, or mistyped, `http//alice:pw@host` with the
+colon left out, whose userinfo is everything between the first slashes and the last `@`) and replaces it with `***`
   in everything it prints — commander's usage errors, which echo a rejected
   `--base-url`/`--catalog-url`, and its own messages — so a password with spaces,
   quotes, `#`, `?` or `/` is caught as well as an ordinary one. Only a URL with a scheme

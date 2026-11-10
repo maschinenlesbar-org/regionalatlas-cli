@@ -24,6 +24,7 @@ import {
   echoedCredentialForms,
   redactUrlUserinfo,
   toWellFormed,
+  typedUrlCredentials,
 } from "../src/errors.js";
 import { RegionalatlasClient } from "../src/client.js";
 import { makeMockTransport, jsonResponse, rawResponse, queryOf } from "./helpers.js";
@@ -1122,4 +1123,26 @@ test("requests go to the base URL as it parses, the reading every check of it ma
   const e = new RequestEngine({ transport: mt.transport, baseUrl: "https://alice:pw@API.Example:443/Mirror/" });
   await e.getJson("/x/query", { f: "json" });
   assert.equal(mt.last().url, "https://alice:pw@api.example/Mirror/x/query?f=json");
+});
+
+test("typedUrlCredentials reads a value meant as a URL whatever its scheme: missing, special without //, mistyped (F7)", () => {
+  for (const [value, userinfo] of [
+    ["https://alice:pw@h.example/x", "alice:pw"],
+    ["http:///alice:pw@h.example", "alice:pw"],
+    ["alice:pw@h.example/x", "alice:pw"],
+    ["my_user:pw@h.example", "my_user:pw"],
+    ["T0ken:@h.example", "T0ken:"],
+    ["http//alice:pw@h.example", "alice:pw"],
+    ["https//alice:pw@h.example/v1", "alice:pw"],
+    ["http/alice:pw@h.example", "alice:pw"],
+    ["htp:/alice:pw@h.example", "alice:pw"],
+    ["http\\\\alice:pw@h.example", "alice:pw"],
+    ["http//alice:p/w@h.example", "alice:p/w"],
+  ] as const) {
+    assert.deepEqual(typedUrlCredentials(value), [userinfo], value);
+  }
+  // No "@" after the slashes, or a scheme spelled with "//" and no userinfo: none.
+  for (const value of ["", "h.example/x", "http//h.example/x", "@h.example/x", "http//@h.example", "https://h.example/a@b"]) {
+    assert.deepEqual(typedUrlCredentials(value), [], value);
+  }
 });

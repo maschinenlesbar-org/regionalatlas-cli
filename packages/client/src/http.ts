@@ -8,15 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import {
-  RegionalatlasNetworkError,
-  RegionalatlasSizeLimitError,
-  credentialsIn,
-  redactCredentials,
-  redactQueryTokens,
-  redactUrl,
-  sizeLimitMessage,
-} from "./errors.js";
+import { RegionalatlasNetworkError, RegionalatlasSizeLimitError, credentialsIn, redactCredentials, redactQueryTokens, redactUrl, sizeLimitMessage, typedUrlCredentials } from "./errors.js";
 
 export { sizeLimitMessage };
 
@@ -65,7 +57,7 @@ const COALESCE_BYTES = 64 * 1024;
  * only after a scheme. Not part of the public barrel; the engine's per-request check uses it too.
  */
 export function shownUrl(url: string): string {
-  return credentialsIn(url).length > 0 ? redactUrl(url) : redactQueryTokens(redactCredentials(url, credentialsIn(`http://${url}`)));
+  return credentialsIn(url).length > 0 ? redactUrl(url) : redactQueryTokens(redactCredentials(url, typedUrlCredentials(url)));
 }
 
 /** True when `url` spells a scheme as one (`<scheme>://`); `user:pw@host` parses with the user name as its scheme. */

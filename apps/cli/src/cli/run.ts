@@ -22,6 +22,7 @@ import {
   redactSecrets,
   redactUrlUserinfo,
   TextBuilder,
+  typedUrlCredentials,
 } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
 
 /**
@@ -199,15 +200,16 @@ export function redactionFor(argv: readonly string[], env: Record<string, string
   const tokens = new Set<string>();
   const echoed = new Set<string>();
   const passwords = new Set<string>();
-  // A base or catalogue URL typed without its scheme is read as if it had one. One with a
-  // special scheme but not "//" (`http:///u:pw@h`, `https:\\u:pw@h`, `http:u:pw@h`) has one:
-  // credentialsIn reads its userinfo as WHATWG does, where a prefixed `http://` would end the
-  // authority at "http:".
-  const baseUrls = [...flagValues(argv, BASE_URL_FLAGS), env[BASE_URL_ENV] ?? ""].map((value) =>
-    value === "" || /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || credentialsIn(value).length > 0 ? value : `http://${value}`,
-  );
-  for (const source of [...[...argv, ...values].flatMap(urlsWithin), ...baseUrls]) {
-    for (const secret of credentialsIn(source)) {
+  // A base or catalogue URL is read as a URL however its scheme is typed (typedUrlCredentials):
+  // missing (`u:pw@h`), special without "//" (`http:///u:pw@h`, `http:u:pw@h`, as WHATWG reads
+  // it) or mistyped (`http//u:pw@h`, the colon left out). Each source with the userinfo found in it.
+  const baseUrls = [...flagValues(argv, BASE_URL_FLAGS), env[BASE_URL_ENV] ?? ""];
+  const sources: Array<[string, string[]]> = [
+    ...[...argv, ...values].flatMap(urlsWithin).map((source): [string, string[]] => [source, credentialsIn(source)]),
+    ...baseUrls.map((value): [string, string[]] => [value, typedUrlCredentials(value)]),
+  ];
+  for (const [source, found] of sources) {
+    for (const secret of found) {
       secrets.add(secret);
       secrets.add(stripTerminalControls(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));
