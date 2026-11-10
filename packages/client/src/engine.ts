@@ -1171,17 +1171,20 @@ export class RequestEngine {
   }
 
   /**
-   * The printable form of a `Location` header: resolved against the request URL, userinfo and
-   * a catalogue token redacted, control and bidi characters dropped (it is server text bound
-   * for stderr), cut at MAX_MESSAGE_VALUE_LENGTH. A value that doesn't resolve is shown cleaned
-   * as it came; an empty one is no target.
+   * The printable form of a `Location` header: the URLs' credentials scrubbed (`redact`) as sent,
+   * before resolving percent-encodes what is left of them in a new spelling (`'` as `%27` in a
+   * query); resolved against the request URL, userinfo and a catalogue token redacted, control
+   * and bidi characters dropped (it is server text bound for stderr), cut at
+   * MAX_MESSAGE_VALUE_LENGTH. A value that doesn't resolve is shown cleaned as it came; an empty
+   * one is no target.
    */
   private redirectTarget(requestUrl: string, location: string): string | undefined {
+    const sent = this.redact(location);
     let target: string;
     try {
-      target = redactUrl(new URL(location, requestUrl).href);
+      target = redactUrl(new URL(sent, requestUrl).href);
     } catch {
-      target = redactUrl(location);
+      target = redactUrl(sent);
     }
     const clean = cutForMessage(this.redact(sanitizeServerText(target)));
     return clean === "" ? undefined : clean;

@@ -1016,3 +1016,25 @@ test("a secret with an inner space is scrubbed whole, not from its second word o
     for (const word of ["pa ss", "ss word", "ab cd", "cd ef", "ef gh"]) assert.ok(!text.includes(word), `${word}: ${text}`);
   }
 });
+
+test("a credential in a redirect's Location is scrubbed before it is resolved, in its path and its query (D2)", async () => {
+  // Resolving percent-encodes what is left of a credential in a new spelling (`'` as `%27` in a
+  // query), which the scrub after it no longer matched.
+  const pw = "it's-s3cret";
+  const base = `https://alice:${pw}@mirror.example`;
+  for (const location of [
+    `/moved?pw=${pw}`,
+    `https://other.example/x?pw=${pw}&u=alice`,
+    `/p/${encodeURIComponent(`alice:${pw}`)}/x`,
+    `/b?auth=${Buffer.from(`alice:${pw}`).toString("base64")}`,
+    `https://other.example/x?pw=${encodeURIComponent(pw)}`,
+  ]) {
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse("", "text/plain", 302, { location }) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof RegionalatlasApiError, String(err));
+    for (const text of [err.message, err.location ?? ""]) {
+      assert.ok(!/s3cret/.test(text) && !text.includes(Buffer.from(`alice:${pw}`).toString("base64")), `${location}: ${text}`);
+    }
+    assert.ok((err.location ?? "").includes("***"), err.location);
+  }
+});

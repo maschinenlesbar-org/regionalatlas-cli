@@ -528,8 +528,9 @@ Coverage highlights:
   (`stdoutWriter`, a `writeSync` loop): Node's stream ignored a short count, so a file-size
   limit or a full disk cut the output short with exit 0; a failure (EFBIG, ENOSPC) now reaches
   that handler. **Redirects are NOT followed** (a 3xx surfaces as an error,
-  `HTTP 301 for GET <url>: redirect to <target> not followed`, the `Location` resolved, redacted
-  and kept as `RegionalatlasApiError.location`, with an INFO record naming the option to change;
+  `HTTP 301 for GET <url>: redirect to <target> not followed`, the `Location` scrubbed of the
+  URLs' credentials as sent (before resolving percent-encodes what is left of them anew), resolved,
+  redacted and kept as `RegionalatlasApiError.location`, with an INFO record naming the option to change;
   from the data host that means a base-URL misconfiguration → usage, exit 2; from the catalogue
   a moved catalogue, the host's change even with the default URL → exit 1 (`download`)).
 - **Retry/backoff:** `429`/`503` and reset connections are retried up to `maxRetries`
