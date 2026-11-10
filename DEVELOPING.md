@@ -531,7 +531,16 @@ Coverage highlights:
   within a 256 MB heap (the default transport joins small chunks as they arrive, at most 1024
   of them or 64 KiB unjoined), a lone surrogate or invalid bytes replaced with
   U+FFFD and a WARN — its flat-array case is skipped, as a query prints rows, and its mocks
-  answer the catalogue too, through the adapter's `hostArgv`, `answerFor` and `rawAnswerFor`);
+  answer the catalogue too, through the adapter's `hostArgv`, `answerFor` and `rawAnswerFor`;
+  P28 hostile error answers: a number with a long run of zeros and an unterminated run of
+  control-string introducers checked in linear time, a 16 MB error message and millions of lone
+  surrogates within a small heap, the URLs' credentials scrubbed from decoded error text, a quoted
+  2xx value and a redirect's Location — its adapter's `Client` answers the catalogue from the
+  fixture, and its bin mock the catalogue first (`hostArgv`, `answerFor`); P29 base-URL
+  credentials: a token userinfo scrubbed, a backslash or a repaired scheme refused, requests to
+  the parsed host, linear stdout redaction, glued URLs; P30 output links — all skipped, as there
+  is no `-o` (`HAS_OUTPUT_OPTION = false`); P31 the release pipeline: the SBOM tool locked in
+  `tools/sbom/`, one writing job that runs only `gh` on checked digests, every action pinned);
   copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.
