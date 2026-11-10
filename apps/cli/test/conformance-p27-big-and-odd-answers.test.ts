@@ -6,18 +6,21 @@
 // - An answer full of DEL characters, each printed as six (`\u007f`), prints under a small heap,
 //   or, past V8's longest string, is an ERROR record of <bin>.output that says it is too large;
 //   one `+=` per character made a rope of 100 M pieces and crashed.
+// - An answer in millions of tiny chunks (transfer-encoding: chunked) is read under a small heap:
+//   the default transport kept one Buffer per chunk until the end, memory by the chunk count.
 // - A lone surrogate in an answer (`"\ud800"`) and bytes that are not valid UTF-8 are replaced
 //   with U+FFFD, with one WARN record of <bin>.api naming the count and the request; the output is
 //   well-formed and the run succeeds (one bad character never sinks a whole answer).
 // The memory cases run the built bin in a child process with --max-old-space-size. Shared across
 // the *-cli repos that print JSON; only the adapter differs. A repo whose mock must answer more
-// than one request (here the catalogue and the data query) sets `hostArgv` and `answerFor`.
+// than one request (here the catalogue and the data query) sets `hostArgv`, `answerFor` and
+// `rawAnswerFor`.
 
 import assert from "node:assert/strict";
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import type { AddressInfo } from "node:net";
+import net, { type AddressInfo } from "node:net";
 
 // ---- adapter (per repo) -------------------------------------------------------------
 /** The built bin, relative to this compiled test file (dist/test/…). */
@@ -63,6 +66,14 @@ const hostArgv = (base: string): string[] => ["--base-url", base, "--catalog-url
 /** What the mock answers to the request for `path` (default: the test's body); here the catalogue first. */
 const answerFor = (path: string, body: Buffer): Buffer => (path === "/services.json" ? Buffer.from(JSON.stringify(catalog)) : body);
 /**
+ * The whole HTTP answer the raw-socket mock sends to the request for `path` (default: the test's
+ * `wire`); here the catalogue first, as a plain answer.
+ */
+const rawAnswerFor = (path: string, wire: Buffer): Buffer =>
+  path === "/services.json"
+    ? Buffer.from(`HTTP/1.1 200 OK\r\ncontent-type: application/json\r\nconnection: close\r\n\r\n${JSON.stringify(catalog)}`)
+    : wire;
+/**
  * The flat-answer case can't apply: a query prints rows of figures, a region name or `null`, so
  * no answer prints an array of 8 M numbers (an attribute holding one is an unreadable value).
  */
@@ -86,11 +97,25 @@ interface Run {
 }
 
 /** Serve `body` (as JSON) to one run of the bin with a heap of `heapMb`, then stop. */
-async function runWithAnswer(body: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
+function runWithAnswer(body: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
   const server = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(answerFor(req.url ?? "", body));
   });
+  return runAgainst(server, heapMb, argv);
+}
+
+/** Send `wire` (a whole HTTP answer, as bytes) to one run of the bin with a heap of `heapMb`, then stop. */
+function runWithRawAnswer(wire: Buffer, heapMb: number, argv: string[] = []): Promise<Run> {
+  const server = net.createServer((socket) => {
+    socket.once("data", (request: Buffer) => socket.end(rawAnswerFor(/^\S+ (\S+)/.exec(request.toString("latin1"))?.[1] ?? "", wire)));
+    socket.on("error", () => {});
+  });
+  return runAgainst(server, heapMb, argv);
+}
+
+/** One run of the bin against `server` (listening on a loopback port for it) with a heap of `heapMb`. */
+async function runAgainst(server: net.Server, heapMb: number, argv: string[]): Promise<Run> {
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   try {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -144,6 +169,23 @@ test("P27: an answer that escaped would pass V8's longest string is an ERROR rec
   assert.equal(run.code, OUTPUT_EXIT, run.stderr.slice(0, 500));
   assert.equal(run.stdout.length, 0);
   assert.match(run.stderr, new RegExp(`ERROR \\[${PROGRAM}\\.output\\] The answer is too large to print`), run.stderr.slice(0, 500));
+});
+
+test("P27: an answer in two million one-byte chunks is read within a small heap", STARTS_A_PROCESS, async () => {
+  // Node emits one 'data' event per transfer-encoding chunk; the default transport kept a Buffer
+  // per event until the end (about 210 bytes of heap per byte, far below the byte cap), so 9 MB on
+  // the wire as one-byte chunks exhausted a 256 MB heap.
+  const chunk = (text: string): string => `${Buffer.byteLength(text).toString(16)}\r\n${text}\r\n`;
+  const [head = "", tail = ""] = bodyWith('"\u0000"').split("\u0000");
+  const wire = Buffer.from(
+    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n" +
+      chunk(head) + "1\r\na\r\n".repeat(2_000_000) + chunk(tail) + "0\r\n\r\n",
+    "utf8", // as Buffer.byteLength counts the chunk sizes, so a non-ASCII body fits too
+  );
+  const run = await runWithRawAnswer(wire, 256, ["--compact"]);
+  noCrash(run, "tiny chunks");
+  assert.equal(run.code, 0, run.stderr.slice(0, 500));
+  assert.equal(fromCli(run.stdout.toString("utf8")), "a".repeat(2_000_000));
 });
 
 /** The body with the string value `a<bytes>b`, the bytes as they are. */

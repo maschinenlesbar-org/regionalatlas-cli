@@ -519,9 +519,11 @@ Coverage highlights:
   one it carries prints as the same value, an empty answer is an error; P26 output
   integrity: stdout redirected to a file and cut short (`ulimit -f`) exits 1 with an ERROR of
   `regionalatlas.output` — its `-o` cases are skipped (`HAS_OUTPUT_OPTION = false`); P27 big and odd answers: DEL characters printed escaped
-  within a small heap or refused as too large, a lone surrogate or invalid bytes replaced with
-  U+FFFD and a WARN — its flat-array case is skipped, as a query prints rows, and its mock
-  answers the catalogue too, through the adapter's `hostArgv` and `answerFor`);
+  within a small heap or refused as too large, an answer in two million one-byte chunks read
+  within a 256 MB heap (the default transport joins small chunks as they arrive, at most 1024
+  of them or 64 KiB unjoined), a lone surrogate or invalid bytes replaced with
+  U+FFFD and a WARN — its flat-array case is skipped, as a query prints rows, and its mocks
+  answer the catalogue too, through the adapter's `hostArgv`, `answerFor` and `rawAnswerFor`);
   copied across the `*-cli` repos, only
   the adapter block at the top differs. `catalog-url-redaction.test.ts` repeats P1, P2
   and P4 for the second URL, `--catalog-url`.
