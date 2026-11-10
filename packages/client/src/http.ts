@@ -8,7 +8,15 @@
 
 import http from "node:http";
 import https from "node:https";
-import { RegionalatlasNetworkError, RegionalatlasSizeLimitError, redactUrl, sizeLimitMessage } from "./errors.js";
+import {
+  RegionalatlasNetworkError,
+  RegionalatlasSizeLimitError,
+  credentialsIn,
+  redactCredentials,
+  redactQueryTokens,
+  redactUrl,
+  sizeLimitMessage,
+} from "./errors.js";
 
 export { sizeLimitMessage };
 
@@ -47,6 +55,20 @@ export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 export const MAX_TIMEOUT_MS = 2_147_483_647;
 
 /**
+ * `url` for a message, its userinfo and a `?token=` redacted; one typed without its scheme
+ * (`user:pw@host`, `TOKEN:@host`) is read as if it had one, since `redactUrl` finds a userinfo
+ * only after a scheme. Not part of the public barrel; the engine's per-request check uses it too.
+ */
+export function shownUrl(url: string): string {
+  return credentialsIn(url).length > 0 ? redactUrl(url) : redactQueryTokens(redactCredentials(url, credentialsIn(`http://${url}`)));
+}
+
+/** True when `url` spells a scheme as one (`<scheme>://`); `user:pw@host` parses with the user name as its scheme. */
+export function spellsScheme(url: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(url);
+}
+
+/**
  * Default transport. Resolves with the raw response (including non-2xx) — status
  * interpretation is the client's job. Rejects only on transport-level failures
  * (connection errors, timeouts, malformed URLs).
@@ -57,18 +79,17 @@ export const nodeHttpTransport: Transport = (request) =>
     try {
       url = new URL(request.url);
     } catch {
-      reject(new RegionalatlasNetworkError(`Invalid URL: ${redactUrl(request.url)}`));
+      reject(new RegionalatlasNetworkError(`Invalid URL: ${shownUrl(request.url)}`));
       return;
     }
 
     // Only http/https are supported. Reject anything else up front with a clear,
     // typed error instead of letting Node throw an opaque ERR_INVALID_PROTOCOL.
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      reject(
-        new RegionalatlasNetworkError(
-          `Unsupported protocol "${url.protocol}" in URL: ${redactUrl(request.url)}`,
-        ),
-      );
+      // `user:password@host` without a scheme parses with the user name as the scheme: name a
+      // scheme only when the value spells one (`<scheme>://`).
+      const named = spellsScheme(request.url) ? ` "${url.protocol}"` : "";
+      reject(new RegionalatlasNetworkError(`Unsupported protocol${named} in URL: ${shownUrl(request.url)}`));
       return;
     }
 

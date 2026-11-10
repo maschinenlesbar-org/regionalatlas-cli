@@ -14,6 +14,8 @@ import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
   nodeHttpTransport,
+  shownUrl,
+  spellsScheme,
   type HttpRequest,
   type HttpResponse,
   type Transport,
@@ -425,9 +427,12 @@ function assertHttpScheme(url: string): void {
   try {
     protocol = new URL(url).protocol;
   } catch {
-    throw new RegionalatlasNetworkError(`Invalid request URL: ${redactUrl(url)}`);
+    throw new RegionalatlasNetworkError(`Invalid request URL: ${shownUrl(url)}`);
   }
   if (protocol !== "http:" && protocol !== "https:") {
+    // A scheme-less `TOKEN:@host` parses with the token as its scheme: name a scheme only when
+    // the URL spells one, and show the URL redacted as if it had one.
+    if (!spellsScheme(url)) throw new RegionalatlasNetworkError(`Invalid request URL: ${shownUrl(url)}`);
     throw new RegionalatlasNetworkError(
       `Unsupported URL scheme "${protocol}" — only http and https are allowed.`,
     );

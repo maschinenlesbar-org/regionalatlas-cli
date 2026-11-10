@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { nodeHttpTransport } from "../src/http.js";
+import { RequestEngine } from "../src/engine.js";
 import { RegionalatlasNetworkError } from "../src/errors.js";
 
 /** Start a throwaway loopback server for one test and return its base URL. */
@@ -105,4 +106,37 @@ test("a header Node refuses is a RegionalatlasNetworkError, not a raw TypeError"
       return true;
     },
   );
+});
+
+test("a URL typed without its scheme is refused without its user name, token or password (F5 class)", async () => {
+  // `my_user:pw@h` doesn't parse ("_" is no scheme character) and was quoted with its password;
+  // `T0kenS3cret:@h` parses with the token as its scheme, which the message named, lower-cased.
+  for (const url of ["my_user:s3cret-pw@h.example/x", "T0kenS3cret:@h.example/x", "alice:s3cret-pw@h.example/x"]) {
+    const err = await nodeHttpTransport({ method: "GET", url, headers: {} }).then(
+      () => assert.fail(`${url}: accepted`),
+      (caught: unknown) => caught,
+    );
+    assert.ok(err instanceof RegionalatlasNetworkError, String(err));
+    assert.ok(!/s3cret|t0kens3cret|T0kenS3cret|my_user|alice/.test(err.message), err.message);
+    assert.match(err.message, /\*\*\*@h\.example\/x/);
+  }
+  // A scheme spelled as one (`scheme://`) is still named.
+  const ftp = await nodeHttpTransport({ method: "GET", url: "ftp://alice:s3cret-pw@h.example/x", headers: {} }).catch((e: unknown) => e);
+  assert.ok(ftp instanceof RegionalatlasNetworkError && ftp.message === 'Unsupported protocol "ftp:" in URL: ftp://***@h.example/x', String(ftp));
+});
+
+test("the engine's per-request scheme check never quotes a scheme-less URL's user name, token or password (F5 class)", async () => {
+  // getJsonAbsolute is public: an absolute URL typed without its scheme reached assertHttpScheme,
+  // which quoted it unredacted (`Invalid request URL: my_user:pw@h`) or named the token as the
+  // scheme (`Unsupported URL scheme "t0kens3cret:"`).
+  let sent = 0;
+  const e = new RequestEngine({ transport: async () => (sent++, { status: 200, headers: {}, body: Buffer.from("[]") }) });
+  for (const url of ["my_user:s3cret-pw@h.example/x", "T0kenS3cret:@h.example/x"]) {
+    const err = await e.getJsonAbsolute(url).catch((caught: unknown) => caught);
+    assert.ok(err instanceof RegionalatlasNetworkError, String(err));
+    assert.ok(!/s3cret|t0kens3cret|T0kenS3cret|my_user/.test(err.message), err.message);
+  }
+  const ftp = await e.getJsonAbsolute("ftp://alice:s3cret-pw@h.example/x").catch((caught: unknown) => caught);
+  assert.ok(ftp instanceof RegionalatlasNetworkError && /"ftp:"/.test(ftp.message) && !ftp.message.includes("s3cret"), String(ftp));
+  assert.equal(sent, 0);
 });
