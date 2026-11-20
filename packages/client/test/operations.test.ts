@@ -229,6 +229,9 @@ test("compareRegions: named Länder ranked against all 16, highest first; Sachse
   assert.deepEqual(result.regions?.find((r) => r.name === "Sachsen")?.alsoNamed?.map((r) => r.name), ["Niedersachsen", "Sachsen-Anhalt"]);
   assert.equal(result.levelStats?.regions, 16);
   assert.equal(result.levelStats?.highest?.name, "Thüringen");
+  assert.equal(result.levelStats?.mean, 23.18, "one decimal more than the figures carry, not 23.18125");
+  assert.equal(result.levelStats?.median, 19.4);
+  assert.equal(result.regions?.find((r) => r.name === "Sachsen")?.vsMean, 14.12);
 });
 
 test("compareRegions: a name several Kreise contain is ambiguous with the candidates; an exact name wins and names the rest; a Land is not at kreis", async () => {

@@ -559,9 +559,16 @@ export interface CompareRegionsResult {
   levels?: string[];
 }
 
-/** Rounded for a mean or a difference: as many decimals as the figures carry, at most four. */
-function round(value: number): number {
-  return Math.round(value * 10_000) / 10_000;
+/** The decimals a figure is written with (`84.3` has 1). */
+function decimalsOf(value: number): number {
+  const text = String(value);
+  return /e/i.test(text) ? 4 : (text.split(".")[1]?.length ?? 0);
+}
+
+/** `value` rounded to `decimals` places. */
+function roundTo(value: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
 }
 
 /**
@@ -621,6 +628,10 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
   const mean = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : undefined;
   const median = values.length === 0 ? undefined : values.length % 2 === 1 ? values[(values.length - 1) / 2] : ((values[values.length / 2 - 1] as number) + (values[values.length / 2] as number)) / 2;
   const rankOf = (value: number): number => values.findIndex((v) => v === value) + 1;
+  // A mean or a difference is given to one decimal more than the figures carry (at most four):
+  // 81.56 next to figures of 84.3, not 81.5563.
+  const decimals = Math.min(4, values.reduce((most, v) => Math.max(most, decimalsOf(v)), 0) + 1);
+  const round = (value: number): number => roundTo(value, decimals);
   const describe = (row: RegionRow, extra: Partial<ComparedRegion> = {}): ComparedRegion => {
     const value = valueOf(row);
     const reason = reasonOf(row);
