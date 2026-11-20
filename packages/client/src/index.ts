@@ -3,6 +3,7 @@
 export {
   RegionalatlasClient,
   DEFAULT_CATALOG_URL,
+  DATA_PATH,
   QUERY_OPTION_KEYS,
   parseRow,
   filterByRegion,
@@ -98,3 +99,24 @@ export {
 
 export type { Download } from "./errors.js";
 export * from "./types.js";
+export {
+  findIndicators,
+  getIndicatorMap,
+  compareRegions,
+  listThemes,
+  searchKey,
+  LEVEL_NAMES,
+} from "./operations.js";
+export type {
+  OperationStatus,
+  IndicatorSummary,
+  FindIndicatorsOptions,
+  FindIndicatorsResult,
+  ThemeWithIndicators,
+  IndicatorMapOptions,
+  IndicatorMapResult,
+  MapRow,
+  CompareRegionsOptions,
+  CompareRegionsResult,
+  ComparedRegion,
+} from "./operations.js";

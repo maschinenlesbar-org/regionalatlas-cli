@@ -51,7 +51,7 @@ export const DEFAULT_CATALOG_URL =
   "https://regionalatlas.statistikportal.de/taskrunner/services.json";
 
 /** The ArcGIS MapServer path for the dynamicLayer data query (on `baseUrl`). */
-const DATA_PATH =
+export const DATA_PATH =
   "/arcgis/rest/services/stba/regionalatlas/MapServer/dynamicLayer/query";
 
 /**
@@ -67,11 +67,17 @@ export interface RegionalatlasClientOptions extends EngineOptions {
    * without whitespace. Defaults to statistikportal.de.
    */
   catalogUrl?: string | undefined;
+  /**
+   * How long the catalogue is kept, in milliseconds: a call after that fetches it again. Unset,
+   * it is kept for the client's lifetime (a CLI run); a long-running service sets it, so that a
+   * year or an indicator the statistical offices add reaches it. A non-negative integer.
+   */
+  catalogMaxAgeMs?: number | undefined;
 }
 
 /**
- * The catalogue is fetched once per query/list call and cached for the lifetime of
- * the client instance, so a `query` (which needs the catalogue to resolve the
+ * The catalogue is fetched once and cached for the lifetime of the client instance
+ * (or `catalogMaxAgeMs`), so a `query` (which needs the catalogue to resolve the
  * indicator) does not double-fetch.
  */
 export class RegionalatlasClient {
@@ -82,6 +88,9 @@ export class RegionalatlasClient {
   private indicatorsCache: Indicator[] | undefined;
   /** The raw services.json and its request (`GET <url>`, redacted), for the errors about it. */
   private rawCatalogCache: { value: unknown; request: string } | undefined;
+  /** When the cached catalogue was fetched (`Date.now()`), and how long it is kept. */
+  private catalogFetchedAt = 0;
+  readonly #catalogMaxAgeMs: number | undefined;
 
   constructor(options: RegionalatlasClientOptions | null = {}) {
     // The engine refuses a non-object; `null` counts as no options.
@@ -91,21 +100,29 @@ export class RegionalatlasClient {
     // (RegionalatlasValidationError), not a network failure after a wasted request.
     this.#catalogUrl =
       options.catalogUrl === undefined ? DEFAULT_CATALOG_URL : validateHttpUrl("catalogUrl", options.catalogUrl);
+    const maxAge = options.catalogMaxAgeMs;
+    if (maxAge !== undefined && !(typeof maxAge === "number" && Number.isSafeInteger(maxAge) && maxAge >= 0)) {
+      throw new RegionalatlasValidationError(`Invalid option catalogMaxAgeMs: expected a non-negative integer of milliseconds, got ${cutForMessage(String(maxAge))}.`);
+    }
+    this.#catalogMaxAgeMs = maxAge;
   }
 
   /** Fetch and cache the raw services.json (an array of themes); an empty body is a parse error. */
   private async rawCatalog(): Promise<{ value: unknown; request: string }> {
-    if (this.rawCatalogCache === undefined) {
+    const stale = this.#catalogMaxAgeMs !== undefined && Date.now() - this.catalogFetchedAt >= this.#catalogMaxAgeMs;
+    if (this.rawCatalogCache === undefined || stale) {
       const { value, request } = await this.engine.getJsonAbsoluteAnswer<unknown>(this.#catalogUrl);
       this.rawCatalogCache = { value, request };
+      this.indicatorsCache = undefined;
+      this.catalogFetchedAt = Date.now();
     }
     return this.rawCatalogCache;
   }
 
   /** Fetch and cache the flat indicator list. */
   private async allIndicators(): Promise<Indicator[]> {
+    const { value, request } = await this.rawCatalog();
     if (this.indicatorsCache === undefined) {
-      const { value, request } = await this.rawCatalog();
       this.indicatorsCache = namingRequest(request, () => parseIndicators(value), (text) => this.engine.redact(text));
     }
     return this.indicatorsCache;

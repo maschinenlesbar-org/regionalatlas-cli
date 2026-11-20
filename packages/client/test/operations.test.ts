@@ -1,0 +1,325 @@
+// The use cases (operations.ts) against a mock of both hosts (recorded.ts: answers recorded on
+// 2026-11-20), with the skills' traps as cases: a column topic (Wahlbeteiligung) found in the
+// value columns, not only in the titles; a text that is no code answered with candidates, never
+// taken as one; a level or year without figures answered before any data request; the newest
+// catalogue year not loaded yet (the year before, with a note); the field dictionary with every
+// map; "nichts vorhanden" exactly 0, but no change rate in the indicator's first year; regions
+// matched by key, exact name or part of one, and a name several regions share or contain
+// reported, never resolved to the first; a level that fills in with coarser units said so. And the
+// SQL guard: only the catalogue's table, the level's typ and a catalogue year reach the data host.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { RegionalatlasClient } from "../src/client.js";
+import { RegionalatlasValidationError } from "../src/errors.js";
+import { compareRegions, findIndicators, getIndicatorMap, listThemes, searchKey } from "../src/operations.js";
+import { CARS_LAND_2025, ELECTION_LAND_2025, RECORDED_CATALOG, regionalatlasApi, sqlOf, type RecordedOverrides } from "./recorded.js";
+
+function api(overrides: RecordedOverrides = {}) {
+  const mock = regionalatlasApi(overrides);
+  return { mock, client: new RegionalatlasClient({ transport: mock.transport }) };
+}
+
+/** The data requests a mock got (the catalogue's are not). */
+const dataRequests = (mock: ReturnType<typeof regionalatlasApi>) => mock.calls.filter((call) => call.url.includes("/dynamicLayer/query"));
+
+// --- findIndicators ---
+
+test("findIndicators: a code names its indicator alone, with its levels per year and its field dictionary", async () => {
+  const { client } = api();
+  const result = await findIndicators(client, { search: "ai005" });
+  assert.equal(result.status, "ok");
+  assert.equal(result.exact, true);
+  assert.equal(result.indicators.length, 1);
+  const [ai005] = result.indicators;
+  assert.equal(ai005?.code, "AI005");
+  assert.deepEqual(ai005?.years, ["1998", "2002", "2005", "2009", "2013", "2017", "2021", "2025"]);
+  assert.deepEqual(ai005?.levelsByYear?.["2025"], ["land", "regierungsbezirk", "kreis"]);
+  assert.deepEqual(ai005?.levels, ["land", "regierungsbezirk", "kreis"]);
+  assert.deepEqual(ai005?.fields.find((f) => f.code === "ai0506"), { code: "ai0506", title: "Wahlbeteiligung, Bundestagswahl", unit: "Prozent" });
+  assert.deepEqual(ai005?.fields.find((f) => f.code === "ai0507")?.title, "Zweitstimmenanteil AfD, Bundestagswahl");
+});
+
+test("findIndicators: a column topic (Wahlbeteiligung) is found in the value columns, where the CLI's title search finds nothing", async () => {
+  const { client } = api();
+  assert.deepEqual(await client.indicators({ search: "wahlbeteiligung" }), [], "the titles don't name it");
+  const result = await findIndicators(client, { search: "Wahlbeteiligung" });
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.indicators.map((i) => [i.code, i.matchedFields]), [["AI005", ["ai0506"]]]);
+});
+
+test("findIndicators: umlauts may be spelled out (Bevoelkerung), and title matches come before column matches", async () => {
+  const { client } = api();
+  assert.equal(searchKey("Bevölkerung"), searchKey("BEVOELKERUNG"));
+  const result = await findIndicators(client, { search: "Bevoelkerung" });
+  assert.deepEqual(result.indicators.map((i) => i.code), ["AI002-1-5", "AI-Z1-2011"]);
+  assert.equal(result.indicators[0]?.matchedFields, undefined);
+  const columns = await findIndicators(client, { search: "Gesamtbevoelkerung" });
+  assert.deepEqual(
+    columns.indicators.map((i) => [i.code, i.matchedFields]),
+    [["AI002-1-5", ["ai0208", "ai0208v"]], ["AI-Z1-2011", ["ai_z01", "ai_z04"]]],
+    "only columns name it; Zensus' codes as the data host writes them (AI-Z01 is ai_z01)",
+  );
+});
+
+test("findIndicators: theme, year and level filter; a level counts when some year has figures there", async () => {
+  const { client } = api();
+  assert.deepEqual((await findIndicators(client, { theme: "gesundheit" })).indicators.map((i) => i.code), ["AIGG-01"]);
+  assert.deepEqual((await findIndicators(client, { year: 2026 })).indicators.map((i) => i.code), ["AI013-1"]);
+  assert.deepEqual((await findIndicators(client, { level: "gemeinde" })).indicators.map((i) => i.code), ["AI002-1-5"]);
+  assert.deepEqual((await findIndicators(client, { theme: "Gesundheit", level: "kreis" })).status, "empty");
+  const levels = (await findIndicators(client, { search: "AIGG-01" })).indicators[0]?.levels;
+  assert.deepEqual(levels, ["land"], "AIGG-01 is published per Land only");
+});
+
+test("findIndicators: nothing found is empty with what was searched and what to try", async () => {
+  const { client } = api();
+  const result = await findIndicators(client, { search: "Fischerei", year: 2024 });
+  assert.equal(result.status, "empty");
+  assert.deepEqual(result.searched, { search: "Fischerei", year: 2024 });
+  assert.match(result.reason ?? "", /None of the 5 indicators/);
+  assert.match(result.reason ?? "", /word stem/);
+});
+
+test("findIndicators: a year listed without figures at any level is named in emptyYears", async () => {
+  const catalog = structuredClone(RECORDED_CATALOG) as { children: { code: string; years: Record<string, unknown> }[] }[];
+  const ai013 = catalog.flatMap((t) => t.children).find((c) => c.code === "AI013-1");
+  if (ai013 === undefined) throw new Error("fixture");
+  ai013.years["2006"] = [{ geom_levels: [0, 0, 0, 0] }];
+  const { client } = api({ catalog });
+  const [summary] = (await findIndicators(client, { search: "AI013-1" })).indicators;
+  assert.deepEqual(summary?.emptyYears, ["2006"]);
+});
+
+test("findIndicators: pages with offset and limit; the whole catalogue without a filter", async () => {
+  const { client } = api();
+  const first = await findIndicators(client, { limit: 2 });
+  assert.equal(first.total, 5);
+  assert.equal(first.indicators.length, 2);
+  assert.equal(first.nextOffset, 2);
+  const last = await findIndicators(client, { offset: 4, limit: 2 });
+  assert.equal(last.indicators.length, 1);
+  assert.equal(last.nextOffset, undefined);
+  await assert.rejects(findIndicators(client, { search: " " }), RegionalatlasValidationError);
+  await assert.rejects(findIndicators(client, { level: "bezirk" }), RegionalatlasValidationError);
+});
+
+// --- listThemes ---
+
+test("listThemes: each theme with its count and its indicators", async () => {
+  const { client } = api();
+  const result = await listThemes(client);
+  assert.equal(result.total, 5);
+  assert.deepEqual(result.themes.find((t) => t.title === "Wahlen"), { title: "Wahlen", indicatorCount: 1, indicators: [{ code: "AI005", titleShort: "Bundestagswahl" }] });
+});
+
+// --- getIndicatorMap ---
+
+test("getIndicatorMap: every Land with the values and what each column measures, in the catalogue's order", async () => {
+  const { client, mock } = api();
+  const result = await getIndicatorMap(client, { indicator: "AI005", year: 2025 });
+  assert.equal(result.status, "ok");
+  assert.equal(result.total, 16);
+  assert.equal(result.year, 2025);
+  assert.deepEqual(result.fields?.map((f) => f.code), ["ai0501", "ai0502", "ai0503", "ai0504", "ai0505", "ai0507", "ai0506"]);
+  assert.deepEqual(result.rows?.[0], { ags: "01", name: "Schleswig-Holstein", values: { ai0501: 27.6, ai0502: 18.8, ai0503: 4.7, ai0504: 14.9, ai0505: 7.8, ai0507: 16.3, ai0506: 83.5 } });
+  assert.deepEqual(result.coverage?.["ai0506"], { withFigure: 16, withoutFigure: 0 });
+  assert.equal(dataRequests(mock).length, 1);
+});
+
+test("getIndicatorMap: the newest catalogue year not loaded yet: the year before, with a note saying so", async () => {
+  const { client, mock } = api();
+  const result = await getIndicatorMap(client, { indicator: "AI013-1" });
+  assert.equal(result.status, "ok");
+  assert.equal(result.year, 2025);
+  assert.equal(result.total, 16);
+  assert.ok(result.notes?.some((n) => n.includes("2026 is the newest year") && n.includes("no rows for it yet")), result.notes?.join("\n"));
+  assert.ok(result.notes?.some((n) => n.includes("figures of 2025")));
+  assert.deepEqual(dataRequests(mock).map((r) => sqlOf(r)?.year), [2026, 2025]);
+});
+
+test("getIndicatorMap: a year the caller names is never replaced: no rows is empty with the reason", async () => {
+  const { client, mock } = api();
+  const result = await getIndicatorMap(client, { indicator: "AI013-1", year: 2026 });
+  assert.equal(result.status, "empty");
+  assert.match(result.reason ?? "", /no rows for AI013-1 at level land in 2026/);
+  assert.equal(dataRequests(mock).length, 1);
+});
+
+test("getIndicatorMap: a level or a year without figures is answered from the catalogue, before any data request", async () => {
+  const { client, mock } = api();
+  const level = await getIndicatorMap(client, { indicator: "AIGG-01", level: "kreis" });
+  assert.equal(level.status, "empty");
+  assert.deepEqual(level.levels, ["land"]);
+  assert.match(level.reason ?? "", /published at land/);
+  const year = await getIndicatorMap(client, { indicator: "AI005", year: 2024 });
+  assert.equal(year.status, "empty");
+  assert.match(year.reason ?? "", /offers no year 2024/);
+  assert.deepEqual(year.years, ["1998", "2002", "2005", "2009", "2013", "2017", "2021", "2025"]);
+  const field = await getIndicatorMap(client, { indicator: "AI005", fields: ["ai0599"] });
+  assert.equal(field.status, "empty");
+  assert.equal(field.fields?.length, 7);
+  assert.equal(dataRequests(mock).length, 0);
+});
+
+test("getIndicatorMap: a text that is no code is answered with the indicators it matches, never taken as one", async () => {
+  const { client, mock } = api();
+  const result = await getIndicatorMap(client, { indicator: "Bundestagswahl" });
+  assert.equal(result.status, "ambiguous");
+  assert.deepEqual(result.candidates, [{ code: "AI005", titleShort: "Bundestagswahl" }]);
+  const none = await getIndicatorMap(client, { indicator: "Fischerei" });
+  assert.equal(none.status, "empty");
+  assert.match(none.reason ?? "", /findIndicators/);
+  assert.equal(dataRequests(mock).length, 0);
+});
+
+test("getIndicatorMap: fields project the values; a level that fills in with coarser units says so; rows page", async () => {
+  const { client } = api();
+  const result = await getIndicatorMap(client, { indicator: "ai002_1_5", level: "kreis", year: 2024, fields: ["AI0201"], limit: 4 });
+  assert.equal(result.total, 11);
+  assert.deepEqual(result.rows?.map((r) => r.ags), ["02", "03361", "07316", "09162"]);
+  assert.deepEqual(result.rows?.[0]?.values, { ai0201: 2466.7 });
+  assert.equal(result.nextOffset, 4);
+  assert.deepEqual(result.fields, [{ code: "ai0201", title: "Bevölkerungsdichte (EW je qkm)", unit: "Anzahl" }]);
+  assert.ok(result.notes?.some((n) => n.includes("2 with a 2-digit key, 9 with a 5-digit key")), result.notes?.join("\n"));
+});
+
+/** AI002-1-5's first year (2000) per Land, two rows with special values. */
+const FIRST_YEAR = {
+  "ai002_1_5/1/2000": [
+    { id: 1, typ: 1, ags: "01", jahr: 2000, gen: "Schleswig-Holstein", ai0201: 177.4, ai0202: 2222222222, ai0201v: 2222222222 },
+    { id: 2, typ: 1, ags: "02", jahr: 2000, gen: "Hamburg", ai0201: 2253.1, ai0202: 5555555555, ai0201v: 2222222222 },
+  ],
+};
+
+test("getIndicatorMap: 'nichts vorhanden' is exactly 0, but a change rate in the indicator's first year is null: no previous year", async () => {
+  const { client } = api({ rows: FIRST_YEAR });
+  const result = await getIndicatorMap(client, { indicator: "AI002-1-5", year: 2000 });
+  const [sh, hh] = result.rows ?? [];
+  assert.equal(sh?.values["ai0202"], 0);
+  assert.equal(sh?.missing?.["ai0202"], "nichts vorhanden");
+  assert.equal(sh?.values["ai0201v"], null);
+  assert.match(sh?.missing?.["ai0201v"] ?? "", /no previous year/);
+  assert.equal(hh?.values["ai0202"], null);
+  assert.equal(hh?.missing?.["ai0202"], "Wert geheim zu halten");
+  assert.deepEqual(result.coverage?.["ai0202"], { withFigure: 1, withoutFigure: 1, special: { "nichts vorhanden": 1, "Wert geheim zu halten": 1 } });
+  assert.ok(result.notes?.some((n) => n.includes("exactly zero")));
+});
+
+// --- compareRegions ---
+
+test("compareRegions: an indicator with several columns and no field is ambiguous with the columns, before any data request", async () => {
+  const { client, mock } = api();
+  const result = await compareRegions(client, { indicator: "AI005", regions: ["Bayern"] });
+  assert.equal(result.status, "ambiguous");
+  assert.equal(result.candidates?.length, 7);
+  assert.equal(dataRequests(mock).length, 0);
+});
+
+test("compareRegions: named Länder ranked against all 16, highest first; Sachsen is Sachsen, the others containing it named", async () => {
+  const { client } = api();
+  const result = await compareRegions(client, { indicator: "AI005", field: "ai0507", regions: ["Sachsen", "Bayern", "08"] });
+  assert.equal(result.status, "ok");
+  assert.equal(result.field?.title, "Zweitstimmenanteil AfD, Bundestagswahl");
+  assert.deepEqual(result.regions?.map((r) => [r.name, r.value, r.rank, r.matchedBy]), [
+    ["Sachsen", 37.3, 2, "name"],
+    ["Bayern", 19, 9, "name"],
+    ["Baden-Württemberg", 19.8, 8, "ags"],
+  ].sort((a, b) => (b[1] as number) - (a[1] as number)));
+  assert.deepEqual(result.regions?.find((r) => r.name === "Sachsen")?.alsoNamed?.map((r) => r.name), ["Niedersachsen", "Sachsen-Anhalt"]);
+  assert.equal(result.levelStats?.regions, 16);
+  assert.equal(result.levelStats?.highest?.name, "Thüringen");
+});
+
+test("compareRegions: a name several Kreise contain is ambiguous with the candidates; an exact name wins and names the rest; a Land is not at kreis", async () => {
+  const { client } = api();
+  const result = await compareRegions(client, { indicator: "AI002-1-5", field: "ai0201", level: "kreis", year: 2024, regions: ["München", "Neustadt", "Bayern", "09162000"] });
+  assert.equal(result.status, "ambiguous");
+  assert.deepEqual(result.ambiguousRegions?.[0]?.candidates.map((c) => c.ags).sort(), ["07316", "09374", "09575"]);
+  assert.match(result.ambiguousRegions?.[0]?.reason ?? "", /No region is named exactly this; 3 contain it/);
+  assert.deepEqual(result.regions?.map((r) => [r.asked, r.ags]), [["München", "09162"]], "the official 8-digit key of München is the same Kreis: listed once");
+  assert.deepEqual(result.regions?.[0]?.alsoNamed, [{ ags: "09184", name: "München, Landkreis" }]);
+  assert.match(result.notFound?.[0]?.reason ?? "", /No region at level kreis has this name/);
+  assert.equal(result.notFound?.[0]?.asked, "Bayern");
+});
+
+test("compareRegions: without regions, the highest and lowest of the level; regions without a figure out of ranks and mean", async () => {
+  const rows = { "ai005/1/2025": ELECTION_LAND_2025.map((r) => (r["ags"] === "16" ? { ...r, ai0507: 5555555555 } : r)) };
+  const { client } = api({ rows });
+  const result = await compareRegions(client, { indicator: "AI005", field: "ai0507", year: 2025, top: 2 });
+  assert.equal(result.status, "ok");
+  assert.deepEqual(result.highest?.map((r) => [r.name, r.rank]), [["Sachsen", 1], ["Sachsen-Anhalt", 2]]);
+  assert.deepEqual(result.lowest?.map((r) => r.name), ["Hamburg", "Bremen"]);
+  assert.equal(result.levelStats?.withFigure, 15);
+  assert.equal(result.levelStats?.withoutFigure, 1);
+  assert.ok(result.notes?.some((n) => n.includes("1 of 16 regions have no figure")));
+});
+
+test("compareRegions: 'nichts vorhanden' ranks as 0, the reason kept", async () => {
+  const rows = { "ai013_1/1/2025": CARS_LAND_2025.map((r) => (r["ags"] === "11" ? { ...r, ai1301: 2222222222 } : r)) };
+  const { client } = api({ rows });
+  const result = await compareRegions(client, { indicator: "AI013-1", field: "ai1301", year: 2025, regions: ["Berlin"] });
+  assert.deepEqual([result.regions?.[0]?.value, result.regions?.[0]?.rank, result.regions?.[0]?.missing], [0, 16, "nichts vorhanden"]);
+});
+
+// --- The SQL guard ---
+
+test("only the catalogue's table, the level's typ and a catalogue year reach the data host's SQL", async () => {
+  const { client, mock } = api();
+  await compareRegions(client, { indicator: " ai005 ", field: "ai0507", level: "land", year: 2025, regions: ["' OR 1=1 --", "Bayern"] });
+  const [request] = dataRequests(mock);
+  assert.equal(
+    sqlOf(request as never)?.sql,
+    "SELECT * FROM verwaltungsgrenzen_gesamt LEFT OUTER JOIN ai005 ON ags = ags2 and jahr = jahr2 WHERE typ = 1 AND jahr = 2025 AND (jahr2 = 2025 OR jahr2 IS NULL)",
+  );
+  assert.ok(mock.calls.every((call) => !decodeURIComponent(call.url).includes("OR 1=1")), "a region's text is matched in the rows, never sent");
+});
+
+test("an indicator text that is no catalogue code never reaches the data host, whatever it holds", async () => {
+  const { client, mock } = api();
+  for (const indicator of [
+    "ai005 UNION SELECT * FROM verwaltungsgrenzen_gesamt",
+    "ai005; DROP TABLE ai005",
+    "ai005' OR '1'='1",
+    "verwaltungsgrenzen_gesamt",
+    "ai005/**/",
+    "AI005--",
+  ]) {
+    const map = await getIndicatorMap(client, { indicator });
+    assert.notEqual(map.status, "ok", indicator);
+    const compared = await compareRegions(client, { indicator, field: "ai0507" });
+    assert.notEqual(compared.status, "ok", indicator);
+  }
+  assert.equal(dataRequests(mock).length, 0);
+});
+
+test("a catalogue entry whose code isn't a plain code is left out, so it can't be named either", async () => {
+  const catalog = [{ title: "Böse", children: [{ code: "ai005 UNION SELECT 1", title_short: "Bundestagswahl", years: { "2025": [] }, attributes: [] }] }];
+  const { client, mock } = api({ catalog });
+  const result = await getIndicatorMap(client, { indicator: "ai005 UNION SELECT 1", year: 2025 });
+  assert.equal(result.status, "empty");
+  assert.equal(dataRequests(mock).length, 0);
+});
+
+// --- The catalogue's age ---
+
+test("catalogMaxAgeMs: the catalogue is fetched again once it is older; unset, once per client", async () => {
+  const catalogueRequests = (mock: ReturnType<typeof regionalatlasApi>) => mock.calls.length - dataRequests(mock).length;
+  const once = regionalatlasApi();
+  const client = new RegionalatlasClient({ transport: once.transport });
+  await client.indicators();
+  await client.themes();
+  assert.equal(catalogueRequests(once), 1);
+  const always = regionalatlasApi();
+  const fresh = new RegionalatlasClient({ transport: always.transport, catalogMaxAgeMs: 0 });
+  await fresh.indicators();
+  await fresh.indicators();
+  assert.equal(catalogueRequests(always), 2);
+  const hour = regionalatlasApi();
+  const cached = new RegionalatlasClient({ transport: hour.transport, catalogMaxAgeMs: 3_600_000 });
+  await cached.indicators();
+  await cached.indicators();
+  assert.equal(catalogueRequests(hour), 1);
+  assert.throws(() => new RegionalatlasClient({ catalogMaxAgeMs: -1 }), RegionalatlasValidationError);
+  assert.throws(() => new RegionalatlasClient({ catalogMaxAgeMs: 1.5 }), RegionalatlasValidationError);
+});
