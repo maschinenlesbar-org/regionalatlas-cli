@@ -1,0 +1,65 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request, the exit code of a network error, the mock's answer to that request (by path), and a string the printed answer contains. The themes command reads only the catalogue, whose URL is --catalog-url (the CLI's --base-url is the data host), so the command carries {base}: the mock's address, or offline https://mock:8080. The answer is the catalogue's Wahlen theme, cut from the answer recorded on 2026-11-20.",
+  "bin": "regionalatlas",
+  "command": [
+    "--catalog-url",
+    "{base}/taskrunner/services.json",
+    "themes",
+    "--compact"
+  ],
+  "networkErrorExit": 6,
+  "answers": {
+    "/taskrunner/services.json": [
+      {
+        "title": "Wahlen",
+        "children": [
+          {
+            "code": "AI005",
+            "title_short": "Bundestagswahl",
+            "title_long": "Regionalatlas Deutschland Themenbereich \"Wahlen\" Indikatoren zu \"Bundestagswahl\"",
+            "years": {
+              "2021": [
+                {
+                  "geom_levels": [
+                    16,
+                    38,
+                    400,
+                    0
+                  ]
+                }
+              ],
+              "2025": [
+                {
+                  "geom_levels": [
+                    16,
+                    38,
+                    400,
+                    0
+                  ]
+                }
+              ]
+            },
+            "attributes": [
+              {
+                "code": "AI0501",
+                "title_short": "Zweitstimmenanteil CDU/CSU, Bundestagswahl",
+                "unit": "Prozent"
+              },
+              {
+                "code": "AI0507",
+                "title_short": "Zweitstimmenanteil AfD, Bundestagswahl",
+                "unit": "Prozent"
+              },
+              {
+                "code": "AI0506",
+                "title_short": "Wahlbeteiligung, Bundestagswahl",
+                "unit": "Prozent"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expectStdout": "\"title\":\"Wahlen\""
+}
