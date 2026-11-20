@@ -31,6 +31,56 @@ npm install @maschinenlesbar.org/regionalatlas-cli
 
 Requires **Node.js 22.12+**.
 
+### Docker
+
+From 0.11.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install:
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  ghcr.io/maschinenlesbar-org/regionalatlas-cli:latest query AI002-1-5 --level land
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… regionalatlas-cli:latest regionalatlas themes` works too.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory. The catalogue is about 2 MB, and a query
+at `--level gemeinde` several MB; give such a container 128 MB or more.
+The CLI needs at least 12 processes and threads (`--pids-limit 12`): below that it refuses with
+an error, and with 4 or fewer Node.js itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/regionalatlas-cli/releases) give:
+`…/regionalatlas-cli:0.11.0@sha256:<digest>`. Each image carries signed build provenance;
+check it with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/regionalatlas-cli:latest \
+  --repo maschinenlesbar-org/regionalatlas-cli
+```
+
+### MCP server
+
+From 0.11.0 the Regionalatlas is also an [MCP](https://modelcontextprotocol.io/) server for AI
+agents, `@maschinenlesbar.org/regionalatlas-mcp` (command `regionalatlas-mcp`, image
+`ghcr.io/maschinenlesbar-org/regionalatlas-mcp`): four read-only tools, to find an indicator in
+the catalogue (by topic, code, theme, year or level, the value columns included), get it for every
+region of a level, compare named regions on one value column against the whole level (or find its
+highest and lowest), and list the themes, on stdio or Streamable HTTP. The tools handle the skills'
+traps: a title is no code, the newest year may not be loaded yet, a region name can stand for
+several regions. Setup for Claude Code, Claude Desktop and VS Code:
+[MCP.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/regionalatlas-mcp
+claude mcp add regionalatlas -- regionalatlas-mcp
+```
+
+Every result names its source and the attribution the Datenlizenz Deutschland asks for.
+
 ## CLI
 
 ```bash
@@ -119,6 +169,7 @@ indicator never reaches the server. See the injection-guard section in
 - [GLOSSARY.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/GLOSSARY.md) — AGS, typ / geo levels, Indikator, table code, Veränderungsrate
 - [DATA_LICENSE.md](DATA_LICENSE.md) — the dl-de/by-2.0 data terms
 - [SKILLS.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/SKILLS.md) — the Claude Code skills this repo ships
+- [MCP.md](https://github.com/maschinenlesbar-org/regionalatlas-cli/blob/main/MCP.md) — the same use cases as the tools of the MCP server, for any MCP client
 
 ## Licence
 

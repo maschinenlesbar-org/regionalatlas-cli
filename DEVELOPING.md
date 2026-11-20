@@ -19,13 +19,15 @@ npm run typecheck   # tsc -b over every workspace, as build
 npm test            # pretest builds, then `node --test` over each workspace's dist/test
 npm run coverage    # the same tests in one run, with a coverage report
 npm start -- --help # the locally built CLI (node apps/cli/dist/src/cli/index.js)
-npm run bump -- <patch|minor|major>  # bump apps/cli, commit, tag vX.Y.Z
+npm run bump -- <patch|minor|major>  # bump every published app, commit, tag vX.Y.Z
 node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
 
-CI (`ci.yml`) type-checks, builds and tests on Node 22/24/26, then packs the real tarball,
-checks the pack left nothing behind, installs it globally with the registry out of reach
-and runs the bin. `release.yml` (on a `v*` tag, made by `npm run bump`) has three jobs:
+CI (`ci.yml`) type-checks, builds and tests on Node 22/24/26, then packs each published app
+(the CLI and the MCP server), checks the pack left nothing behind, installs it globally with the
+registry out of reach and runs its bins; its `interop` job runs the MCP server against the
+official client. `images.yml` builds, smoke-tests and scans both container images on every push
+and weekly (see [Container image](#container-image)). `release.yml` (on a `v*` tag, made by `npm run bump`) has three jobs:
 `pack` (read-only: verifies the tag against `apps/cli/package.json`, writes the changelog, runs
 the tests and `npm pack --workspace apps/cli`, and records the files' sha256 as job outputs),
 `sbom` (read-only: the CycloneDX tool from the lockfile-pinned `tools/sbom/`, installed with
@@ -33,8 +35,11 @@ the tests and `npm pack --workspace apps/cli`, and records the files' sha256 as 
 workspace) and `release` (the only job with `contents: write`: no checkout, no npm; it checks the
 digests and runs `gh release create`). To update the SBOM tool, change its version in
 `tools/sbom/package.json` and run `npm install --package-lock-only --ignore-scripts` there;
-don't chain that install into an npm script (the `tools/docs/` rule). `publish.yml` runs
-`npm publish --workspace apps/cli`.
+don't chain that install into an npm script (the `tools/docs/` rule). The release also carries
+both image archives, their SBOMs, `SHA256SUMS` and signed provenance. `publish.yml` (dispatched
+from the release tag) publishes the release's own files: both tarballs to npm via Trusted
+Publishing, with provenance, and both images to ghcr.io, each checked first against the immutable
+release and the provenance `release.yml` signed.
 
 ## Layout
 
@@ -50,14 +55,18 @@ apps/cli/            # @maschinenlesbar.org/regionalatlas-cli — the published 
   test/              # CLI tests and every conformance-*.test.ts
 packages/client/     # @maschinenlesbar.org/regionalatlas-client — private, shipped inside the CLI's tarball
   src/               # the API client (below)
-  test/              # tests that only touch the client, + the transport helpers and fixtures
+  test/              # tests that only touch the client, + the transport helpers and fixtures (recorded.ts: recorded answers)
+apps/mcp/            # @maschinenlesbar.org/regionalatlas-mcp — the MCP server, released with the CLI
+packages/log/        # the log records (text/jsonl), shared by both apps
+tools/image/         # the container images of both apps (build, push, smoke, SBOM)
+tools/interop/       # the built MCP server against the official MCP client (own lockfile)
 tools/pack/          # prepack/postpack: ship the client (dist/node_modules) and commander in the tarball
-tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tools/bump.mjs       # version bump + commit + tag of every published app (npm run bump)
 tools/sbom/          # the CycloneDX SBOM tool, lockfile-pinned, for release.yml only
 tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
 ```
 
-- **The client is its own package** so a later MCP app can share it with the CLI. It is
+- **The client is its own package** so the MCP app shares it with the CLI. It is
   never published on its own: `apps/cli`'s `prepack` copies it into
   `apps/cli/dist/node_modules/`, where the CLI's imports find it, and the tarball ships it
   as plain files — so npm lists only commander (bundled) as a dependency, never the
@@ -71,9 +80,10 @@ tsconfig.docs.json   # TypeDoc only: the package entry, with the client read fro
   from the CLI's tests (not bundled). Only `"."` is part of the library.
 - **Dependencies point one way:** the app depends on the client, the client on nothing
   in the workspace.
-- **The version lives in `apps/cli/package.json`.** The root has none; a plain
-  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
-  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **The version lives in `apps/cli/package.json`** (and, the same, in `apps/mcp/package.json`).
+  The root has none; a plain `npm version` at the root is refused. Release with
+  `npm run bump -- <patch|minor|major>`, which bumps every published app together, commits (the
+  bare version as the message) and tags `vX.Y.Z`.
 - **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
   `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
   `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
@@ -91,7 +101,8 @@ packages/client/src/
     levels.ts    # geo-level (typ) allowlist: friendly name/alias -> {1,2,3,5}
     catalog.ts   # services.json parsing/filtering + the indicator/year allowlist resolvers
     sql.ts       # builds the dynamicLayer SQL from ONLY validated pieces (the guard)
-    client.ts    # RegionalatlasClient (themes / indicators / query) + row parsing/filtering
+    client.ts    # RegionalatlasClient (themes / indicators / query) + row parsing/filtering; catalogMaxAgeMs
+    operations.ts # the skills' use cases: findIndicators / getIndicatorMap / compareRegions / listThemes
     index.ts     # the client's public surface (the library entry re-exports it)
 apps/cli/src/cli/
     io.ts        # injectable I/O (CliDeps / CliIO), the logger and the clock — no env seam (no auth)
@@ -642,6 +653,107 @@ Coverage highlights:
 - **Scaffold origin:** scaffolded from `ladesaeulenregister-cli` (ArcGIS, keyless,
   query.ts); rewritten for the two-host split, the catalogue allowlist, and the
   dynamicLayer SQL guard.
+
+## MCP server (apps/mcp)
+
+`apps/mcp` is the second published app, `@maschinenlesbar.org/regionalatlas-mcp` (bin
+`regionalatlas-mcp`), released in lockstep with the CLI: `npm run bump` bumps every published app
+under `apps/` together, one version, one tag. Its npm README is the root `MCP.md` (prepack packs
+`<APP>.md` for an app that has one).
+
+**Two hosts, one `--base-url`.** Every tool reads the catalogue first (on
+regionalatlas.statistikportal.de), and the data tools then the ArcGIS query (on
+www.gis-idmz.nrw.de). The server's `--base-url` (the kit's one option) names a mirror of both:
+`api.ts`'s `Client` passes it as `baseUrl` and `<base>/taskrunner/services.json` as `catalogUrl`.
+Without it each host is its default. `apiBase` is the catalogue's host (or the mirror), so a
+result's `source` is the catalogue's URL for `findIndicators` and `listThemes` and the data
+query's URL (absolute) for `getIndicatorMap` and `compareRegions`. The CLI's
+`REGIONALATLAS_BASE_URL` is not read: the kit's config takes no environment variable, as
+autobahn-cli's and ckan-cli's servers don't; an MCP client sets `--base-url` in the server's
+arguments. A server runs for weeks, so `api.ts` gives the client `catalogMaxAgeMs` (six hours):
+a year or an indicator the offices add reaches it without a restart.
+
+**The SQL guard holds for every tool input.** `indicator` is resolved against the catalogue
+before any data request (a text that is no code is answered with the indicators it matches),
+`level` is one of the four names (an enum in the schema, then `resolveLevel`), `year` an integer
+the catalogue lists for the indicator (the schema's range, then `target()`), and the client
+re-checks all three before `sql.ts` builds the query. `fields`, `field` and `regions` are matched
+in the rows the data host returned, never sent; `fields` and `field` are also pattern-checked
+(`^[A-Za-z0-9_-]+$`). `packages/client/test/operations.test.ts` and `apps/mcp/test/tools.test.ts`
+try injections through each of them and check the SQL sent is built of the catalogue's pieces only.
+
+| Module | Role |
+|---|---|
+| `packages/client/src/operations.ts` | The skills' use cases as library functions, with their traps built in. `findIndicators`: a code (or table form) names its indicator alone, with `levelsByYear`; any other search is matched (folded: case, NFC, ä/ö/ü/ß spelled out) in the code and titles, then in the value columns (`matchedFields`), filtered by theme, year and a level with figures in some year, paged; every indicator with its years, levels, `emptyYears` and field dictionary; none is `empty` with what to try. `getIndicatorMap`: `target()` resolves indicator, level and year from the catalogue (a text that is no code `ambiguous` with candidates; a year not offered, a level without figures that year, an unknown value column `empty` with what there is) before any data request; a year left out is the newest with figures at the level, and the one before when the data host has no rows for it yet (two requests at most, with a note); rows sorted by key, projected to `fields`, paged; `coverage` per column (with and without a figure, the special values met); a change rate (`…v`) that is "nichts vorhanden" in the indicator's first year becomes null ("no previous year"); notes on a level that fills in with coarser units. `compareRegions`: the field required when the indicator has several (else `ambiguous` with the columns); the level fetched once, regions matched with the client's `matchRegion` (key, padded key, exact name with `alsoNamed`, else part of a name): one match is ranked (1 = highest, ties share) with `vsMean`, several are `ambiguousRegions` with candidates, none `notFound`; `levelStats` (mean, median, lowest, highest, with and without figure); without regions the highest and lowest `top`. `listThemes`: the themes with their indicators. Public API of both packages. |
+| `packages/log` | The log records (text/jsonl), shared by both apps; `createLogger({ program })`. |
+| `src/mcp/tools.ts` | This repo's: the four tools (flat input schemas with limits, no root combinators; one object output schema each; descriptions under 2000 characters), the instructions, the licence (dl-de/by-2-0 with the attribution text DATA_LICENSE.md gives), the hints the server's messages give. |
+| `src/mcp/api.ts` | This repo's: how the kit reaches the client (`Client`: `RegionalatlasClient` with one base for both hosts and the catalogue's maximum age; `RegionalatlasError` as `ClientError`, `RegionalatlasNetworkError` as `NetworkError`; `sizeLimitMessage` matching both forms of the client's size-cap message, since every call reads the catalogue first; `apiBase`, `catalogSource`, `dataSource`). |
+| `src/mcp/server.ts` | The McpServer factory, the tool types, `callTool`: deadline (`--call-timeout`) plus the client's cancellation, cleaned and fitted answers, failures as `isError` results. |
+| `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
+| `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, pause on 429, a bounded queue. |
+| `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither), 1 MiB body, 8 requests at once, timeouts. |
+| `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end). |
+
+The protocol is the SDK's: `@modelcontextprotocol/server` 2.4.0, bundled with its core and zod
+(prepack). It serves the 2026-07-28 revision and the 2025 handshake (2025-11-25, 2025-06-18)
+statelessly, on stdio (`serveStdio`) and HTTP. The SDK bundles AJV 8.18 into its own code to
+validate tool arguments against the input schemas; an SBOM doesn't list that copy.
+
+**The kit.** Everything in `apps/mcp` but `tools.ts`, `api.ts`, `test/helpers.ts`,
+`test/tools.test.ts` and the conformance tests' adapter blocks, plus `packages/log`,
+`apps/cli/src/cli/limits.ts`, `tools/image/` (but `smoke.json`), `tools/interop/` (but
+`interop.json`), `tools/bump.mjs`, `tools/pack/` and the workflows `ci.yml`, `images.yml`,
+`release.yml` and `publish.yml`, is the kit of `create-cli-template` (in the api-cli workspace),
+the same in every repository with an MCP server: a fix lands there first and comes here with
+`npm run sync-kit -- ../regionalatlas-cli` (run in create-cli-template; `--check` lists the drift).
+
+Tests (`apps/mcp/test`) run in-process over the SDK's InMemoryTransport with raw JSON-RPC (the
+kit's `harness.ts`). The rules every server follows are the shared conformance tests
+`conformance-m1-…` to `conformance-m10-…`, each with an adapter block naming this repo's calls and
+mock answers (M8's and M9's call is `listThemes`: one request, to the catalogue on the API base's
+host); `tools.test.ts` holds this server's own. The mock is the client's `test/recorded.ts`
+(`regionalatlasApi`, answering both hosts on any base): the catalogue cut to five themes with one
+indicator each, and the data host's rows for AI005 per Land 2025, eleven Kreise of AI002-1-5 in
+2024 and AI013-1 per Land 2025 (2026 had none yet), recorded on 2026-11-20; the operation tests
+(`packages/client/test/operations.test.ts`) add the traps' variants (special values, the first
+year's change rates, an empty year in the catalogue, a hostile catalogue entry). `tools/interop/`
+checks the built server against the official client 2.4.0 (stdio and HTTP; legacy, auto and
+pinned 2026-07-28) in ci.yml's `interop` job, with its own lockfile; its mock answers by path, so
+`interop.json` serves the catalogue's AI005 and four Länder for every data query.
+
+## Container image
+
+`tools/image/` builds both apps' images (Dockerfile targets `cli` and `mcp`) from their release
+tarballs (`npm pack` output), never from source: `ADD` unpacks it onto distroless Node 24 (Debian
+13, `nonroot`, uid 65532), so the image holds exactly the files npm users get. The base,
+BuildKit, the test registry, skopeo (local runs only), syft and grype are pinned in `pins.json`;
+bump them in the deps round. A Node or Debian security fix reaches the image only through a new
+base digest, so it means a patch release.
+
+| Script | What it does |
+|---|---|
+| `build.mjs` | Multi-arch OCI archive (amd64, arm64), reproducible: no provenance or SBOM attestation, timestamps from `SOURCE_DATE_EPOCH` (default: the HEAD commit's time). Two builds give the same index digest; compare index digests, not files. |
+| `push.mjs` | Copies the archive to a registry with skopeo (`--all --preserve-digests`) and checks the digest the registry serves. Used for the local test registry and for ghcr.io. |
+| `smoke.mjs` | Runs the image read-only, without capabilities, as an arbitrary uid: `--version`, `--help`, a network error (exit 6, the CLI's network exit code), one request to a mock upstream (`smoke.json`: `themes` against a recorded catalogue; `themes` reads only the catalogue, whose URL is `--catalog-url`, so the command carries `{base}`, the mock's address), and `docker stop`, which must end a waiting call with 143 in under 5 s. |
+| `sbom.mjs` | One CycloneDX SBOM per platform with syft, and with `--gate true` grype over them: a fixable high or critical finding fails. Accepted findings go into `.grype.yaml` with a reason. CI only. |
+
+Locally (colima; the scripts never read your docker config, so no credential helper is asked;
+on macOS port 5000 is often taken by the AirPlay receiver, hence 5055):
+
+```bash
+export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
+npm pack --workspace apps/cli --pack-destination dist-artifacts
+node tools/image/build.mjs --app cli --tarball dist-artifacts/<tarball>.tgz --out dist-artifacts/cli.oci.tar
+docker run -d -p 127.0.0.1:5055:5000 <registry pin from pins.json>
+node tools/image/push.mjs --archive dist-artifacts/cli.oci.tar --to 127.0.0.1:5055/regionalatlas-cli:dev
+node tools/image/smoke.mjs --app cli --image 127.0.0.1:5055/regionalatlas-cli@<index digest>
+```
+
+In CI: `images.yml` does all of it on every push and weekly, with the arm64 image smoke-tested on
+an arm64 runner and the vulnerability gate. In `release.yml` the job `image` builds from the
+checked tarball and records the archive's digest, `image-sbom` makes the SBOMs (no gate: the
+scanner's database changes daily), `attest` signs build provenance for the tarball, the archive
+and the image index, and the release attaches the archive, the image SBOMs and `SHA256SUMS`.
 
 ## Website
 
