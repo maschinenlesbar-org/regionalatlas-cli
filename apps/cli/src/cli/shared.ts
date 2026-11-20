@@ -5,6 +5,7 @@ import { constants } from "node:buffer";
 import type { Command } from "commander";
 import { InvalidArgumentError } from "commander";
 import { logOf, type CliDeps } from "./io.js";
+import { pidsProblem, responseCapFor } from "./limits.js";
 import { DEFAULT_CATALOG_URL, type RegionalatlasClientOptions } from "@maschinenlesbar.org/regionalatlas-client/internal/client";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/regionalatlas-client/internal/engine";
 import { queryTokensIn, quoteValue } from "@maschinenlesbar.org/regionalatlas-client/internal/errors";
@@ -290,6 +291,9 @@ const ESCAPE_CHUNK = 1 << 16;
  */
 export class OutputError extends RegionalatlasError {}
 
+/** The container can't run the CLI as it is limited (limits.ts): an ERROR record of the cli area and exit 1. */
+export class EnvironmentError extends RegionalatlasError {}
+
 /** Render a JSON value to stdout, pretty by default, compact with --compact. */
 export function renderJson(deps: CliDeps, global: Pick<GlobalOptions, "compact">, value: unknown): void {
   deps.io.out(escapeControlChars(stringifyJson(value, global.compact === true)));
@@ -419,8 +423,17 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // In a container: under a pids limit Node can't work with, refuse before any request; under a
+    // memory limit the 100 MiB default can't be held, so cap by the memory instead (an oversized
+    // answer is then the cap's error, not an OOM kill). An explicit --max-response-bytes wins.
+    const limits = deps.limits?.() ?? {};
+    const problem = pidsProblem(limits);
+    if (problem !== undefined) throw new EnvironmentError(problem);
     for (const problem of cleartextProblems(global, usesDataHost)) logOf(deps).warn("http", problem);
+    const given = command.getOptionValueSourceWithGlobals("maxResponseBytes");
+    const memory = given === undefined || given === "default" ? limits.memoryBytes : undefined;
     const options = toEngineOptions(global);
+    if (memory !== undefined) options.maxResponseBytes = responseCapFor(memory);
     options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
     options.onWarning = (message) => logOf(deps).warn("api", message);
     const client = deps.createClient(options);
