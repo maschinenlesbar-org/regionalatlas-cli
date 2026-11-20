@@ -1,0 +1,196 @@
+{
+  "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the mock upstream's answer per path (under --base-url http://127.0.0.1:<port>, a mirror of both hosts: the catalogue at /taskrunner/services.json, the ArcGIS data query under /arcgis), how many tools the server lists, and the calls to make with what each must answer. The mock answers by path only, so every data query gets the same rows. Cut from answers recorded live on 2026-11-20: the catalogue's AI005 (Bundestagswahl, three of its columns) and four Länder of 2025.",
+  "answers": {
+    "/taskrunner/services.json": [
+      {
+        "title": "Wahlen",
+        "children": [
+          {
+            "code": "AI005",
+            "title_short": "Bundestagswahl",
+            "title_long": "Regionalatlas Deutschland Themenbereich \"Wahlen\" Indikatoren zu \"Bundestagswahl\"",
+            "years": {
+              "2021": [
+                {
+                  "geom_levels": [
+                    16,
+                    38,
+                    400,
+                    0
+                  ]
+                }
+              ],
+              "2025": [
+                {
+                  "geom_levels": [
+                    16,
+                    38,
+                    400,
+                    0
+                  ]
+                }
+              ]
+            },
+            "attributes": [
+              {
+                "code": "AI0501",
+                "title_short": "Zweitstimmenanteil CDU/CSU, Bundestagswahl",
+                "unit": "Prozent"
+              },
+              {
+                "code": "AI0507",
+                "title_short": "Zweitstimmenanteil AfD, Bundestagswahl",
+                "unit": "Prozent"
+              },
+              {
+                "code": "AI0506",
+                "title_short": "Wahlbeteiligung, Bundestagswahl",
+                "unit": "Prozent"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "/arcgis/rest/services/stba/regionalatlas/MapServer/dynamicLayer/query": {
+      "displayFieldName": "ags",
+      "features": [
+        {
+          "attributes": {
+            "id": 535285,
+            "typ": 1,
+            "ags": "02",
+            "jahr": 2025,
+            "gen": "Hamburg",
+            "jahr2": 2025,
+            "ags2": "02",
+            "gen2": "  Hamburg",
+            "ai0501": 20.7,
+            "ai0507": 10.9,
+            "ai0506": 80.9
+          }
+        },
+        {
+          "attributes": {
+            "id": 535286,
+            "typ": 1,
+            "ags": "03",
+            "jahr": 2025,
+            "gen": "Niedersachsen",
+            "jahr2": 2025,
+            "ags2": "03",
+            "gen2": "  Niedersachsen",
+            "ai0501": 28.1,
+            "ai0507": 17.8,
+            "ai0506": 83.4
+          }
+        },
+        {
+          "attributes": {
+            "id": 535292,
+            "typ": 1,
+            "ags": "09",
+            "jahr": 2025,
+            "gen": "Bayern",
+            "jahr2": 2025,
+            "ags2": "09",
+            "gen2": "  Bayern",
+            "ai0501": 37.2,
+            "ai0507": 19.0,
+            "ai0506": 84.3
+          }
+        },
+        {
+          "attributes": {
+            "id": 535297,
+            "typ": 1,
+            "ags": "14",
+            "jahr": 2025,
+            "gen": "Sachsen",
+            "jahr2": 2025,
+            "ags2": "14",
+            "gen2": "  Sachsen",
+            "ai0501": 19.7,
+            "ai0507": 37.3,
+            "ai0506": 81.1
+          }
+        }
+      ]
+    }
+  },
+  "tools": 4,
+  "calls": [
+    {
+      "name": "findIndicators",
+      "arguments": {
+        "search": "Wahlbeteiligung"
+      },
+      "expect": {
+        "status": "ok",
+        "indicators.0.code": "AI005",
+        "indicators.0.matchedFields.0": "ai0506"
+      }
+    },
+    {
+      "name": "getIndicatorMap",
+      "arguments": {
+        "indicator": "AI005",
+        "year": 2025,
+        "fields": [
+          "ai0506"
+        ]
+      },
+      "expect": {
+        "status": "ok",
+        "total": 4,
+        "rows.0.name": "Hamburg",
+        "rows.0.values.ai0506": 80.9,
+        "fields.0.title": "Wahlbeteiligung, Bundestagswahl"
+      }
+    },
+    {
+      "name": "compareRegions",
+      "arguments": {
+        "indicator": "AI005",
+        "field": "ai0507",
+        "regions": [
+          "Sachsen",
+          "Bayern"
+        ]
+      },
+      "expect": {
+        "status": "ok",
+        "regions.0.name": "Sachsen",
+        "regions.0.rank": 1,
+        "regions.0.alsoNamed.0.name": "Niedersachsen"
+      }
+    },
+    {
+      "name": "listThemes",
+      "arguments": {},
+      "expect": {
+        "status": "ok",
+        "total": 1,
+        "themes.0.indicators.0.code": "AI005"
+      }
+    },
+    {
+      "name": "getIndicatorMap",
+      "arguments": {
+        "indicator": "Bundestagswahl"
+      },
+      "expect": {
+        "status": "ambiguous",
+        "candidates.0.code": "AI005"
+      }
+    },
+    {
+      "name": "compareRegions",
+      "arguments": {
+        "indicator": "AI005",
+        "level": "bezirk"
+      },
+      "error": true
+    }
+  ]
+}
