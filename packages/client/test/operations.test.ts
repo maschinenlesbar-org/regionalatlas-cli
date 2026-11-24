@@ -90,6 +90,16 @@ test("findIndicators: a code with a theme, year or level is checked against them
   assert.deepEqual(fits.searched, { search: "AI005", theme: "Wahl", year: 2025, level: "kreis" });
 });
 
+test("findIndicators: year and level together mean figures at that level in that year", async () => {
+  const { client } = api();
+  const in2000 = await findIndicators(client, { year: 2000, level: "gemeinde" });
+  assert.equal(in2000.status, "empty", "AI002-1-5 offers 2000 and has Gemeinde figures, but not in 2000");
+  assert.deepEqual((await findIndicators(client, { year: 2024, level: "gemeinde" })).indicators.map((i) => i.code), ["AI002-1-5"]);
+  const code = await findIndicators(client, { search: "AI002-1-5", year: 2000, level: "gemeinde" });
+  assert.equal(code.status, "empty");
+  assert.match(code.reason ?? "", /no figures at level gemeinde in 2000/);
+});
+
 test("findIndicators: nothing found is empty with what was searched and what to try", async () => {
   const { client } = api();
   const result = await findIndicators(client, { search: "Fischerei", year: 2024 });

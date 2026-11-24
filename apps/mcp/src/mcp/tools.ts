@@ -88,7 +88,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       search: { type: "string", minLength: 1, maxLength: 100, description: 'A topic, word stem or code: "Bevölkerung", "arbeitslos", "AI005".' },
       theme: { type: "string", minLength: 1, maxLength: 100, description: 'A theme (Themenbereich) or part of its title: "Wahlen", "Umwelt". listThemes lists them.' },
       year: { type: "integer", minimum: 1990, maximum: 2100, description: "Only indicators offering this year." },
-      level: { type: "string", enum: [...LEVEL_NAMES], description: "Only indicators with figures at this level in some year." },
+      level: { type: "string", enum: [...LEVEL_NAMES], description: "Only indicators with figures at this level in some year; with year, in that year." },
       offset,
       limit: limit(100, 20, "indicators"),
     }),

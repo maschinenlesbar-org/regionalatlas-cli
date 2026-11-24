@@ -137,7 +137,7 @@ export interface FindIndicatorsOptions {
   theme?: string | undefined;
   /** Only indicators offering this year. */
   year?: number | undefined;
-  /** Only indicators with figures at this level in some year. */
+  /** Only indicators with figures at this level in some year; with `year`, in that year. */
   level?: string | undefined;
   offset?: number | undefined;
   limit?: number | undefined;
@@ -228,6 +228,12 @@ function filterProblem(indicator: Indicator, filters: { theme?: string | undefin
   const { theme, year, level } = filters;
   if (theme !== undefined && !searchKey(indicator.theme).includes(searchKey(theme))) return `${indicator.code} is in the theme "${indicator.theme}", not "${theme}".`;
   if (year !== undefined && !indicator.years.includes(String(year))) return `${indicator.code} offers no year ${year}; its years: ${indicator.years.join(", ")}.`;
+  if (level !== undefined && year !== undefined) {
+    const published = indicator.levels[String(year)];
+    if (published !== undefined && !published.includes(level)) {
+      return `${indicator.code} has no figures at level ${level} in ${year}${published.length > 0 ? ` (only at ${published.join(", ")})` : " (at no level)"}; years with figures there: ${[...yearsAtLevel(indicator, level)].reverse().join(", ") || "none"}.`;
+    }
+  }
   if (level !== undefined && yearsAtLevel(indicator, level).length === 0) return `${indicator.code} has no figures at level ${level} in any year; it is published at ${levelsOf(indicator).join(", ") || "no level the catalogue names"}.`;
   return undefined;
 }
