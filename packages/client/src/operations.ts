@@ -319,6 +319,14 @@ async function target(client: RegionalatlasClient, input: { indicator: string; l
       ? { status: "ambiguous", reason: `"${text}" is not an indicator code. These indicators match it: call again with one's code.`, searched, candidates }
       : { status: "empty", reason: `"${text}" is no indicator code and matches no indicator. Find the code with findIndicators.`, searched };
   }
+  // A catalogue entry that lost its years, or lists none with figures, is a broken or changed
+  // catalogue, not a fact about the indicator's levels.
+  if (indicator.years.length === 0) {
+    return { status: "empty", reason: `The catalogue lists no year for ${indicator.code}: its entry is incomplete (the catalogue may have changed). Try again later, or another indicator.`, searched, years: [] };
+  }
+  if (levelsOf(indicator).length === 0) {
+    return { status: "empty", reason: `The catalogue publishes no figures for ${indicator.code} at any level in any year (its years: ${indicator.years.join(", ")}). Try another indicator.`, searched, years: indicator.years, levels: [] };
+  }
   const atLevel = yearsAtLevel(indicator, level);
   if (input.year !== undefined) {
     const year = String(input.year);
@@ -345,6 +353,10 @@ async function target(client: RegionalatlasClient, input: { indicator: string; l
   }
   return { indicator, level, years: atLevel.slice(0, 2).map(Number), yearGiven: false };
 }
+
+/** The note on an indicator whose catalogue entry lists no value columns. */
+const NO_COLUMNS = (code: string): string =>
+  `The catalogue names no value columns for ${code} (its entry is incomplete): nothing says what each column measures; never infer it from a code.`;
 
 /** The rows of a target, the year they are of, and the notes on how it was chosen. */
 interface Fetched {
@@ -528,6 +540,7 @@ export async function getIndicatorMap(client: RegionalatlasClient, options: Indi
   if (!t.yearGiven && fetched.year !== t.years[0]) notes.push(`These are the figures of ${fetched.year}: say which year the map shows.`);
   const fill = fillNote(fetched.rows, t.level);
   if (fill !== undefined) notes.push(fill);
+  if (indicator.fields.length === 0) notes.push(NO_COLUMNS(indicator.code));
   if (unnamed.size > 0) {
     const shown = [...unnamed].slice(0, 5).map((key) => cutText(key, 40));
     notes.push(`The data host sent ${unnamed.size} value column${unnamed.size > 1 ? "s" : ""} the catalogue doesn't name (${shown.join(", ")}${unnamed.size > 5 ? ", …" : ""}): left out, since nothing says what they measure.`);
@@ -653,7 +666,7 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
     return {
       status: "ambiguous",
       ...head,
-      reason: indicator.fields.length === 0 ? `The catalogue names no value column of ${indicator.code}: pass field.` : `${indicator.code} has ${indicator.fields.length} value columns: ask which one is meant and call again with its code as field.`,
+      reason: indicator.fields.length === 0 ? `${NO_COLUMNS(indicator.code)} Pass field only with a code the user named.` : `${indicator.code} has ${indicator.fields.length} value columns: ask which one is meant and call again with its code as field.`,
       searched: { indicator: indicator.code },
       candidates: indicator.fields,
     };

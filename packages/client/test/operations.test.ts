@@ -294,6 +294,33 @@ test("getIndicatorMap: value columns the catalogue doesn't name are left out, wi
   assert.ok(map.notes?.some((n) => /1000 value columns the catalogue doesn't name/.test(n) && n.includes("ai05_extra_0000") && n.length < 400), String(map.notes));
 });
 
+test("an indicator whose catalogue entry lost its years or its columns says the catalogue is incomplete", async () => {
+  const change = (edit: (child: Record<string, unknown>) => void) => {
+    const catalog = structuredClone(RECORDED_CATALOG) as { children: Record<string, unknown>[] }[];
+    const ai005 = catalog.flatMap((t) => t.children).find((c) => c["code"] === "AI005");
+    if (ai005 === undefined) throw new Error("fixture");
+    edit(ai005);
+    return api({ catalog });
+  };
+  for (const edit of [(c: Record<string, unknown>) => delete c["years"], (c: Record<string, unknown>) => (c["years"] = ["2025"])]) {
+    const { client, mock } = change(edit);
+    const map = await getIndicatorMap(client, { indicator: "AI005" });
+    assert.equal(map.status, "empty");
+    assert.match(map.reason ?? "", /catalogue lists no year for AI005/);
+    assert.doesNotMatch(map.reason ?? "", /published at \./);
+    assert.equal(dataRequests(mock).length, 0);
+  }
+  const noLevels = change((c) => (c["years"] = { "2025": [{ geom_levels: [0, 0, 0, 0] }] }));
+  const empty = await getIndicatorMap(noLevels.client, { indicator: "AI005" });
+  assert.match(empty.reason ?? "", /publishes no figures for AI005 at any level in any year/);
+  const noColumns = change((c) => delete c["attributes"]);
+  const map = await getIndicatorMap(noColumns.client, { indicator: "AI005", year: 2025 });
+  assert.equal(map.status, "ok");
+  assert.ok(map.notes?.some((n) => /catalogue names no value columns for AI005/.test(n)), String(map.notes));
+  const compared = await compareRegions(noColumns.client, { indicator: "AI005", year: 2025 });
+  assert.match(compared.reason ?? "", /catalogue names no value columns for AI005/);
+});
+
 // --- compareRegions ---
 
 test("compareRegions: an indicator with several columns and no field is ambiguous with the columns, before any data request", async () => {
