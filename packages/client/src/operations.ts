@@ -367,6 +367,24 @@ interface Fetched {
 }
 
 /**
+ * Each region once, as first sent, and the keys sent more than once: a region twice in a level
+ * counted 17 Länder, and its name and key were ambiguous with no way to resolve them.
+ */
+function onceEach(rows: readonly RegionRow[]): { rows: RegionRow[]; twice: string[] } {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  const kept: RegionRow[] = [];
+  for (const row of rows) {
+    if (seen.has(row.ags)) twice.add(row.ags);
+    else {
+      seen.add(row.ags);
+      kept.push(row);
+    }
+  }
+  return { rows: kept, twice: [...twice] };
+}
+
+/**
  * Whether rows carry anything of the indicator: a figure, or a special value the upstream sent.
  * Rows of the boundary table alone (every value null without a reason) are what the data host's
  * LEFT OUTER JOIN answers for a year the boundary table has and the indicator's table hasn't.
@@ -388,7 +406,11 @@ async function fetchRows(client: RegionalatlasClient, t: Target): Promise<Fetche
     const result = await client.queryResult({ indicator: t.indicator.code, level: t.level, year });
     if (result.fetched > 0 && anyFigure(result.rows)) {
       if (result.exceededTransferLimit) notes.push(`The data host stopped at its record limit after ${result.fetched} rows: the level is incomplete. Use a coarser level.`);
-      return { rows: firstYearChangeRates(t.indicator, year, result.rows), year, notes, incomplete: result.exceededTransferLimit };
+      const { rows, twice } = onceEach(result.rows);
+      if (twice.length > 0) {
+        notes.push(`The data host sent ${twice.length} region${twice.length > 1 ? "s" : ""} twice (${twice.slice(0, 5).join(", ")}${twice.length > 5 ? ", …" : ""}): each is shown once, as first sent.`);
+      }
+      return { rows: firstYearChangeRates(t.indicator, year, rows), year, notes, incomplete: result.exceededTransferLimit };
     }
     if (!t.yearGiven) {
       notes.push(`${year} is the newest year with figures at level ${t.level} in the catalogue, but the data host has ${result.fetched > 0 ? "no figures" : "no rows"} for it yet.`);
@@ -776,7 +798,12 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
     if (match.rows.length > 1) {
       ambiguous.push({
         asked,
-        reason: match.by === "name" ? `${match.rows.length} regions share this name.` : `No region is named exactly this; ${match.rows.length} contain it.`,
+        reason:
+          match.by === "name"
+            ? `${match.rows.length} regions share this name.`
+            : match.by === "substring"
+              ? `No region is named exactly this; ${match.rows.length} contain it.`
+              : `${match.rows.length} regions have this key.`,
         candidates: match.rows.slice(0, 20).map((row) => ({ ags: row.ags, name: row.name })),
       });
       continue;

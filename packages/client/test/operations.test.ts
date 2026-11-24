@@ -336,6 +336,19 @@ test("a year whose rows carry no figure at all (boundary rows only) counts as no
   assert.match(named.reason ?? "", /no rows \(or no figures\) for AI013-1 at level land in 2026/);
 });
 
+test("a region the data host sends twice is shown once, with a note; its name and key then resolve", async () => {
+  const bayern = ELECTION_LAND_2025.find((r) => r["ags"] === "09");
+  const { client } = api({ rows: { "ai005/1/2025": [...ELECTION_LAND_2025, { ...bayern, id: 1 } as (typeof ELECTION_LAND_2025)[number]] } });
+  const map = await getIndicatorMap(client, { indicator: "AI005", year: 2025 });
+  assert.equal(map.total, 16);
+  assert.ok(map.notes?.some((n) => /sent 1 region twice \(09\)/.test(n)), String(map.notes));
+  for (const asked of ["Bayern", "09"]) {
+    const compared = await compareRegions(client, { indicator: "AI005", field: "ai0506", year: 2025, regions: [asked] });
+    assert.equal(compared.status, "ok", asked);
+    assert.equal(compared.levelStats?.regions, 16);
+  }
+});
+
 // --- compareRegions ---
 
 test("compareRegions: an indicator with several columns and no field is ambiguous with the columns, before any data request", async () => {
