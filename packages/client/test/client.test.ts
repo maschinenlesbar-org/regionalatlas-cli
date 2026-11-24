@@ -507,6 +507,27 @@ test("a special-value code is never the code: 0 for nichts vorhanden, else null,
   assert.equal(projectFields([row], ["ai0501"])[0]!.missing, undefined);
 });
 
+test("a row without its region key (ags missing, renamed or upper case) is a shape error, never a row keyed \"\"", async () => {
+  const q = { indicator: "AI002-1-5", level: "land", year: 2020 };
+  const withAttributes = (change: (a: Record<string, unknown>) => Record<string, unknown>) => ({
+    ...fx.landData,
+    features: fx.landData.features.map((f) => ({ attributes: change({ ...f.attributes }) })),
+  });
+  const cases = {
+    missing: withAttributes(({ ags: _ags, ...rest }) => rest),
+    renamed: withAttributes(({ ags, ...rest }) => ({ ...rest, AGS_NEU: ags })),
+    upper: withAttributes((a) => Object.fromEntries(Object.entries(a).map(([k, v]) => [k.toUpperCase(), v]))),
+    blank: withAttributes((a) => ({ ...a, ags: " " })),
+  };
+  for (const [name, data] of Object.entries(cases)) {
+    await assert.rejects(
+      () => clientRouting(data).client.query(q),
+      (err) => err instanceof RegionalatlasParseError && /expected feature 0 to have its region key "ags"/.test(err.message),
+      name,
+    );
+  }
+});
+
 test("a reply without features, an array or any truthy error is a failure, never zero rows", async () => {
   const q = { indicator: "AI002-1-5", level: "land", year: 2020 };
   await assert.rejects(

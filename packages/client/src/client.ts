@@ -349,6 +349,13 @@ function featureAttributes(feature: unknown, index: number, request: string): Ra
   if (attrs === null || typeof attrs !== "object") {
     throw shapeError(request, `feature ${index} to have an "attributes" object`);
   }
+  // Every row of the boundary table has its key: one without (the attribute missing, renamed or
+  // in upper case) is a changed answer, which would otherwise read as regions keyed "" and the
+  // renamed key as a value column.
+  const ags = (attrs as { ags?: unknown }).ags;
+  if (!((typeof ags === "string" && ags.trim() !== "") || (typeof ags === "number" && Number.isFinite(ags)))) {
+    throw shapeError(request, `feature ${index} to have its region key "ags" (a string or number), got ${kindOf(ags)}`);
+  }
   return attrs as RawFeatureAttributes;
 }
 

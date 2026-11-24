@@ -419,7 +419,8 @@ colon left out, whose userinfo is everything between the first slashes and the l
   message and details without repeats, for the 200 envelope and non-2xx replies alike.
   A body that is not a JSON object, or has no `features` array, is a
   `RegionalatlasParseError` (`GET <url>: unexpected response shape: expected …`), not
-  an empty result. The `error.message`
+  an empty result; so is a feature without its region key `ags` (missing, renamed, in upper
+  case), which read as regions keyed `""` and a renamed key as a value column. The `error.message`
   is run through `sanitizeServerText` before it can reach stderr: it reads at most the first
   16 384 characters, drops whole escape sequences (a CSI, an OSC or other control string up to
   its terminator, which ends at ESC or another introducer, so an unterminated run of them is
