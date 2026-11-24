@@ -48,6 +48,13 @@ const CATALOG_ORIGIN = new URL(DEFAULT_CATALOG_URL).origin;
 /** How long the server keeps the catalogue: the statistical offices add years and indicators without notice. */
 export const CATALOG_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * How long the server keeps a data answer (one indicator, level and year; the client keeps the
+ * last three): the pages of a map and a comparison of the same level read it once, where each
+ * page of a Gemeinde map asked the data host for all 11,000 rows (4 MB) again.
+ */
+export const DATA_MAX_AGE_MS = 10 * 60 * 1000;
+
 /** The API's base URL as a result's `source` starts with it (`--base-url`, else the catalogue's host). */
 export function apiBase(baseUrl: string | undefined): string {
   return strip(baseUrl ?? CATALOG_ORIGIN);
@@ -63,12 +70,13 @@ export function dataSource(base: string): string {
   return `${strip(base) === CATALOG_ORIGIN ? strip(DEFAULT_BASE_URL) : strip(base)}${DATA_PATH}`;
 }
 
-/** The client with one base for both hosts: `baseUrl` (a mirror) serves the catalogue too; the catalogue kept 6 hours. */
+/** The client with one base for both hosts: `baseUrl` (a mirror) serves the catalogue too; the catalogue kept 6 hours, a data answer 10 minutes. */
 export class Client extends RegionalatlasClient {
   constructor(options: RegionalatlasClientOptions = {}) {
     super({
       ...options,
       catalogMaxAgeMs: CATALOG_MAX_AGE_MS,
+      dataMaxAgeMs: DATA_MAX_AGE_MS,
       ...(options.baseUrl === undefined ? {} : { catalogUrl: catalogSource(options.baseUrl) }),
     });
   }

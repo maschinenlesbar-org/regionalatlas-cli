@@ -125,6 +125,16 @@ test("the server keeps the catalogue for hours, not for its lifetime: the client
   assert.throws(() => new Client({ transport: mock.transport, catalogUrl: "ftp://x" }));
 });
 
+test("the pages of a Gemeinde-sized map read the level's answer once: the server keeps data answers for minutes", async () => {
+  const mock = regionalatlasApi();
+  const connection = await connect({ transport: mock });
+  const first = (await connection.call("getIndicatorMap", { indicator: "AI005", year: 2025, limit: 5 })).structuredContent ?? {};
+  await connection.call("getIndicatorMap", { indicator: "AI005", year: 2025, limit: 5, offset: Number(first["nextOffset"]) });
+  await connection.call("compareRegions", { indicator: "AI005", field: "ai0506", year: 2025 });
+  await connection.close();
+  assert.equal(dataRequests(mock).length, 1);
+});
+
 // --- The SQL guard, through the tools ---
 
 test("only the catalogue's table, the level's typ and a catalogue year reach the SQL; a region's text is never sent", async () => {

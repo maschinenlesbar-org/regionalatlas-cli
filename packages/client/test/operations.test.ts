@@ -516,6 +516,26 @@ test("calls that need the catalogue at the same time share one download (listThe
   assert.equal(waiter.status, "fulfilled");
 });
 
+test("dataMaxAgeMs: the pages of one map read the level's answer once; unset, each page asks again", async () => {
+  const pages = async (client: RegionalatlasClient) => {
+    await getIndicatorMap(client, { indicator: "AI005", year: 2025, limit: 5 });
+    await getIndicatorMap(client, { indicator: "AI005", year: 2025, limit: 5, offset: 5 });
+    await compareRegions(client, { indicator: "AI005", field: "ai0506", year: 2025 });
+  };
+  const kept = regionalatlasApi();
+  await pages(new RegionalatlasClient({ transport: kept.transport, dataMaxAgeMs: 600_000 }));
+  assert.equal(dataRequests(kept).length, 1);
+  const each = regionalatlasApi();
+  await pages(new RegionalatlasClient({ transport: each.transport }));
+  assert.equal(dataRequests(each).length, 3);
+  const other = regionalatlasApi();
+  const client = new RegionalatlasClient({ transport: other.transport, dataMaxAgeMs: 600_000 });
+  await getIndicatorMap(client, { indicator: "AI005", year: 2025 });
+  await getIndicatorMap(client, { indicator: "AI013-1", year: 2025 });
+  assert.equal(dataRequests(other).length, 2, "another indicator is another answer");
+  assert.throws(() => new RegionalatlasClient({ dataMaxAgeMs: -1 }), RegionalatlasValidationError);
+});
+
 test("catalogMaxAgeMs: the catalogue is fetched again once it is older; unset, once per client", async () => {
   const catalogueRequests = (mock: ReturnType<typeof regionalatlasApi>) => mock.calls.length - dataRequests(mock).length;
   const once = regionalatlasApi();

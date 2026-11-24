@@ -101,7 +101,7 @@ packages/client/src/
     levels.ts    # geo-level (typ) allowlist: friendly name/alias -> {1,2,3,5}
     catalog.ts   # services.json parsing/filtering + the indicator/year allowlist resolvers
     sql.ts       # builds the dynamicLayer SQL from ONLY validated pieces (the guard)
-    client.ts    # RegionalatlasClient (themes / indicators / query) + row parsing/filtering; catalogMaxAgeMs
+    client.ts    # RegionalatlasClient (themes / indicators / query) + row parsing/filtering; catalogMaxAgeMs, dataMaxAgeMs
     operations.ts # the skills' use cases: findIndicators / getIndicatorMap / compareRegions / listThemes
     index.ts     # the client's public surface (the library entry re-exports it)
 apps/cli/src/cli/
@@ -693,7 +693,10 @@ query's URL (absolute) for `getIndicatorMap` and `compareRegions`. The CLI's
 `REGIONALATLAS_BASE_URL` is not read: the kit's config takes no environment variable, as
 autobahn-cli's and ckan-cli's servers don't; an MCP client sets `--base-url` in the server's
 arguments. A server runs for weeks, so `api.ts` gives the client `catalogMaxAgeMs` (six hours):
-a year or an indicator the offices add reaches it without a restart.
+a year or an indicator the offices add reaches it without a restart. It also gives it
+`dataMaxAgeMs` (ten minutes; the client keeps the last `MAX_KEPT_ANSWERS`, three): each page of
+a Gemeinde map (11,000 rows, 4 MB live) asked the data host for the whole level again, 30 pages
+for one column and 249 for all eleven.
 
 **The SQL guard holds for every tool input.** `indicator` is resolved against the catalogue
 before any data request (a text that is no code is answered with the indicators it matches),

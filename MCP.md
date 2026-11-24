@@ -97,7 +97,9 @@ regionalatlas.statistikportal.de) and the ArcGIS data host (www.gis-idmz.nrw.de)
 query built only from the catalogue's table name, the level's fixed type and a year the catalogue
 lists; region names and value columns are matched in the answer, never sent. `--base-url` names a
 mirror of both (its `/taskrunner/services.json` and `/arcgis/…` under one base); without it, each
-host is its default. The server reads the catalogue again after six hours. The CLI's
+host is its default. The server reads the catalogue again after six hours, and keeps the last
+three data answers (an indicator, level and year) for ten minutes, so the pages of one map and a
+comparison of the same level ask the data host once. The CLI's
 `REGIONALATLAS_BASE_URL` is not read: the server takes its configuration from its arguments.
 
 ## Options

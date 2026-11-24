@@ -73,6 +73,23 @@ export interface RegionalatlasClientOptions extends EngineOptions {
    * year or an indicator the statistical offices add reaches it. A non-negative integer.
    */
   catalogMaxAgeMs?: number | undefined;
+  /**
+   * How long a data answer (one indicator, level and year) is kept, in milliseconds, so that the
+   * pages of one map, or a map and a comparison of the same level, read it once: a Gemeinde
+   * level is 4 MB and 11,000 rows, and each page asked for all of it again. Unset (the default),
+   * nothing is kept. The last `MAX_KEPT_ANSWERS` answers are kept; rows a call returns from
+   * one are shared with it, so a caller must not change them. A non-negative integer.
+   */
+  dataMaxAgeMs?: number | undefined;
+}
+
+/** How many data answers a client with `dataMaxAgeMs` keeps (the most recent). */
+export const MAX_KEPT_ANSWERS = 3;
+
+/** A data answer as the client keeps it: the level's rows before `region` and `fields`. */
+interface DataAnswer {
+  rows: RegionRow[];
+  exceededTransferLimit: boolean;
 }
 
 /**
@@ -91,6 +108,9 @@ export class RegionalatlasClient {
   /** When the cached catalogue was fetched (`Date.now()`), and how long it is kept. */
   private catalogFetchedAt = 0;
   readonly #catalogMaxAgeMs: number | undefined;
+  readonly #dataMaxAgeMs: number | undefined;
+  /** Data answers by their layer (table, typ, year), in or arriving, newest last. */
+  private readonly dataAnswers = new Map<string, { at: number; answer: Promise<DataAnswer> }>();
 
   constructor(options: RegionalatlasClientOptions | null = {}) {
     // The engine refuses a non-object; `null` counts as no options.
@@ -100,11 +120,14 @@ export class RegionalatlasClient {
     // (RegionalatlasValidationError), not a network failure after a wasted request.
     this.#catalogUrl =
       options.catalogUrl === undefined ? DEFAULT_CATALOG_URL : validateHttpUrl("catalogUrl", options.catalogUrl);
-    const maxAge = options.catalogMaxAgeMs;
-    if (maxAge !== undefined && !(typeof maxAge === "number" && Number.isSafeInteger(maxAge) && maxAge >= 0)) {
-      throw new RegionalatlasValidationError(`Invalid option catalogMaxAgeMs: expected a non-negative integer of milliseconds, got ${cutForMessage(String(maxAge))}.`);
+    for (const name of ["catalogMaxAgeMs", "dataMaxAgeMs"] as const) {
+      const maxAge = options[name];
+      if (maxAge !== undefined && !(typeof maxAge === "number" && Number.isSafeInteger(maxAge) && maxAge >= 0)) {
+        throw new RegionalatlasValidationError(`Invalid option ${name}: expected a non-negative integer of milliseconds, got ${cutForMessage(String(maxAge))}.`);
+      }
     }
-    this.#catalogMaxAgeMs = maxAge;
+    this.#catalogMaxAgeMs = options.catalogMaxAgeMs;
+    this.#dataMaxAgeMs = options.dataMaxAgeMs;
   }
 
   /** The catalogue download in flight, shared by every call that needs it meanwhile. */
@@ -224,6 +247,54 @@ export class RegionalatlasClient {
     // 4. Build the SQL from validated pieces only.
     const layer = buildLayerParam(indicator.table, level.typ, year);
 
+    const { rows, exceededTransferLimit } = await this.dataAnswer(JSON.stringify(layer), () => this.fetchData(layer, indicator, level, year));
+
+    // 5. Client-side region filter + field projection (no user text upstream).
+    const match = opts.region !== undefined ? matchRegion(rows, opts.region) : undefined;
+    // A copy: the rows may be a kept answer's (dataMaxAgeMs).
+    const filtered = match !== undefined ? match.rows : [...rows];
+    return {
+      rows: opts.fields !== undefined ? projectFields(filtered, opts.fields) : filtered,
+      ...(match === undefined
+        ? {}
+        : { region: { by: match.by, others: match.others.map((r) => ({ ags: r.ags, name: r.name })) } }),
+      fetched: rows.length,
+      exceededTransferLimit,
+    };
+  }
+
+  /**
+   * A data answer by its layer: kept for `dataMaxAgeMs` (the last MAX_KEPT_ANSWERS), and shared
+   * while it arrives. A waiter whose shared request failed on the network (the call that started
+   * it may have been cancelled) asks once more on its own; a failed answer is never kept.
+   */
+  private async dataAnswer(key: string, fetch: () => Promise<DataAnswer>): Promise<DataAnswer> {
+    const maxAge = this.#dataMaxAgeMs;
+    if (maxAge === undefined) return fetch();
+    const kept = this.dataAnswers.get(key);
+    if (kept !== undefined && Date.now() - kept.at < maxAge) {
+      try {
+        return await kept.answer;
+      } catch (err) {
+        if (!(err instanceof RegionalatlasNetworkError) || err instanceof RegionalatlasSizeLimitError) throw err;
+      }
+    }
+    const answer = fetch();
+    const entry = { at: Date.now(), answer };
+    this.dataAnswers.delete(key);
+    this.dataAnswers.set(key, entry);
+    for (const old of this.dataAnswers.keys()) {
+      if (this.dataAnswers.size <= MAX_KEPT_ANSWERS) break;
+      this.dataAnswers.delete(old);
+    }
+    answer.catch(() => {
+      if (this.dataAnswers.get(key) === entry) this.dataAnswers.delete(key);
+    });
+    return answer;
+  }
+
+  /** The data request of one layer, its rows parsed (before `region` and `fields`). */
+  private async fetchData(layer: ReturnType<typeof buildLayerParam>, indicator: Indicator, level: ReturnType<typeof resolveLevel>, year: number): Promise<DataAnswer> {
     const { value: res, request } = await this.getData({
       layer: JSON.stringify(layer),
       f: "json",
@@ -246,20 +317,9 @@ export class RegionalatlasClient {
       year,
       res.features.map((f, i) => parseRow(featureAttributes(f, i, request), level.typ, level.name, year, request, (text) => this.engine.redact(text))),
     );
-
-    // 5. Client-side region filter + field projection (no user text upstream).
-    const match = opts.region !== undefined ? matchRegion(rows, opts.region) : undefined;
-    const filtered = match !== undefined ? match.rows : rows;
-    return {
-      rows: opts.fields !== undefined ? projectFields(filtered, opts.fields) : filtered,
-      ...(match === undefined
-        ? {}
-        : { region: { by: match.by, others: match.others.map((r) => ({ ags: r.ags, name: r.name })) } }),
-      fetched: rows.length,
-      // The MapServer stops at its maxRecordCount and says so only in this flag; the
-      // rows are then a silent prefix of the level. Only a literal `true` counts.
-      exceededTransferLimit: res.exceededTransferLimit === true,
-    };
+    // The MapServer stops at its maxRecordCount and says so only in this flag; the
+    // rows are then a silent prefix of the level. Only a literal `true` counts.
+    return { rows, exceededTransferLimit: res.exceededTransferLimit === true };
   }
 
   /** GET the dynamicLayer data query, then throw on the ArcGIS `error` envelope. */
