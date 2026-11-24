@@ -597,9 +597,12 @@ Coverage highlights:
   (`retryMessage`; host only, whole seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`,
   `apps/cli/test/retry-log.test.ts`.
 - **Custom transports:** the engine enforces `timeoutMs` itself for every transport — the
-  request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, and
-  the call rejects then with a `RegionalatlasNetworkError` whether the transport stops or
-  not — and checks the size of the body it gets back against `maxResponseBytes`
+  request carries an `AbortSignal` (`HttpRequest.signal`) that fires at the deadline, with
+  the timeout error as its reason, and the call rejects then with a `RegionalatlasNetworkError`
+  whether the transport stops or not (the built-in transport stops on that signal with its
+  reason, and on a signal another caller aborted, as the MCP server's limiter adds a tool
+  call's deadline and cancellation, with "Request aborted by its caller before it finished":
+  never a deadline that didn't pass) — and checks the size of the body it gets back against `maxResponseBytes`
   (`sizeLimitMessage` names both the option and `--max-response-bytes`). The error is a
   `RegionalatlasSizeLimitError` (a `RegionalatlasNetworkError`) whose `download` says
   which one was too big, `"catalogue"` or `"data"`, so the CLI's hint fits: raise the cap
