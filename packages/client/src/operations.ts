@@ -809,6 +809,7 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
       ...(notes.length > 0 ? { notes } : {}),
     };
   }
+  if (options.top !== undefined) notes.push(`top applies only without regions: ignored, the ${regions.length} named region${regions.length > 1 ? "s are" : " is"} compared.`);
   const found: ComparedRegion[] = [];
   const ambiguous: NonNullable<CompareRegionsResult["ambiguousRegions"]> = [];
   const notFound: NonNullable<CompareRegionsResult["notFound"]> = [];
@@ -851,7 +852,11 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
       });
       continue;
     }
-    if (found.some((r) => r.ags === row.ags)) continue;
+    const same = found.find((r) => r.ags === row.ags);
+    if (same !== undefined) {
+      notes.push(`"${asked}" names the same region as "${same.asked ?? same.name}" (${row.ags} ${row.name}): compared once.`);
+      continue;
+    }
     found.push(
       describe(row, {
         asked,

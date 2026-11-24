@@ -385,6 +385,9 @@ test("compareRegions: a name several Kreise contain is ambiguous with the candid
   assert.deepEqual(result.ambiguousRegions?.[0]?.candidates.map((c) => c.ags).sort(), ["07316", "09374", "09575"]);
   assert.match(result.ambiguousRegions?.[0]?.reason ?? "", /No region is named exactly this; 3 contain it/);
   assert.deepEqual(result.regions?.map((r) => [r.asked, r.ags]), [["München", "09162"]], "the official 8-digit key of München is the same Kreis: listed once");
+  assert.ok(result.notes?.some((n) => n.includes('"09162000" names the same region as "München"')), String(result.notes));
+  const withTop = await compareRegions(client, { indicator: "AI002-1-5", field: "ai0201", level: "kreis", year: 2024, regions: ["Leipzig"], top: 3 });
+  assert.ok(withTop.notes?.some((n) => /top applies only without regions/.test(n)), String(withTop.notes));
   assert.deepEqual(result.regions?.[0]?.alsoNamed, [{ ags: "09184", name: "München, Landkreis" }]);
   assert.match(result.notFound?.[0]?.reason ?? "", /No region at level kreis has this name/);
   assert.equal(result.notFound?.[0]?.asked, "Bayern");
