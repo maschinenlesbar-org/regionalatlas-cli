@@ -20,7 +20,7 @@ const RETRY_AFTER_CAP_MS = 30_000;
  * What a Retry-After above the cap does: "wait" the cap and retry (autobahn), or "fail" at
  * once with a message that names the requested wait (the pattern's other option; nina).
  */
-const ABOVE_CAP = "wait" as "wait" | "fail"; // regionalatlas clamps to the cap and retries
+const ABOVE_CAP = "fail" as "wait" | "fail"; // regionalatlas fails at once, naming the wait
 // --------------------------------------------------------------------------------------
 
 async function sleepsFor(status: number, retryAfter: string | undefined, retries = 3): Promise<number[]> {

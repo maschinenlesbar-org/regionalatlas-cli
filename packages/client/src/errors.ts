@@ -473,6 +473,8 @@ export class RegionalatlasApiError extends RegionalatlasError {
     retries?: number;
     location?: string;
     download?: Download;
+    /** What to do about it, after the detail (a Retry-After too long to wait). */
+    hint?: string;
   }) {
     // The URL is shown without userinfo: a credential in --base-url must not leak.
     const url = redactUrl(args.url);
@@ -481,6 +483,7 @@ export class RegionalatlasApiError extends RegionalatlasError {
     if (args.status !== undefined && (isRedirectStatus(args.status) || (args.status === 300 && args.location))) {
       parts.push(args.location ? `redirect to ${args.location} not followed` : "redirect not followed (no Location header)");
     }
+    if (args.hint) parts.push(args.hint);
     const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     const head =
       args.status !== undefined

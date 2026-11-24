@@ -580,8 +580,11 @@ Coverage highlights:
   the linear backoff (`retryDelayMs × attempt`, 200 ms, 400 ms, …) at least — a
   `Retry-After: 0` or a date in the past never makes a zero-delay burst. A 429/503 retry honours
   a longer `Retry-After` header in either documented form — delta-seconds (digits only) or an
-  HTTP-date in IMF-fixdate form (`Sat, 26 Sep 2026 10:00:00 GMT`) — clamped to 30 s so a
-  server-set `Retry-After: 86400` cannot park the CLI for a day. A missing or malformed
+  HTTP-date in IMF-fixdate form (`Sat, 26 Sep 2026 10:00:00 GMT`) — up to 30 s
+  (`MAX_RETRY_AFTER_MS`, as long as the MCP server's limiter pauses a host). A longer one is not
+  retried: the error comes at once and says the server asked to retry after N s, longer than
+  this client waits, so retrying sooner won't help; a server-set `Retry-After: 86400` cannot
+  park the CLI for a day. A missing or malformed
   header (`1.5`, `-5`, any other date format) falls back to linear backoff
   (`retryDelayMs × attempt`); `parseRetryAfter` never hands it to a bare `Date.parse`,
   which reads `"1.5"` as a date in 2001 and so retried at once. When the retries run out,

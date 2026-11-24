@@ -210,7 +210,7 @@ test("a 503 is retried up to maxRetries then surfaces as a RegionalatlasApiError
   assert.equal(calls, 3);
 });
 
-test("a retry honours Retry-After in seconds, clamped to 30s", async () => {
+test("a retry honours Retry-After in seconds up to 30 s", async () => {
   const slept: number[] = [];
   let calls = 0;
   const mt = makeMockTransport(() => {
@@ -227,22 +227,30 @@ test("a retry honours Retry-After in seconds, clamped to 30s", async () => {
   });
   await e.getJson("/x");
   assert.deepEqual(slept, [5000]);
+});
 
-  // A server-controlled header must not park the CLI for a day.
-  slept.length = 0;
-  calls = 0;
-  const long = makeMockTransport(() => {
-    calls += 1;
-    return calls === 1
-      ? rawResponse("slow down", "text/plain", 503, { "retry-after": "86400" })
-      : jsonResponse(fx.landData);
-  });
-  const e2 = new RequestEngine({
-    transport: long.transport,
+test("a Retry-After over 30 s is not retried: one request, no wait, and the error names the wait", async () => {
+  const slept: number[] = [];
+  let calls = 0;
+  const e = new RequestEngine({
+    transport: makeMockTransport(() => {
+      calls += 1;
+      return rawResponse("slow down", "text/plain", 503, { "retry-after": "86400" });
+    }).transport,
     maxRetries: 2,
     sleep: async (ms) => void slept.push(ms),
   });
-  await e2.getJson("/x");
+  await assert.rejects(e.getJson("/x"), (err: unknown) =>
+    err instanceof RegionalatlasApiError && err.status === 503 && /retry after 86400 s/.test(err.message) && /30 s/.test(err.message) && /won't help, try again later/.test(err.message));
+  assert.equal(calls, 1);
+  assert.equal(slept.length, 0);
+  // 30 s itself is still waited out
+  const at = new RequestEngine({
+    transport: makeMockTransport(() => rawResponse("slow down", "text/plain", 429, { "retry-after": "30" })).transport,
+    maxRetries: 1,
+    sleep: async (ms) => void slept.push(ms),
+  });
+  await assert.rejects(at.getJson("/x"), (err: unknown) => err instanceof RegionalatlasApiError && !/won't help/.test(err.message));
   assert.deepEqual(slept, [30_000]);
 });
 

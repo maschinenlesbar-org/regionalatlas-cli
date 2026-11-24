@@ -97,7 +97,8 @@ export interface EngineOptions {
   maxRetries?: number | undefined;
   /**
    * Base backoff between retries in milliseconds (grows linearly), at most
-   * `MAX_RETRY_AFTER_MS`. A `Retry-After` can make a wait longer, never shorter.
+   * `MAX_RETRY_AFTER_MS`. A `Retry-After` can make a wait longer, never shorter; one over
+   * `MAX_RETRY_AFTER_MS` is not retried, and the error names the wait the server asked for.
    */
   retryDelayMs?: number | undefined;
   /**
@@ -385,9 +386,11 @@ const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Upper bound on a honoured `Retry-After`. The header is server-controlled, and a
- * `Retry-After: 86400` would otherwise park the CLI for a day, so a longer wait is
- * clamped to this.
+ * Longest `Retry-After` the engine waits out before retrying a 429/503. When the server asks
+ * for longer, the engine does not retry and the error comes at once, naming the wait: retrying
+ * sooner would only land inside the window the server asked to keep free, and a
+ * server-controlled `Retry-After: 86400` must not park the CLI for a day. The MCP server's
+ * limiter pauses a host for at most as long.
  */
 export const MAX_RETRY_AFTER_MS = 30_000;
 
@@ -1015,20 +1018,17 @@ export class RequestEngine {
         throw new RegionalatlasSizeLimitError(this.maxResponseBytes, download, undefined, this.failedPrefix(url));
       }
       const retryable = status === 429 || status === 503;
-      if (retryable && attempt < this.maxRetries) {
+      const retryAfter = retryable ? parseRetryAfter(responseHeaders["retry-after"]) : undefined;
+      // A wait over MAX_RETRY_AFTER_MS is not retried: the error below comes at once and names it.
+      const tooLong = retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS;
+      if (retryable && attempt < this.maxRetries && !tooLong) {
         attempt += 1;
         // Back off linearly (retryDelayMs * attempt). A Retry-After header (delta-seconds
         // or HTTP-date) can make the wait longer, never shorter: `Retry-After: 0` or a date
         // in the past turned the retries into a zero-delay burst against a server that had
-        // just asked for less load. A longer one is clamped to MAX_RETRY_AFTER_MS.
+        // just asked for less load.
         const backoff = this.retryDelayMs * attempt;
-        const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
-        await this.backOff(
-          attempt,
-          retryAfter === undefined ? backoff : Math.max(Math.min(retryAfter, MAX_RETRY_AFTER_MS), backoff),
-          url,
-          status,
-        );
+        await this.backOff(attempt, retryAfter === undefined ? backoff : Math.max(retryAfter, backoff), url, status);
         continue;
       }
 
@@ -1036,7 +1036,18 @@ export class RequestEngine {
       if (status < 200 || status >= 300) {
         // A 429/503 that is still there after the retries says so ("retried n times").
         const location = responseHeaders["location"];
-        throw this.toApiError(url, status, body, retryable ? attempt : 0, download, typeof location === "string" ? location : undefined);
+        throw this.toApiError(
+          url,
+          status,
+          body,
+          retryable ? attempt : 0,
+          download,
+          typeof location === "string" ? location : undefined,
+          tooLong
+            ? `the server asked to retry after ${Math.ceil(retryAfter / 1000)} s (Retry-After), longer than the ${MAX_RETRY_AFTER_MS / 1000} s ` +
+                "this client waits, so it was not retried: retrying sooner won't help, try again later"
+            : undefined,
+        );
       }
 
       return { data: body, contentType, status };
@@ -1128,6 +1139,7 @@ export class RequestEngine {
     retries: number,
     download: Download,
     locationHeader: string | undefined,
+    hint?: string,
   ): RegionalatlasApiError {
     // The body is kept on the error (`body`) and may echo the request URL: scrub it. One too
     // large to be a string (maxResponseBytes lifted) is left out: the status is the error.
@@ -1178,6 +1190,7 @@ export class RequestEngine {
       download,
       ...(detail === undefined ? {} : { detail }),
       ...(location === undefined ? {} : { location }),
+      ...(hint === undefined ? {} : { hint }),
     });
   }
 
