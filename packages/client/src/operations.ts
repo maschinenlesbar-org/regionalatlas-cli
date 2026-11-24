@@ -210,7 +210,10 @@ export async function findIndicators(client: RegionalatlasClient, options: FindI
       total: 0,
       indicators: [],
       searched,
-      reason: `None of the ${all.length} indicators of the catalogue matches.${tips.length > 0 ? ` Try ${tips.join("; ")}.` : ""}`,
+      reason:
+        `None of the ${all.length} indicators of the catalogue matches.` +
+        (search === undefined ? "" : " The catalogue is in German: search a German word stem, also for an English question (not population or unemployment).") +
+        (tips.length > 0 ? ` Try ${tips.join("; ")}.` : ""),
     };
   }
   if (offset >= kept.length) {

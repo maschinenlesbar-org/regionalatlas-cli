@@ -107,6 +107,9 @@ test("findIndicators: nothing found is empty with what was searched and what to 
   assert.deepEqual(result.searched, { search: "Fischerei", year: 2024 });
   assert.match(result.reason ?? "", /None of the 5 indicators/);
   assert.match(result.reason ?? "", /word stem/);
+  const english = await findIndicators(client, { search: "population density" });
+  assert.equal(english.status, "empty");
+  assert.match(english.reason ?? "", /catalogue is in German: search a German word stem, also for an English question/);
 });
 
 test("findIndicators: a year listed without figures at any level is named in emptyYears", async () => {

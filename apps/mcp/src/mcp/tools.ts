@@ -81,7 +81,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Find a Regionalatlas indicator",
     description: [
       'Search the Regionalatlas catalogue for indicators: by topic, code, theme, year or level, each with its years, its levels and its value columns (what each measures, its unit). Use it for "welche Regionalstatistiken gibt es?", "Indikator für Bevölkerungsdichte", "Code für Arbeitslosenquote", "welche Jahre gibt es für die Bundestagswahl?", "what regional statistics are available?", "find the code for population density", "which indicators exist per Gemeinde?", "which years does this indicator cover?".',
-      "Search a word stem (bevölk, wahl, arbeitslos; umlauts may be spelled out). The search matches the code, the titles and the value columns: a topic that is only a column (Wahlbeteiligung is a column of AI005) comes with matchedFields. A code (AI005) gives that indicator alone, with its levels per year; with theme, year or level too, only if it has them (else empty, saying what it has). Years have gaps (elections only in election years); emptyYears are listed but have no figures; the newest year may not be loaded yet. levels: not every indicator exists per Kreis or Gemeinde (AIGG-01 only per Land). Pass the code to getIndicatorMap or compareRegions; never use a title as a code.",
+      "The catalogue is in German: search a German word stem (bevölk, wahl, arbeitslos; umlauts may be spelled out), even for an English question. The search matches the code, the titles and the value columns: a topic that is only a column (Wahlbeteiligung is a column of AI005) comes with matchedFields. A code (AI005) gives that indicator alone, with its levels per year (levelsByYear, which any answer of exactly one indicator has); with theme, year or level too, only if it has them (else empty, saying what it has). Years have gaps (elections only in election years); emptyYears are listed but have no figures; the newest year may not be loaded yet. levels: not every indicator exists per Kreis or Gemeinde (AIGG-01 only per Land). Pass the code to getIndicatorMap or compareRegions; never use a title as a code.",
       RULES,
     ].join("\n\n"),
     inputSchema: input({
@@ -92,7 +92,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       offset,
       limit: limit(100, 20, "indicators"),
     }),
-    outputSchema: output({ indicators: arr, exact: bool }),
+    outputSchema: output({ indicators: { type: "array", description: "Each with code, theme, titles, years, levels, emptyYears (listed years without figures), fields (value columns: code, title, unit), matchedFields (when only a column matched), and levelsByYear when the answer holds exactly one indicator." }, exact: bool }),
     source: (_args, base) => catalogSource(base),
     paged: (args) => ({ list: "indicators", offset: num(args, "offset") ?? 0 }),
     async run(args, context) {
