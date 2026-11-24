@@ -644,7 +644,11 @@ export interface CompareRegionsResult {
   field?: IndicatorField;
   level?: string;
   year?: number;
-  /** The whole level: regions with and without a figure, mean, median, lowest, highest. */
+  /**
+   * The whole level: regions with and without a figure, mean, median, lowest, highest. The mean
+   * and median are of the regions' values, unweighted (each region once): not the figure for
+   * Germany.
+   */
   levelStats?: { regions: number; withFigure: number; withoutFigure: number; mean?: number; median?: number; lowest?: ComparedRegion; highest?: ComparedRegion };
   /** The named regions found, highest first (no figure last). */
   regions?: ComparedRegion[];
@@ -788,6 +792,11 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
   const fill = fillNote(fetched.rows, t.level);
   if (fill !== undefined) notes.push(fill);
   if (fetched.rows.some((row) => reasonOf(row) === NOTHING)) notes.push('A 0 with missing "nichts vorhanden" is the table symbol "-": exactly zero, ranked as 0.');
+  if (mean !== undefined) {
+    notes.push(
+      `levelStats' mean and median are of the ${values.length} regions' values, unweighted (each region counts once, whatever its population): not the figure for Germany${t.level === "land" ? "" : " or a Land"}, which the Regionalatlas doesn't give here; vsMean is against that mean.`,
+    );
+  }
   if (levelStats.withoutFigure > 0) notes.push(`${levelStats.withoutFigure} of ${fetched.rows.length} regions have no figure: left out of ranks, mean and median.`);
   const base = { ...head, field, year: fetched.year, levelStats };
   if (regions === undefined) {

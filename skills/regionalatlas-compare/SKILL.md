@@ -83,7 +83,9 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   plus the 9 Bundesländer that have none — and `kreis`/`gemeinde` carry Berlin and
   Hamburg at 2 digits. Each level is still a complete, non-overlapping cover of
   Germany, so a rank or an average over one is sound; just don't call all 38 rows
-  Regierungsbezirke. Row counts follow the reporting year's boundaries (2000: 40 `rb`
+  Regierungsbezirke. Such an average is of the regions' rates, each region counted once
+  whatever its size: call it "the average of the Kreise" (or Länder), not "the German
+  figure", which it is not. Row counts follow the reporting year's boundaries (2000: 40 `rb`
   rows, 440 Kreise with two named Hannover), so compare by `ags` across years.
 - **`--region` is one selector per call** — for many regions, fetch the level once and
   filter with `jq` rather than N requests.
