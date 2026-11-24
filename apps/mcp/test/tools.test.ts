@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Client } from "../src/mcp/api.js";
 import { listTools } from "../src/mcp/server.js";
+import { SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import { ELECTION_LAND_2025, regionalatlasApi, sqlOf } from "./helpers.js";
 
@@ -133,6 +134,29 @@ test("the pages of a Gemeinde-sized map read the level's answer once: the server
   await connection.call("compareRegions", { indicator: "AI005", field: "ai0506", year: 2025 });
   await connection.close();
   assert.equal(dataRequests(mock).length, 1);
+});
+
+test("the deadline's and the size cap's advice fit every tool: each option named with the tools that take it, the catalogue named", async () => {
+  const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
+  const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
+  const deadline = (await connection.call("listThemes", {})).content[0]?.text ?? "";
+  await connection.close();
+  assert.match(deadline, /took longer than .* and was stopped/);
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  for (const text of [deadline, SIZE_HINT]) {
+    assert.match(text, /catalogue/, "the catalogue, read before every call, is named");
+    const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+    assert.ok(pairs.length >= 1, text);
+    for (const [, options, tools] of pairs) {
+      for (const tool of (tools as string).split(", ")) {
+        for (const option of (options as string).split(" or ")) assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${text}`);
+      }
+    }
+    const named = new Set(pairs.flatMap(([, options]) => (options as string).split(" or ")));
+    for (const option of ["level", "fields", "limit", "top", "regions", "year"]) {
+      assert.ok(!new RegExp(`\\b${option}\\b`).test(text) || named.has(option), `${option} named without its tools: ${text}`);
+    }
+  }
 });
 
 // --- The SQL guard, through the tools ---
