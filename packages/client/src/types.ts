@@ -193,6 +193,12 @@ export interface RegionRow {
   ags: string;
   /** Gebietsname (region name), trimmed. */
   name: string;
+  /**
+   * The long name (`gen2`, trimmed) when it differs from `name`: it says what kind of region
+   * it is ("Verden, Landkreis", "München, kreisfreie Stadt"), where the short name of 226 of
+   * the 276 Landkreise and Kreise doesn't ("Verden", "Offenbach").
+   */
+  longName?: string;
   /** The `typ` integer (geo level). */
   typ: GeoLevel;
   /** The friendly geo-level name (e.g. "land"). */
@@ -220,11 +226,16 @@ export interface RegionRow {
  * - `ags-filled`: a numeric region that no row carries, but that is a row's shorter key
  *   padded with zeros — the official 8-digit key `09162000` of München matches the
  *   `09162` row at gemeinde level, `11000` Berlin's `11` at kreis level;
- * - `name`: rows whose whole name equals the text (case-insensitive, NFC);
+ * - `name`: rows whose whole name equals the text (case-insensitive, NFC; umlauts and ß may be
+ *   spelled out: `Muenchen`);
+ * - `name-form`: a name in the form users write, which the data writes otherwise:
+ *   `Landkreis München` or `Kreis Lippe` (the data's `München, Landkreis`, `Lippe, Kreis`),
+ *   `Stadt Kassel` or `Kreisfreie Stadt Kassel` (the city `Kassel`), matched with the kind
+ *   the long name (`gen2`) gives;
  * - `substring`: no name is equal, so every row whose name contains the text;
  * - `none`: nothing matched.
  */
-export type RegionMatchKind = "ags" | "ags-filled" | "name" | "substring" | "none";
+export type RegionMatchKind = "ags" | "ags-filled" | "name" | "name-form" | "substring" | "none";
 
 /** The result of `matchRegion`: the rows a region picked, and how. */
 export interface RegionMatch {

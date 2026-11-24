@@ -389,6 +389,22 @@ test("compareRegions: a name several Kreise contain is ambiguous with the candid
   assert.equal(result.notFound?.[0]?.asked, "Bayern");
 });
 
+test("compareRegions: 'Landkreis München', 'Stadt München', 'Kreisfreie Stadt Leipzig' and 'Muenchen' find their region", async () => {
+  const { client } = api();
+  const ask = (regions: string[]) => compareRegions(client, { indicator: "AI002-1-5", field: "ai0201", level: "kreis", year: 2024, regions });
+  const found = await ask(["Landkreis München", "Landkreis Verden", "Stadt München", "Kreisfreie Stadt Leipzig"]);
+  assert.equal(found.status, "ok", JSON.stringify(found.notFound ?? found.ambiguousRegions));
+  assert.deepEqual(
+    Object.fromEntries((found.regions ?? []).map((r) => [r.asked, [r.ags, r.matchedBy]])),
+    { "Landkreis München": ["09184", "name-form"], "Landkreis Verden": ["03361", "name-form"], "Stadt München": ["09162", "name-form"], "Kreisfreie Stadt Leipzig": ["14713", "name-form"] },
+  );
+  const spelled = await ask(["Muenchen"]);
+  assert.deepEqual(spelled.regions?.map((r) => [r.ags, r.matchedBy]), [["09162", "name"]]);
+  const missing = await ask(["Landkreis Leipzig"]);
+  assert.equal(missing.status, "empty");
+  assert.match(missing.notFound?.[0]?.reason ?? "", /names a Landkreis/);
+});
+
 test("compareRegions: without regions, the highest and lowest of the level; regions without a figure out of ranks and mean", async () => {
   const rows = { "ai005/1/2025": ELECTION_LAND_2025.map((r) => (r["ags"] === "16" ? { ...r, ai0507: 5555555555 } : r)) };
   const { client } = api({ rows });

@@ -134,7 +134,7 @@ export function regionNote(
     );
   }
   if (rows.length > 1) {
-    const how = match.by === "name" ? "share that exact name" : "contain it in their name (no name equals it)";
+    const how = match.by === "name" ? "share that exact name" : match.by === "name-form" ? "fit that name and kind" : "contain it in their name (no name equals it)";
     return (
       `--region ${asked} is ambiguous: ${rows.length} rows ${how}: ${regionList(rows)}. ` +
       "Pick one region by its AGS (--region <ags>)."

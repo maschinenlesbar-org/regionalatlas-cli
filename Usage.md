@@ -101,8 +101,9 @@ title, which `--search` also matches (it contains the theme name).
 | `--fields <a,b,c>` | keep only these value fields (comma-separated; repeating the option adds to the list); names are checked against the indicator's columns, and an empty item (`ai0201,,ai0202`, a trailing comma) is refused |
 
 The positional `<indicator-code>` accepts the code form (`AI002-1-5`) or the table
-form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, typ, level, year,
-values }, …]`, one row per region. A value the upstream sent as a special-value code
+form (`ai002_1_5`), case-insensitively. Output is `[{ ags, name, longName?, typ, level, year,
+values }, …]`, one row per region (`longName`, the data's `gen2`, only where it differs from
+`name`: `"Verden, Landkreis"`). A value the upstream sent as a special-value code
 (`2222222222` = nichts vorhanden, `6666666666` = Aussage nicht sinnvoll, …; see
 [GLOSSARY.md](GLOSSARY.md)) is never the code: `2222222222`, the table symbol `-` for
 exactly zero, is `0`, every other code is `null`, and the row then carries a `missing`
@@ -153,7 +154,12 @@ indicator's value columns first — `indicators` lists them with their titles an
   too; `Gera` is Gera, not Groß-Gerau; `München` at `kreis` is the city (`09162`), not
   `München, Landkreis` — and an `INFO` note on stderr names the rows that only contain the
   text. Without a whole-name match, every row whose name contains the text
-  (`--region Neustadt` at `gemeinde`: 21 rows).
+  (`--region Neustadt` at `gemeinde`: 21 rows). When nothing matches, umlauts and ß may be
+  spelled out (`Muenchen`), and a name in the order people write it is understood:
+  `Landkreis München` or `Kreis Lippe` is the Landkreis or Kreis (the data writes `München,
+  Landkreis`, or the bare name with the kind in the long name), `Stadt Kassel` or
+  `Kreisfreie Stadt Kassel` the city. A row whose long name (the data's `gen2`) differs from
+  its name carries it as `longName` (`"Verden, Landkreis"`).
 - **Several rows can still match** — a name two regions share (two Gemeinden called
   Halle; `Hannover` twice in the Kreis rows of 2000) or a part of a name. All are
   printed, and an `INFO` note on stderr says the region is ambiguous and lists them; pick one

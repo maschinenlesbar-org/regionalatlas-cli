@@ -26,7 +26,8 @@ Regionalatlas terms and fields, as the CLI surfaces them.
 ## Reading the data
 
 - **`query` returns one row per region** at the chosen `--level`: `{ ags, name, typ,
-  level, year, values }`.
+  level, year, values }`, plus `longName` (the data's `gen2`, "Verden, Landkreis") where it
+  differs from `name`: the short name of most Landkreise doesn't say it is one.
 - **A `null` value** means the indicator has no figure for that region/year. When the
   upstream sent a special-value code instead, the row's `missing` object names the
   reason (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …), and so it does for a value

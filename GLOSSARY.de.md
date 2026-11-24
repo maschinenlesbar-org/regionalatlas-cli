@@ -26,7 +26,8 @@ Begriffe und Felder des Regionalatlas, so wie die CLI sie ausgibt.
 ## Die Daten lesen
 
 - **`query` liefert eine Zeile je Region** auf der gewählten `--level`-Ebene: `{ ags, name, typ,
-  level, year, values }`.
+  level, year, values }`, dazu `longName` (das `gen2` der Daten, „Verden, Landkreis“), wo er sich
+  von `name` unterscheidet: der Kurzname der meisten Landkreise sagt nicht, dass es einer ist.
 - **Ein `null`-Wert** bedeutet, dass der Indikator für diese Region bzw. dieses Jahr keinen Wert hat.
   Hat der Upstream stattdessen einen Sonderwert geschickt, nennt das Objekt `missing` der Zeile
   den Grund (`Wert geheim zu halten`, `Aussage nicht sinnvoll`, …), ebenso für einen Wert, den der

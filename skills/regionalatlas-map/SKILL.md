@@ -51,6 +51,7 @@ named Hannover), so report the count you got, not a fixed one.
 |---|---|
 | `ags` | Amtlicher Gemeindeschlüssel (region key, a string; leading zeros matter) |
 | `name` | Gebietsname (region name) |
+| `longName` | only where it differs from `name`: the long name with the kind (`Verden, Landkreis`, `München, kreisfreie Stadt`) |
 | `year` | reporting year |
 | `values` | `{ <valueField>: number\|null }` — the indicator's value columns, keyed by bare codes (`ai0201`). `indicators` gives each column's title and unit |
 | `missing` | only on rows where the upstream sent a special-value code, or a value the client can't read as a number: `{ <valueField>: reason }`; that field's value is `0` for `"nichts vorhanden"` (exactly zero), else `null` (`unreadable value "1,5" (not a number)` for an unreadable one) |

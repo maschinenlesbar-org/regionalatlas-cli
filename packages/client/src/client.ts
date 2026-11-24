@@ -512,6 +512,8 @@ export function parseRow(
   const ags = String(attrs.ags ?? "").trim();
   const rawName = typeof attrs.gen === "string" ? attrs.gen : attrs.gen2;
   const name = typeof rawName === "string" ? rawName.trim() : "";
+  const long = typeof attrs.gen2 === "string" ? attrs.gen2.trim() : "";
+  const longName = long !== "" && long !== name ? { longName: long } : {};
 
   // Null-prototype map: the keys are attacker-controllable ArcGIS field names, so a
   // `__proto__`/`constructor` field in a hostile/MITM'd body must land as a plain data
@@ -541,8 +543,8 @@ export function parseRow(
   }
 
   return missing === undefined
-    ? { ags, name, typ, level, year, values }
-    : { ags, name, typ, level, year, values, missing };
+    ? { ags, name, ...longName, typ, level, year, values }
+    : { ags, name, ...longName, typ, level, year, values, missing };
 }
 
 /**
@@ -605,6 +607,11 @@ function officialKey(digits: string): string {
  *   Gemeinden called Halle; `Hannover` twice in the Kreis rows of 2000), or a text that
  *   is no whole name (`Neustadt` at gemeinde level: 21 rows) — so check `rows.length`,
  *   and pick one region by its `ags`.
+ * - When nothing matched: the same with the umlauts and ß spelled out on both sides
+ *   (`Muenchen`), then a name in the order users write it (`by: "name-form"`): `Landkreis
+ *   München` or `Kreis Lippe` is the region the data names `München, Landkreis` (or `Verden`,
+ *   long name `Verden, Landkreis`), `Stadt Kassel` or `Kreisfreie Stadt Kassel` the city
+ *   `Kassel`, by the kind the long name (`RegionRow.longName`, the data's `gen2`) gives.
  *
  * A blank region throws `RegionalatlasValidationError` rather than matching every row.
  */
@@ -629,16 +636,55 @@ export function matchRegion(rows: RegionRow[], region: string): RegionMatch {
     }
     return filled.length > 0 ? { by: "ags-filled", rows: filled, others: [] } : { by: "none", rows: [], others: [] };
   }
-  const needle = foldText(trimmed);
+  const byName = matchName(rows, foldText(trimmed), (name) => foldText(name));
+  if (byName.by !== "none") return byName;
+  // Umlauts and ß spelled out (Muenchen, Strasse), on both sides.
+  const spelled = matchName(rows, spellOut(trimmed), spellOut);
+  if (spelled.by !== "none") return spelled;
+  return matchNameForm(rows, trimmed);
+}
+
+/** Text folded for a name comparison with the umlauts and ß spelled out: "München" and "Muenchen" alike. */
+function spellOut(text: string): string {
+  return foldText(text).replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
+}
+
+/** Rows whose whole name equals `needle` (with the others containing it), else those containing it. */
+function matchName(rows: RegionRow[], needle: string, fold: (name: string) => string): RegionMatch {
   const exact: RegionRow[] = [];
   const contains: RegionRow[] = [];
   for (const r of rows) {
-    const name = foldText(r.name);
+    const name = fold(r.name);
     if (name === needle) exact.push(r);
     else if (name.includes(needle)) contains.push(r);
   }
   if (exact.length > 0) return { by: "name", rows: exact, others: contains };
   return contains.length > 0 ? { by: "substring", rows: contains, others: [] } : { by: "none", rows: [], others: [] };
+}
+
+/** "Landkreis X", "Kreis X", "Stadt X", "Kreisfreie Stadt X", "Stadtkreis X": the kind, then the name. */
+const NAME_FORM = /^(landkreis|lkr\.?|kreis|kreisfreie stadt|stadtkreis|stadt)\s+(.+)$/;
+
+/**
+ * A name in the order users write ("Landkreis München", "Stadt Kassel"): the rows whose name
+ * (or long name before its comma) is the rest, of the kind the long name (`gen2`: "München,
+ * Landkreis", "Kassel, kreisfreie Stadt") says. A Kreis is a Landkreis or a Kreis, a Stadt a
+ * kreisfreie Stadt (or Stadtkreis).
+ */
+function matchNameForm(rows: RegionRow[], text: string): RegionMatch {
+  const form = NAME_FORM.exec(spellOut(text));
+  if (form === null) return { by: "none", rows: [], others: [] };
+  const city = (form[1] as string).includes("stadt");
+  const wanted = spellOut(form[2] as string);
+  const matched = rows.filter((r) => {
+    const long = r.longName ?? r.name;
+    const comma = long.lastIndexOf(",");
+    const base = comma < 0 ? long : long.slice(0, comma);
+    const kind = comma < 0 ? "" : spellOut(long.slice(comma + 1));
+    if (spellOut(base) !== wanted && spellOut(r.name) !== wanted) return false;
+    return city ? kind.includes("stadt") : /kreis/.test(kind) && !kind.includes("kreisfrei");
+  });
+  return matched.length > 0 ? { by: "name-form", rows: matched, others: [] } : { by: "none", rows: [], others: [] };
 }
 
 /**

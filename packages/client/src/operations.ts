@@ -791,7 +791,9 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
     if (match.rows.length === 0) {
       notFound.push({
         asked,
-        reason: `No region at level ${t.level} has this ${/^\d+$/.test(asked.trim()) ? "key" : "name"} (${fetched.rows.length} regions). All regions compared must be of one level: a Land at land, a Kreis or kreisfreie Stadt at kreis, a Gemeinde at gemeinde.`,
+        reason: /^\d+$/.test(asked.trim())
+          ? `No region at level ${t.level} has this key (${fetched.rows.length} regions). All regions compared must be of one level: a Land at land, a Kreis or kreisfreie Stadt at kreis, a Gemeinde at gemeinde.`
+          : `No region at level ${t.level} has this name (${fetched.rows.length} regions). The data names a Landkreis "X, Landkreis" or X alone, a kreisfreie Stadt by its name ("Kassel"); "Landkreis X" and "Stadt X" are understood, umlauts may be spelled out. Check the spelling, or the level: a Land is at land, a Kreis or kreisfreie Stadt at kreis, a Gemeinde at gemeinde.`,
       });
       continue;
     }
