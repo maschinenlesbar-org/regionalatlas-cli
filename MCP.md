@@ -84,12 +84,12 @@ figure (null, with the reason), but "nichts vorhanden" is exactly 0, except as a
 indicator's first year; a region name that several regions share or contain (Neustadt) is reported
 with its candidates, and an exact name (München) names the regions that only contain it. A text over
 2000 characters is cut and ends in `…[cut, N characters in all]`, and the answer says `truncated`.
-An answer over `--max-result-chars` first loses entries from the end of its page (`nextOffset` says
-where to go on), then has its longest texts cut further (each with that mark) or, when that isn't
-enough, its other lists shortened; a list keeps its first entry, `notes` stay whole, and the answer
-says `truncated`. One that can't be cut down so far is a tool error that says to ask for less. A
-failure is a tool error that says what to change (one over 5000 characters loses its middle, never
-its end, where the reason is).
+An answer over `--max-result-chars` first loses entries from the end of its page (then `nextOffset`
+says where to go on), then has its longest texts cut further (each with that mark) or, when that
+isn't enough, its other lists shortened (`reason` names them); a list keeps its first entry, `notes`
+stay whole, and the answer says `truncated`. One that can't be cut down so far is a tool error that
+says to ask for less. A failure is a tool error that says what to change (one over 5000 characters
+loses its middle, never its end, where the reason is).
 
 The data come from two hosts: the indicator catalogue (`services.json` on
 regionalatlas.statistikportal.de) and the ArcGIS data host (www.gis-idmz.nrw.de), which runs a
