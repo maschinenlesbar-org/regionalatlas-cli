@@ -72,6 +72,24 @@ test("findIndicators: theme, year and level filter; a level counts when some yea
   assert.deepEqual(levels, ["land"], "AIGG-01 is published per Land only");
 });
 
+test("findIndicators: a code with a theme, year or level is checked against them, never answered as if they held", async () => {
+  const { client } = api();
+  const kreis = await findIndicators(client, { search: "AIGG-01", level: "kreis" });
+  assert.equal(kreis.status, "empty");
+  assert.deepEqual(kreis.indicators, []);
+  assert.match(kreis.reason ?? "", /AIGG-01 .*no figures at level kreis.*land/);
+  const year = await findIndicators(client, { search: "AI005", year: 2024 });
+  assert.equal(year.status, "empty");
+  assert.match(year.reason ?? "", /AI005 offers no year 2024.*2021, 2025/);
+  const theme = await findIndicators(client, { search: "AI005", theme: "Umwelt" });
+  assert.equal(theme.status, "empty");
+  assert.match(theme.reason ?? "", /AI005 is in the theme "Wahlen", not "Umwelt"/);
+  const fits = await findIndicators(client, { search: "AI005", theme: "Wahl", year: 2025, level: "kreis" });
+  assert.equal(fits.status, "ok");
+  assert.equal(fits.exact, true);
+  assert.deepEqual(fits.searched, { search: "AI005", theme: "Wahl", year: 2025, level: "kreis" });
+});
+
 test("findIndicators: nothing found is empty with what was searched and what to try", async () => {
   const { client } = api();
   const result = await findIndicators(client, { search: "Fischerei", year: 2024 });

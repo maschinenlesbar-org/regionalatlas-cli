@@ -148,7 +148,7 @@ export interface FindIndicatorsResult {
   total: number;
   indicators: IndicatorSummary[];
   nextOffset?: number;
-  /** True when the search named one indicator by its code: it alone is the answer. */
+  /** True when the search named one indicator by its code: it alone is the answer (empty when it fails a theme, year or level given with it). */
   exact?: boolean;
   searched?: Record<string, string | number>;
   reason?: string;
@@ -179,17 +179,20 @@ export async function findIndicators(client: RegionalatlasClient, options: FindI
     ...(levelName === undefined ? {} : { level: levelName }),
   };
   const all = await client.indicators();
+  const filters = { theme, year, level: levelName };
   const exact = search === undefined || tokenProblem(search.trim()) !== undefined ? undefined : byCode(all, search.trim());
   if (exact !== undefined) {
-    return { status: "ok", total: 1, indicators: [summary(exact, true)], exact: true, notes: [NEWEST_NOTE] };
+    // A code names its indicator alone, but the other filters still hold: "does AIGG-01 exist
+    // per Kreis?" is answered no, with what it has, never with the indicator as if it did.
+    const problem = filterProblem(exact, filters);
+    if (problem !== undefined) {
+      return { status: "empty", total: 0, indicators: [], exact: true, searched, reason: `${problem} Call again without that filter for what it has.` };
+    }
+    return { status: "ok", total: 1, indicators: [summary(exact, true)], exact: true, ...(Object.keys(searched).length > 1 ? { searched } : {}), notes: [NEWEST_NOTE] };
   }
-  const themeKey = theme === undefined ? undefined : searchKey(theme);
-  const kept = (search === undefined ? all.map((indicator): { indicator: Indicator; matchedFields?: string[] } => ({ indicator })) : searchIndicators(all, search)).filter(({ indicator }) => {
-    if (themeKey !== undefined && !searchKey(indicator.theme).includes(themeKey)) return false;
-    if (year !== undefined && !indicator.years.includes(String(year))) return false;
-    if (levelName !== undefined && yearsAtLevel(indicator, levelName).length === 0) return false;
-    return true;
-  });
+  const kept = (search === undefined ? all.map((indicator): { indicator: Indicator; matchedFields?: string[] } => ({ indicator })) : searchIndicators(all, search)).filter(
+    ({ indicator }) => filterProblem(indicator, filters) === undefined,
+  );
   if (kept.length === 0) {
     const tips = [
       search === undefined ? undefined : "a word stem (bevölk, wahl, arbeitslos) or a broader topic",
@@ -218,6 +221,15 @@ export async function findIndicators(client: RegionalatlasClient, options: FindI
     ...(Object.keys(searched).length > 0 ? { searched } : {}),
     notes: [...(search === undefined ? [] : [SEARCH_NOTE]), NEWEST_NOTE],
   };
+}
+
+/** Why an indicator fails the theme, year or level filter (the first that fails), or undefined. */
+function filterProblem(indicator: Indicator, filters: { theme?: string | undefined; year?: number | undefined; level?: string | undefined }): string | undefined {
+  const { theme, year, level } = filters;
+  if (theme !== undefined && !searchKey(indicator.theme).includes(searchKey(theme))) return `${indicator.code} is in the theme "${indicator.theme}", not "${theme}".`;
+  if (year !== undefined && !indicator.years.includes(String(year))) return `${indicator.code} offers no year ${year}; its years: ${indicator.years.join(", ")}.`;
+  if (level !== undefined && yearsAtLevel(indicator, level).length === 0) return `${indicator.code} has no figures at level ${level} in any year; it is published at ${levelsOf(indicator).join(", ") || "no level the catalogue names"}.`;
+  return undefined;
 }
 
 function firstAndLast(indicators: readonly Indicator[]): string {
