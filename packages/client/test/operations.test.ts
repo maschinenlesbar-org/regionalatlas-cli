@@ -132,6 +132,20 @@ test("findIndicators: pages with offset and limit; the whole catalogue without a
   await assert.rejects(findIndicators(client, { level: "bezirk" }), RegionalatlasValidationError);
 });
 
+test("an offset past the end is empty with a reason naming the total, in findIndicators and getIndicatorMap", async () => {
+  const { client } = api();
+  const found = await findIndicators(client, { offset: 500 });
+  assert.equal(found.status, "empty");
+  assert.equal(found.total, 5);
+  assert.deepEqual(found.indicators, []);
+  assert.match(found.reason ?? "", /offset 500 is past the end: 5 indicators match/);
+  const map = await getIndicatorMap(client, { indicator: "AI005", year: 2025, offset: 16 });
+  assert.equal(map.status, "empty");
+  assert.equal(map.total, 16);
+  assert.deepEqual(map.rows, []);
+  assert.match(map.reason ?? "", /offset 16 is past the end: the level has 16 regions/);
+});
+
 // --- listThemes ---
 
 test("listThemes: each theme with its count and its indicators", async () => {

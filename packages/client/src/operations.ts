@@ -123,6 +123,11 @@ function page<T>(items: readonly T[], offset: number, limit: number): { items: T
   return { items: slice, ...(next < items.length ? { nextOffset: next } : {}) };
 }
 
+/** The reason of an empty page: the offset is past the end of the list. */
+function pastTheEnd(offset: number, what: string, total: number): string {
+  return `offset ${offset} is past the end: ${what}. Start at 0, or at most ${total - 1} for the last entry.`;
+}
+
 function checkPaging(offset: number | undefined, limit: number | undefined, maxLimit: number): void {
   if (offset !== undefined) assertValid("offset", offset, (v) => (Number.isSafeInteger(v) && v >= 0 ? undefined : "Expected a non-negative integer."));
   if (limit !== undefined) assertValid("limit", limit, (v) => (Number.isSafeInteger(v) && v >= 1 && v <= maxLimit ? undefined : `Expected an integer from 1 to ${maxLimit}.`));
@@ -207,6 +212,9 @@ export async function findIndicators(client: RegionalatlasClient, options: FindI
       searched,
       reason: `None of the ${all.length} indicators of the catalogue matches.${tips.length > 0 ? ` Try ${tips.join("; ")}.` : ""}`,
     };
+  }
+  if (offset >= kept.length) {
+    return { status: "empty", total: kept.length, indicators: [], searched: { ...searched, offset }, reason: pastTheEnd(offset, `${kept.length} indicators match`, kept.length) };
   }
   const { items, nextOffset } = page(kept, offset, limit);
   const indicators = items.map(({ indicator, matchedFields }) => ({
@@ -512,8 +520,10 @@ export async function getIndicatorMap(client: RegionalatlasClient, options: Indi
     notes.push('A 0 with missing "nichts vorhanden" is the table symbol "-": exactly zero, a figure on the scale, not "no data".');
   }
   const { items, nextOffset } = page(rows, offset, limit);
+  const past = rows.length > 0 && offset >= rows.length;
   return {
-    status: rows.length > 0 ? "ok" : "empty",
+    status: rows.length > 0 && !past ? "ok" : "empty",
+    ...(past ? { reason: pastTheEnd(offset, `the level has ${rows.length} regions`, rows.length) } : {}),
     ...head,
     year: fetched.year,
     fields: dictionaryFor(indicator, keys),

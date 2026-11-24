@@ -72,7 +72,7 @@ const indicator: JsonSchema = { type: "string", minLength: 1, maxLength: 100, de
 const level: JsonSchema = { type: "string", enum: [...LEVEL_NAMES], description: "land (16 Bundesländer, default), regierungsbezirk, kreis (400 Kreise and kreisfreie Städte) or gemeinde (about 11,000)." };
 const year: JsonSchema = { type: "integer", minimum: 1990, maximum: 2100, description: "The reporting year; default: the newest with figures at the level (the year before when the newest isn't loaded yet)." };
 const column: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z0-9_-]+$", description: 'A value column\'s code ("ai0201"), from an indicator\'s fields.' };
-const offset: JsonSchema = { type: "integer", minimum: 0, maximum: 20_000, description: "Where the page starts (default 0); nextOffset says where the next one does." };
+const offset: JsonSchema = { type: "integer", minimum: 0, maximum: 20_000, description: "Where the page starts (default 0); nextOffset says where the next one does. One past the end is status empty with the total." };
 const limit = (max: number, fallback: number, what: string): JsonSchema => ({ type: "integer", minimum: 1, maximum: max, description: `How many ${what} per page (1-${max}, default ${fallback}).` });
 
 export const TOOLS: readonly ToolDefinition[] = [
