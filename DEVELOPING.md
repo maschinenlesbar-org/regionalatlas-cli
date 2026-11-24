@@ -182,7 +182,10 @@ years:{ "2020": […], … }}`. The SQL table name is derived from the code:
 available years are `Object.keys(child.years)`.
 
 The catalogue is fetched once and cached per client instance (a `query` needs it to
-resolve the indicator).
+resolve the indicator), or for `catalogMaxAgeMs`. Calls that need it while it downloads share
+that one download (`listThemes` asks for the themes and the indicators at once); a waiter whose
+shared download failed on the network downloads it once more on its own, so a cancelled call
+that started it fails no other.
 
 `parseIndicators` leaves out what the SQL guard would refuse later: an entry whose
 code is not letters/digits joined by `-`/`_`, a year key that is not four digits

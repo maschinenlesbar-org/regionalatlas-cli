@@ -306,6 +306,33 @@ test("a catalogue entry whose code isn't a plain code is left out, so it can't b
 
 // --- The catalogue's age ---
 
+test("calls that need the catalogue at the same time share one download (listThemes asks for it twice)", async () => {
+  const catalogueRequests = (mock: ReturnType<typeof regionalatlasApi>) => mock.calls.length - dataRequests(mock).length;
+  const both = regionalatlasApi();
+  const client = new RegionalatlasClient({ transport: both.transport, catalogMaxAgeMs: 3_600_000 });
+  const [themes] = await Promise.all([listThemes(client), findIndicators(client, { search: "AI005" })]);
+  assert.equal(themes.status, "ok");
+  assert.equal(catalogueRequests(both), 1);
+  // A shared download that fails on the network (the call that started it was cancelled) fails
+  // only its starter: a waiter downloads it once more on its own.
+  let first = true;
+  const flaky = regionalatlasApi();
+  const shaky = new RegionalatlasClient({
+    transport: async (request) => {
+      if (first) {
+        first = false;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        throw Object.assign(new Error("socket hang up"), { code: "ECONNREFUSED" });
+      }
+      return flaky.transport(request);
+    },
+    maxRetries: 0,
+  });
+  const [starter, waiter] = await Promise.allSettled([shaky.indicators(), shaky.indicators()]);
+  assert.equal(starter.status, "rejected");
+  assert.equal(waiter.status, "fulfilled");
+});
+
 test("catalogMaxAgeMs: the catalogue is fetched again once it is older; unset, once per client", async () => {
   const catalogueRequests = (mock: ReturnType<typeof regionalatlasApi>) => mock.calls.length - dataRequests(mock).length;
   const once = regionalatlasApi();

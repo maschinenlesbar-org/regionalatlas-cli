@@ -16,7 +16,7 @@
 //   await c.query({ indicator: "AI002-1-5", level: "land", year: 2020 }); // 16 rows
 
 import { RequestEngine, describeArcGisError, exactAtTheEdges, validateHttpUrl, type EngineOptions } from "./engine.js";
-import { RegionalatlasApiError, RegionalatlasParseError, RegionalatlasValidationError, cutForMessage, quoteValue } from "./errors.js";
+import { RegionalatlasApiError, RegionalatlasNetworkError, RegionalatlasParseError, RegionalatlasSizeLimitError, RegionalatlasValidationError, cutForMessage, quoteValue } from "./errors.js";
 import {
   assertKnownFields,
   assertLevelPublished,
@@ -107,16 +107,46 @@ export class RegionalatlasClient {
     this.#catalogMaxAgeMs = maxAge;
   }
 
-  /** Fetch and cache the raw services.json (an array of themes); an empty body is a parse error. */
+  /** The catalogue download in flight, shared by every call that needs it meanwhile. */
+  private catalogInFlight: Promise<{ value: unknown; request: string }> | undefined;
+
+  /**
+   * Fetch and cache the raw services.json (an array of themes); an empty body is a parse error.
+   * Calls that need it while it downloads share that one download (listThemes asks for the
+   * themes and the indicators at once: two 2 MB downloads before). A waiter whose shared download
+   * failed on the network (the call that started it may have been cancelled, and its request
+   * with it) downloads it once more on its own; any other failure (an answer over the size cap
+   * included) is the waiter's too.
+   */
   private async rawCatalog(): Promise<{ value: unknown; request: string }> {
     const stale = this.#catalogMaxAgeMs !== undefined && Date.now() - this.catalogFetchedAt >= this.#catalogMaxAgeMs;
-    if (this.rawCatalogCache === undefined || stale) {
+    if (this.rawCatalogCache !== undefined && !stale) return this.rawCatalogCache;
+    const shared = this.catalogInFlight;
+    if (shared !== undefined) {
+      try {
+        return await shared;
+      } catch (err) {
+        if (!(err instanceof RegionalatlasNetworkError) || err instanceof RegionalatlasSizeLimitError) throw err;
+      }
+    }
+    return this.downloadCatalog();
+  }
+
+  /** One download of the catalogue, cached when it arrives; calls that come meanwhile share it. */
+  private downloadCatalog(): Promise<{ value: unknown; request: string }> {
+    const download = (async () => {
       const { value, request } = await this.engine.getJsonAbsoluteAnswer<unknown>(this.#catalogUrl);
       this.rawCatalogCache = { value, request };
       this.indicatorsCache = undefined;
       this.catalogFetchedAt = Date.now();
-    }
-    return this.rawCatalogCache;
+      return this.rawCatalogCache;
+    })();
+    this.catalogInFlight = download;
+    const clear = (): void => {
+      if (this.catalogInFlight === download) this.catalogInFlight = undefined;
+    };
+    download.then(clear, clear);
+    return download;
   }
 
   /** Fetch and cache the flat indicator list. */
