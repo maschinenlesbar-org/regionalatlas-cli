@@ -27,7 +27,7 @@
 // applied to the rows here, never sent.
 
 import type { RegionalatlasClient } from "./client.js";
-import { matchRegion } from "./client.js";
+import { matchRegion, UNPUBLISHED_REASON } from "./client.js";
 import { columnPublished, fieldKey, findField, foldText } from "./catalog.js";
 import { GEO_LEVELS, resolveLevel } from "./levels.js";
 import { assertValid, textProblem, tokenProblem } from "./validate.js";
@@ -367,19 +367,32 @@ interface Fetched {
 }
 
 /**
+ * Whether rows carry anything of the indicator: a figure, or a special value the upstream sent.
+ * Rows of the boundary table alone (every value null without a reason) are what the data host's
+ * LEFT OUTER JOIN answers for a year the boundary table has and the indicator's table hasn't.
+ */
+function anyFigure(rows: readonly RegionRow[]): boolean {
+  return rows.some(
+    (row) => Object.values(row.values).some((value) => value !== null) || Object.values(row.missing ?? {}).some((reason) => reason !== UNPUBLISHED_REASON),
+  );
+}
+
+/**
  * The level's rows for the target's year. A year the caller left out is the newest with figures
- * at the level; when the data host has no rows for it yet (the catalogue lists years before
- * they are loaded), the year before, with a note.
+ * at the level; when the data host has no figures for it yet (no rows, or rows without a value:
+ * the catalogue lists years before they are loaded), the year before, with a note.
  */
 async function fetchRows(client: RegionalatlasClient, t: Target): Promise<Fetched | undefined> {
   const notes: string[] = [];
   for (const year of t.years) {
     const result = await client.queryResult({ indicator: t.indicator.code, level: t.level, year });
-    if (result.fetched > 0) {
+    if (result.fetched > 0 && anyFigure(result.rows)) {
       if (result.exceededTransferLimit) notes.push(`The data host stopped at its record limit after ${result.fetched} rows: the level is incomplete. Use a coarser level.`);
       return { rows: firstYearChangeRates(t.indicator, year, result.rows), year, notes, incomplete: result.exceededTransferLimit };
     }
-    if (!t.yearGiven) notes.push(`${year} is the newest year with figures at level ${t.level} in the catalogue, but the data host has no rows for it yet.`);
+    if (!t.yearGiven) {
+      notes.push(`${year} is the newest year with figures at level ${t.level} in the catalogue, but the data host has ${result.fetched > 0 ? "no figures" : "no rows"} for it yet.`);
+    }
   }
   return undefined;
 }
@@ -499,8 +512,8 @@ export async function getIndicatorMap(client: RegionalatlasClient, options: Indi
       ...head,
       searched: { indicator: indicator.code, level: t.level, ...(t.yearGiven ? { year: t.years[0] } : {}) },
       reason: t.yearGiven
-        ? `The data host has no rows for ${indicator.code} at level ${t.level} in ${t.years[0]}, though the catalogue lists the year (not loaded yet, or withdrawn). Try an earlier year.`
-        : `The data host has no rows for ${indicator.code} at level ${t.level} in ${t.years.join(" or ")}, the newest catalogue years with figures there. Name an earlier year.`,
+        ? `The data host has no rows (or no figures) for ${indicator.code} at level ${t.level} in ${t.years[0]}, though the catalogue lists the year (not loaded yet, or withdrawn). Try an earlier year.`
+        : `The data host has no rows (or no figures) for ${indicator.code} at level ${t.level} in ${t.years.join(" or ")}, the newest catalogue years with figures there. Name an earlier year.`,
       years: indicator.years,
     };
   }
@@ -679,7 +692,7 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
       ...head,
       field,
       searched: { indicator: indicator.code, level: t.level, ...(t.yearGiven ? { year: t.years[0] } : {}) },
-      reason: `The data host has no rows for ${indicator.code} at level ${t.level} in ${t.years.join(" or ")}. Name an earlier year.`,
+      reason: `The data host has no rows (or no figures) for ${indicator.code} at level ${t.level} in ${t.years.join(" or ")}. Name an earlier year.`,
       years: indicator.years,
     };
   }

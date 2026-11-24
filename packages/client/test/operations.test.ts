@@ -187,7 +187,7 @@ test("getIndicatorMap: a year the caller names is never replaced: no rows is emp
   const { client, mock } = api();
   const result = await getIndicatorMap(client, { indicator: "AI013-1", year: 2026 });
   assert.equal(result.status, "empty");
-  assert.match(result.reason ?? "", /no rows for AI013-1 at level land in 2026/);
+  assert.match(result.reason ?? "", /no rows \(or no figures\) for AI013-1 at level land in 2026/);
   assert.equal(dataRequests(mock).length, 1);
 });
 
@@ -319,6 +319,21 @@ test("an indicator whose catalogue entry lost its years or its columns says the 
   assert.ok(map.notes?.some((n) => /catalogue names no value columns for AI005/.test(n)), String(map.notes));
   const compared = await compareRegions(noColumns.client, { indicator: "AI005", year: 2025 });
   assert.match(compared.reason ?? "", /catalogue names no value columns for AI005/);
+});
+
+test("a year whose rows carry no figure at all (boundary rows only) counts as not loaded: the year before, with the note", async () => {
+  const nulls = CARS_LAND_2025.map((r) => ({ ...r, jahr: 2026, jahr2: 2026, ai1301: null, ai1301v: null }));
+  const { client } = api({ rows: { "ai013_1/1/2026": nulls } });
+  const map = await getIndicatorMap(client, { indicator: "AI013-1" });
+  assert.equal(map.status, "ok");
+  assert.equal(map.year, 2025);
+  assert.ok(map.notes?.some((n) => n.includes("2026 is the newest year")), String(map.notes));
+  const compared = await compareRegions(client, { indicator: "AI013-1", field: "ai1301", regions: ["Bayern"] });
+  assert.equal(compared.year, 2025);
+  assert.equal(compared.regions?.[0]?.value, 635);
+  const named = await getIndicatorMap(client, { indicator: "AI013-1", year: 2026 });
+  assert.equal(named.status, "empty");
+  assert.match(named.reason ?? "", /no rows \(or no figures\) for AI013-1 at level land in 2026/);
 });
 
 // --- compareRegions ---
