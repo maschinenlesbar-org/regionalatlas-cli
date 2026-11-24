@@ -114,7 +114,8 @@ publishes no figure for at the level (`AI002-4-5`'s `ai0219` in 2025: the data h
 year (the catalogue has no figure for this column at this level)`, never 0. A value the client can't read as a number
 (`"1,5"`, `true`, `[]` from a mirror) is `null` as well, with `missing` saying so
 (`unreadable value "1,5" (not a number)`); a decimal string, also in exponent form (`"1e3"`),
-is read like a JSON number: exact, or the answer is refused.
+is read like a JSON number, exact; one a double can't carry exactly (`"12345678901234567890"`) is
+`null`, with `missing` saying so (it used to refuse the whole answer).
 
 `--level` accepts these aliases: `land`/`laender`/`länder`/`bundesland`/`bundesländer` (=1),
 `regierungsbezirk`/`rb` (=2), `kreis`/`kreise`/`landkreis` (=3),
@@ -191,7 +192,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact | jq '.[] |
 | Code | Meaning |
 |---|---|
 | `0` | success (help/version included); an empty result also exits 0, with an `INFO` note on stderr — from `query` and from `indicators` alike; so does a run whose output reader stops early (`\| head`), quietly |
-| `1` | API/logical error (the ArcGIS `error` envelope), a catalogue the CLI refuses (not the expected shape, or two indicator codes naming the same table, or one naming the boundary table `verwaltungsgrenzen_gesamt`), a catalogue URL that redirects (a moved catalogue; the message names the target, which is not followed), an answer with a number JSON can't carry exactly (`1e400`, `12345678901234567890`, also when sent as a string: the number … cannot be represented exactly), or a catch-all |
+| `1` | API/logical error (the ArcGIS `error` envelope), a catalogue the CLI refuses (not the expected shape, or two indicator codes naming the same table, or one naming the boundary table `verwaltungsgrenzen_gesamt`), a catalogue URL that redirects (a moved catalogue; the message names the target, which is not followed), an answer with a number JSON can't carry exactly (`1e400`, `12345678901234567890`: the number … cannot be represented exactly; sent as a string, a row's value is `null` with the reason instead), or a catch-all |
 | `2` | usage / validation error (bad flags, unknown command, **unknown indicator**, unknown `--level`, a `--level` the indicator has no figures at in that year, a `--year` outside the indicator's range, an unknown `--fields` column, a non-`http(s)` or malformed `--base-url`/`--catalog-url`, a `--base-url` with a query, fragment or surrounding whitespace, a base URL that redirects — the message names the target, which is not followed) |
 | `4` | HTTP 404 |
 | `6` | network / transport failure (DNS, connection, timeout, response size-cap) |

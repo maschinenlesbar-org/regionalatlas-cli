@@ -175,10 +175,9 @@ test("parseRow accepts a number or a plain decimal string, and nothing else", ()
 test("parseRow checks a decimal string with a long run of zeros in linear time (security audit 2026-10-27, A)", () => {
   // The same check as a number literal in the answer: `/0+$/` made it quadratic in the zero run.
   const started = performance.now();
-  assert.throws(
-    () => parseRow({ ags: "01", gen: "A", v: `1${"0".repeat(100_000)}1e-9999999` }, 1, "land", 2020),
-    (err: unknown) => err instanceof RegionalatlasParseError && /cannot be represented exactly/.test(err.message) && err.message.length < 1000,
-  );
+  const row = parseRow({ ags: "01", gen: "A", v: `1${"0".repeat(100_000)}1e-9999999` }, 1, "land", 2020);
+  assert.equal(row.values["v"], null);
+  assert.ok(/can't carry exactly/.test(row.missing?.["v"] ?? "") && (row.missing?.["v"] ?? "").length < 200, row.missing?.["v"]);
   const ms = performance.now() - started;
   assert.ok(ms < 1000, `${Math.round(ms)} ms`);
 });
@@ -223,15 +222,18 @@ test("parseRow never fabricates a number out of a non-value, and says so in miss
   assert.equal(odd.missing?.b, 'unreadable value "a\\u202eb" (not a number)');
 });
 
-test("a decimal string in exponent form is read like a JSON number, exact or refused", () => {
+test("a decimal string in exponent form is read like a JSON number, exact or no figure", () => {
   const row = parseRow({ ags: "01", gen: "A", a: "1e3", b: "1.0E-5", c: "-2.5e+2" }, 1, "land", 2020);
   assert.deepEqual({ ...row.values }, { a: 1000, b: 0.00001, c: -250 });
   assert.equal(row.missing, undefined);
-  assert.throws(() => parseRow({ ags: "01", gen: "A", a: "1e400" }, 1, "land", 2020), RegionalatlasParseError);
-  assert.throws(() => parseRow({ ags: "01", gen: "A", a: "12345678901234567890e0" }, 1, "land", 2020), RegionalatlasParseError);
+  for (const a of ["1e400", "12345678901234567890e0"]) {
+    const inexact = parseRow({ ags: "01", gen: "A", a }, 1, "land", 2020);
+    assert.equal(inexact.values["a"], null, a);
+    assert.match(inexact.missing?.["a"] ?? "", /can't carry exactly/, a);
+  }
 });
 
-test("a decimal string a double can't carry exactly is a parse error, never a changed value", () => {
+test("a decimal string a double can't carry exactly is no figure with the reason, never a changed value", () => {
   // Number() rounded "12345678901234567890" to 12345678901234567000 without a word: the engine's
   // rule for JSON number literals (printed vs written), applied to the string path.
   const huge = "1" + "0".repeat(400);
@@ -240,19 +242,11 @@ test("a decimal string a double can't carry exactly is a parse error, never a ch
     "12345678901234567890", "-9007199254740993", "+12345678901234567890", "12345678901234567890.0",
     "9007199254740992.5", huge, tiny, "-" + tiny,
   ]) {
-    assert.throws(
-      () => parseRow({ ags: "01", gen: "A", ai0201: n }, 1, "land", 2020),
-      (err: unknown) => {
-        assert.ok(err instanceof RegionalatlasParseError, n);
-        assert.equal(
-          err.message,
-          `the data query: the number ${n.length > MAX_MESSAGE_VALUE_LENGTH ? `${n.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : n} in field ai0201 of region 01 cannot be represented exactly.`,
-          n,
-        );
-        return true;
-      },
-      n,
-    );
+    // One cell a double can't carry is no figure, with the reason: the rest of the level stays.
+    const row = parseRow({ ags: "01", gen: "A", ai0201: n, ai0202: 1.5 }, 1, "land", 2020);
+    assert.equal(row.values["ai0201"], null, n);
+    assert.equal(row.values["ai0202"], 1.5, n);
+    assert.equal(row.missing?.["ai0201"], `unreadable value ${n.length > 60 ? `"${n.slice(0, 60)}"…` : `"${n}"`} (a number a double can't carry exactly)`, n);
   }
   // What a double carries exactly passes, with any sign or a leading dot; below 2^53 a decimal
   // fraction keeps a double's precision, and 0 comes only from a zero.
@@ -607,8 +601,8 @@ test("an ArcGIS error names the query URL without the long encoded layer, reason
 test("an ArcGIS envelope's parts are scrubbed before they are cleaned, joined and cut (D)", async () => {
   // On HTTP 200 the envelope's message and details were cleaned (which reads at most 16 384
   // characters and folds whitespace) and joined first, then scrubbed: a password cut there left
-  // its prefix inside the message. A value a row quotes (`missing`) and a number error quote
-  // server text too, cut at 60 and 500.
+  // its prefix inside the message. A value a row quotes (`missing`) is server text too, cut at 60
+  // (a decimal string a double can't carry is such a value now, no longer an error).
   const pw = "s3cret-Pw-long";
   const baseUrl = `https://alice:${pw}@www.gis-idmz.nrw.de`;
   const run = async (data: unknown): Promise<unknown> => {
@@ -627,9 +621,4 @@ test("an ArcGIS envelope's parts are scrubbed before they are cleaned, joined an
   const rows = (await run({ features: [{ attributes: { ags: "01", gen: "A", ai0201: at(40) } }] })) as RegionRow[];
   assert.ok(Array.isArray(rows), String(rows));
   assert.ok(!JSON.stringify(rows[0]?.missing).includes("s3cr"), JSON.stringify(rows[0]?.missing));
-  for (const attributes of [{ ags: at(490), gen: "A", ai0201: "12345678901234567890" }, { ags: "01", gen: "A", [at(490)]: "12345678901234567890" }]) {
-    const err = await run({ features: [{ attributes }] });
-    assert.ok(err instanceof RegionalatlasParseError, String(err));
-    assert.ok(!err.message.includes("s3cr"), err.message.slice(-120));
-  }
 });

@@ -59,11 +59,11 @@ const errorBodyWith = (json: string): string => `{"error":{"code":500,"message":
  * A 2xx body the client refuses with a message that quotes a value of it, given that value as a
  * JSON string written as is; undefined when the client quotes no server value in its own errors
  * (write `undefined as ((json: string) => string) | undefined`: a plain `undefined` narrows the
- * constant, and the skipped test's call no longer typechecks). Here: a row whose figure, sent as a
- * decimal string, can't be carried exactly; the error names its region (`of region <ags>`).
+ * constant, and the skipped test's call no longer typechecks). Here: none since a figure sent as a
+ * decimal string a double can't carry is no figure with a reason (`missing`), no longer an error
+ * that named its region.
  */
-const quotedBody: ((json: string) => string) | undefined = (json) =>
-  `{"features":[{"attributes":{"id":1,"typ":1,"ags":${json},"jahr":2020,"gen":"A","ai0201":"12345678901234567890"}}]}`;
+const quotedBody = undefined as ((json: string) => string) | undefined;
 /** The exit code of an API error (a non-2xx answer) and of a parse error in this repo (most use 1). */
 const API_EXIT = 1;
 /**

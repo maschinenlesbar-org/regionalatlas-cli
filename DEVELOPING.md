@@ -479,11 +479,13 @@ colon left out, whose userinfo is everything between the first slashes and the l
   names, none declared here: every figure is a double) would deliver a declared member's
   number as its exact literal, a JSON string, whatever its size. The special-value codes
   (`2222222222`, …) are far below 2^53 and pass; `parseRow` then treats them as before.
-  The same rule covers a value sent as a decimal *string* (`toValue` in client.ts, through the
-  engine's `exactAtTheEdges`): `parseRow` throws a `RegionalatlasParseError` (`GET <url>: the
-  number <N> in field <f> of region <ags> cannot be represented exactly.`, exit 1) for `"12345678901234567890"`, a string of 400 digits or a non-zero
-  `"0.000…1"` that rounds to 0, where `Number()` used to round, overflow to `null` or zero
-  silently. A decimal string may carry an exponent (`"1e3"`, `"1.0E-5"`), as JSON's number
+  A value sent as a decimal *string* is read with the same check (`toValue` in client.ts,
+  through the engine's `exactAtTheEdges`), cell by cell: `parseRow` makes
+  `"12345678901234567890"`, a string of 400 digits or a non-zero `"0.000…1"` that rounds to 0
+  no figure (`null`) with the reason `unreadable value "…" (a number a double can't carry
+  exactly)`, where `Number()` used to round, overflow to `null` or zero silently. (Up to this
+  release it failed the whole answer: one such cell blocked a level of 11,000 Gemeinden; a
+  JSON number literal in the answer still does, by the engine's rule.) A decimal string may carry an exponent (`"1e3"`, `"1.0E-5"`), as JSON's number
   grammar allows. Any other value (`"1,5"`, `" 12"`, `"0x10"`, `""`, `true`, `[]`) becomes
   `null` with a `missing` reason, `unreadable value "1,5" (not a number)` (a text quoted and
   cut at 60, another type only named), where it used to become `null` silently, like "no

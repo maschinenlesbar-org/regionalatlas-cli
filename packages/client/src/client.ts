@@ -555,9 +555,10 @@ const JOIN_FIELDS = new Set([
  * published value the catalogue names and gives a unit for (percent, or
  * percentage points for a share indicator). See `Indicator.fields`.
  *
- * @throws RegionalatlasParseError for a value sent as a decimal string that a double
- *   can't carry exactly (`"12345678901234567890"`), never a changed value — see `toValue`.
- *   The message starts with `request` (the client passes `GET <url>`; default "the data query").
+ * A value sent as a decimal string that a double can't carry exactly
+ * (`"12345678901234567890"`) is no figure (`null`), with `missing` saying so, never a changed
+ * value — see `toValue`. (It used to fail the whole answer.)
+ * @param _request The request, as the client names it (`GET <url>`); kept for the signature.
  * @param scrub Applied to the server text a message or a `missing` reason quotes, before it is
  *   cut (the client passes its engine's scrub of the base and catalogue URLs' credentials).
  */
@@ -566,7 +567,7 @@ export function parseRow(
   typ: 1 | 2 | 3 | 5,
   level: string,
   year: number,
-  request = "the data query",
+  _request = "the data query",
   scrub: (text: string) => string = (text) => text,
 ): RegionRow {
   const ags = String(attrs.ags ?? "").trim();
@@ -582,19 +583,22 @@ export function parseRow(
   let missing: Record<string, string> | undefined;
   for (const [key, value] of Object.entries(attrs)) {
     if (JOIN_FIELDS.has(key)) continue;
-    const n = toValue(value);
-    if (n === undefined) {
-      throw new RegionalatlasParseError(
-        `${request}: the number ${cutForMessage(scrub(String(value)))} in field ${cutForMessage(scrub(key))} of region ${cutForMessage(scrub(ags))} ` +
-          "cannot be represented exactly.",
-      );
-    }
+    const exact = toValue(value);
+    // A decimal string a double can't carry is no figure, with the reason, like any other value
+    // the client can't read: one such cell no longer fails a level of 11,000 Gemeinden, and no
+    // rounded figure is ever passed on.
+    const n = exact === undefined ? null : exact;
     // A special-value code is not a measurement: an average or a ranking over it would
     // be off by billions. "nichts vorhanden" (2222222222) becomes 0, the figure it
     // stands for; every other code becomes null like any other missing value. Either
     // way `missing` names the code. A value the client can't read becomes null, and
     // `missing` says so.
-    const reason = n === null ? unreadableReason(value, scrub) : specialValueReason(n);
+    const reason =
+      exact === undefined
+        ? `unreadable value ${quoteValue(scrub(String(value)), MAX_SHOWN_VALUE_LENGTH)} (a number a double can't carry exactly)`
+        : n === null
+          ? unreadableReason(value, scrub)
+          : specialValueReason(n);
     values[key] = n === null || reason === undefined ? n : specialValueFigure(n);
     if (reason !== undefined) {
       missing ??= Object.create(null) as Record<string, string>;
