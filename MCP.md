@@ -83,9 +83,11 @@ level fills in with coarser units (Berlin and Hamburg among the Kreise); a speci
 figure (null, with the reason), but "nichts vorhanden" is exactly 0, except as a change rate in an
 indicator's first year; a region name that several regions share or contain (Neustadt) is reported
 with its candidates, and an exact name (München) names the regions that only contain it. A text over
-2000 characters is cut and ends in `…[cut, N characters in all]`, and the answer says `truncated`. A
-failure is a tool error that says what to change (one over 5000 characters loses its middle, never
-its end, where the reason is).
+2000 characters is cut and ends in `…[cut, N characters in all]`, and the answer says `truncated`.
+An answer over `--max-result-chars` loses entries from the end of its lists, then has its longest
+texts cut further (each with that mark), and says `truncated`; one that can't be cut down so far is
+a tool error that says to ask for less. A failure is a tool error that says what to change (one over
+5000 characters loses its middle, never its end, where the reason is).
 
 The data come from two hosts: the indicator catalogue (`services.json` on
 regionalatlas.statistikportal.de) and the ArcGIS data host (www.gis-idmz.nrw.de), which runs a
