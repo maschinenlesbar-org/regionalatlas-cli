@@ -125,6 +125,15 @@ export interface Indicator {
    * lists no attributes.
    */
   fields: IndicatorField[];
+  /**
+   * Per year, per value column (its `fieldKey`), the geo levels the catalogue has figures for:
+   * the catalogue describes each column in a year by one entry, in the order of `attributes`.
+   * Present only for the years where it does so (an entry per column, each with four counts). A
+   * column with no level in a year is listed but not published then (`AI002-4-5`'s `ai0219` in
+   * 2025): the data host still writes "nichts vorhanden" there, which `query` turns into no
+   * figure (`UNPUBLISHED_REASON`), never 0.
+   */
+  fieldLevels?: Record<string, Record<string, string[]>>;
 }
 
 // --------------------------------------------------------------------------

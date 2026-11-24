@@ -168,6 +168,18 @@ the code's meaning in `RegionRow.missing` either way (`SPECIAL_VALUES`,
 without a previous year (2000), where 0 is no real rate; `missing` is how a caller tells
 them apart. No catalogue column is a total that could reach the threshold.
 
+**Columns the catalogue publishes no figure for.** The catalogue describes each value column
+in a year by one entry of `years[year]`, in the order of `attributes` (live, one entry per
+column for every indicator-year), with its own `geom_levels`; `parseIndicators` keeps them as
+`Indicator.fieldLevels`. 34 indicator-years list a column with no figure at any level next to
+columns with figures (`AI002-4-5` 2025 `ai0219`, the newest year; `AI017-1` 2000 `ai1702`;
+`AIGG-02` 2009 `gsp131`; change rates after a gap in a series). The data host writes
+`2222222222` in every region there, which read as exactly 0. `query` makes such a value (and a
+null) no figure, with `missing: UNPUBLISHED_REASON` ("not published for this year …"); a real
+figure the data host sends anyway is kept. The operations say so in a note, and
+`compareRegions` answers `empty` for such a column with the years that have figures
+(`columnPublished`).
+
 ### (B) Catalogue — the indicator list
 
 ```

@@ -81,7 +81,8 @@ catalogue, with the levels and years it has; the newest year the catalogue lists
 on the data host yet, so a year left out falls back to the one before, and the answer says so; a
 level fills in with coarser units (Berlin and Hamburg among the Kreise); a special value is no
 figure (null, with the reason), but "nichts vorhanden" is exactly 0, except as a change rate in an
-indicator's first year; a region name that several regions share or contain (Neustadt) is reported
+indicator's first year, and in a column the catalogue lists for a year but publishes no figure for
+(no figure, null, with the reason "not published for this year …"); a region name that several regions share or contain (Neustadt) is reported
 with its candidates, and an exact name (München) names the regions that only contain it. A text over
 2000 characters is cut and ends in `…[cut, N characters in all]`, and the answer says `truncated`.
 An answer over `--max-result-chars` first loses entries from the end of its page (then `nextOffset`

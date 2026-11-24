@@ -34,7 +34,9 @@ Regionalatlas terms and fields, as the CLI surfaces them.
   without either has no `missing` key.
 - **A `0` with `missing: "nichts vorhanden"`** is the table symbol `-`: nothing there,
   exactly zero. It counts in a sum, an average or a ranking like any other 0 (it used to
-  be `null`, since 0.5.0 it is `0`).
+  be `null`, since 0.5.0 it is `0`). Except in a column the catalogue lists for the year but
+  publishes no figure for at the level (its `geom_levels` are all 0): there the data host writes
+  it in every region, and it is `null` with `missing: "not published for this year …"`.
 - **It joins geography to statistics** — every region present at the level appears; a
   region with no indicator row still appears (its `values` are `null`), thanks to the
   `LEFT OUTER JOIN`.

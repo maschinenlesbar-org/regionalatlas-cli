@@ -17,7 +17,8 @@
 // so. The `values` keys are bare column codes: the field dictionary says what each measures, in
 // which unit. A special-value code is no figure (null, with the reason in `missing`), except
 // "nichts vorhanden", which is exactly 0, but in a Veränderungsrate column in the indicator's
-// first year means "no previous year" (null here). A region name can stand for several regions:
+// first year means "no previous year" (null here), and in a column the catalogue publishes no
+// figure for that year is no figure (null, from the client). A region name can stand for several regions:
 // ambiguity is reported, never guessed.
 //
 // Only the catalogue's table name, the level's fixed typ and a year the catalogue lists ever
@@ -27,7 +28,7 @@
 
 import type { RegionalatlasClient } from "./client.js";
 import { matchRegion } from "./client.js";
-import { fieldKey, findField, foldText } from "./catalog.js";
+import { columnPublished, fieldKey, findField, foldText } from "./catalog.js";
 import { GEO_LEVELS, resolveLevel } from "./levels.js";
 import { assertValid, textProblem, tokenProblem } from "./validate.js";
 import type { Indicator, IndicatorField, RegionRow } from "./types.js";
@@ -485,6 +486,10 @@ export async function getIndicatorMap(client: RegionalatlasClient, options: Indi
   if (!t.yearGiven && fetched.year !== t.years[0]) notes.push(`These are the figures of ${fetched.year}: say which year the map shows.`);
   const fill = fillNote(fetched.rows, t.level);
   if (fill !== undefined) notes.push(fill);
+  const unpublished = keys.filter((key) => columnPublished(indicator, key, t.level, fetched.year) === false);
+  if (unpublished.length > 0) {
+    notes.push(`The catalogue lists ${unpublished.join(", ")} for ${fetched.year} but publishes no figure for ${unpublished.length > 1 ? "them" : "it"} at level ${t.level}: no figure (null), not 0.`);
+  }
   if (Object.values(coverage).some((c) => c.special?.[NOTHING] !== undefined)) {
     notes.push('A 0 with missing "nichts vorhanden" is the table symbol "-": exactly zero, a figure on the scale, not "no data".');
   }
@@ -615,6 +620,20 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
       searched: { indicator: indicator.code, level: t.level, ...(t.yearGiven ? { year: t.years[0] } : {}) },
       reason: `The data host has no rows for ${indicator.code} at level ${t.level} in ${t.years.join(" or ")}. Name an earlier year.`,
       years: indicator.years,
+    };
+  }
+  if (columnPublished(indicator, key, t.level, fetched.year) === false) {
+    const withFigures = indicator.years.filter((y) => columnPublished(indicator, key, t.level, y) === true);
+    return {
+      status: "empty",
+      ...head,
+      field,
+      year: fetched.year,
+      searched: { indicator: indicator.code, field: key, level: t.level, ...(t.yearGiven ? { year: t.years[0] } : {}) },
+      reason:
+        `The catalogue publishes no figure for ${key} in ${fetched.year} at level ${t.level}: the column is listed, but empty that year (the data host's 0s there are no figures).` +
+        (withFigures.length > 0 ? ` Years with figures for it at this level: ${withFigures.join(", ")}.` : ""),
+      years: withFigures,
     };
   }
   const valueOf = (row: RegionRow): number | null => {

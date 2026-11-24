@@ -140,6 +140,41 @@ function publishedLevels(raw: unknown): string[] | undefined {
   return GEO_LEVELS.filter((_, i) => published[i]).map((l) => l.name);
 }
 
+/** The levels one catalogue entry (one value column in a year) has figures at, or undefined. */
+function entryLevels(entry: unknown): string[] | undefined {
+  const counts: unknown = entry !== null && typeof entry === "object" ? (entry as { geom_levels?: unknown }).geom_levels : undefined;
+  if (!Array.isArray(counts) || counts.length !== GEO_LEVELS.length) return undefined;
+  if (!counts.every((n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0)) return undefined;
+  return GEO_LEVELS.filter((_, i) => (counts[i] as number) > 0).map((l) => l.name);
+}
+
+/**
+ * Per value column, the levels a catalogue year has figures for: entry i of `years[year]`
+ * describes `attributes[i]` (live, the counts agree for every indicator-year). Undefined when the
+ * year has not one entry per column, or an entry no four counts: then nothing is known per column.
+ */
+function columnLevels(rawYear: unknown, rawAttributes: unknown): Record<string, string[]> | undefined {
+  if (!Array.isArray(rawYear) || !Array.isArray(rawAttributes) || rawYear.length === 0 || rawYear.length !== rawAttributes.length) return undefined;
+  const out: Record<string, string[]> = Object.create(null);
+  for (let i = 0; i < rawYear.length; i++) {
+    const levels = entryLevels(rawYear[i]);
+    if (levels === undefined) return undefined;
+    const attribute: unknown = rawAttributes[i];
+    const code = attribute !== null && typeof attribute === "object" ? fieldKey(asString((attribute as RawCatalogAttribute).code)) : "";
+    if (FIELD_SHAPE.test(code)) out[code] = levels;
+  }
+  return out;
+}
+
+/**
+ * Whether the catalogue publishes figures for a value column at a level in a year: false when it
+ * lists the column for that year with none at that level, undefined when it doesn't say.
+ */
+export function columnPublished(indicator: Indicator, field: string, level: string, year: number | string): boolean | undefined {
+  const levels = indicator.fieldLevels?.[String(year)]?.[fieldKey(field)];
+  return levels === undefined ? undefined : levels.includes(level);
+}
+
 /**
  * Fail closed on a code the SQL join must never see: one whose table is the boundary
  * table (the join would read the boundary table twice), or one whose table another code
@@ -199,9 +234,12 @@ export function parseIndicators(raw: unknown): Indicator[] {
         .filter((y) => YEAR_SHAPE.test(y))
         .sort();
       const levels: Record<string, string[]> = Object.create(null);
+      const fieldLevels: Record<string, Record<string, string[]>> = Object.create(null);
       for (const year of years) {
         const published = publishedLevels(rawYears[year]);
         if (published !== undefined) levels[year] = published;
+        const perColumn = columnLevels(rawYears[year], c.attributes);
+        if (perColumn !== undefined) fieldLevels[year] = perColumn;
       }
       const table = tableForCode(code);
       assertUsableTable(code, table, seen);
@@ -214,6 +252,7 @@ export function parseIndicators(raw: unknown): Indicator[] {
         years,
         levels,
         fields: parseFields(c.attributes),
+        ...(Object.keys(fieldLevels).length > 0 ? { fieldLevels } : {}),
       });
     }
   }

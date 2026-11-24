@@ -34,7 +34,10 @@ Begriffe und Felder des Regionalatlas, so wie die CLI sie ausgibt.
   beides hat keinen `missing`-Schlüssel.
 - **Eine `0` mit `missing: "nichts vorhanden"`** ist das Tabellenzeichen `-`: nichts vorhanden,
   genau null. Sie zählt in einer Summe, einem Mittelwert oder einer Rangfolge wie jede andere 0
-  (bis 0.4.0 war sie `null`, seit 0.5.0 ist sie `0`).
+  (bis 0.4.0 war sie `null`, seit 0.5.0 ist sie `0`). Außer in einer Spalte, die der Katalog für das
+  Jahr nennt, für die er auf der Ebene aber keinen Wert veröffentlicht (ihre `geom_levels` sind alle
+  0): dort schreibt der Datenhost es in jede Region, und es ist `null` mit
+  `missing: "not published for this year …"`.
 - **Geografie wird mit Statistik verknüpft** – jede Region der Ebene erscheint; auch eine Region
   ohne Indikatorzeile ist enthalten (ihre `values` sind `null`), dank des `LEFT OUTER JOIN`.
 - **Der Indikatorenkatalog ist die Allowlist** – nur katalogisierte Codes/Tabellen lassen sich

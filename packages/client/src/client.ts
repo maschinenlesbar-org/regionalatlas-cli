@@ -240,8 +240,11 @@ export class RegionalatlasClient {
     if (!Array.isArray(res.features)) {
       throw shapeError(request, `a features array, got ${kindOf(res.features)}`);
     }
-    const rows = res.features.map((f, i) =>
-      parseRow(featureAttributes(f, i, request), level.typ, level.name, year, request, (text) => this.engine.redact(text)),
+    const rows = unpublishedAsNoFigure(
+      indicator,
+      level.name,
+      year,
+      res.features.map((f, i) => parseRow(featureAttributes(f, i, request), level.typ, level.name, year, request, (text) => this.engine.redact(text))),
     );
 
     // 5. Client-side region filter + field projection (no user text upstream).
@@ -533,6 +536,40 @@ export function parseRow(
   return missing === undefined
     ? { ags, name, typ, level, year, values }
     : { ags, name, typ, level, year, values, missing };
+}
+
+/**
+ * The reason a value column has no figure when the catalogue publishes none for it at the level in
+ * that year (`Indicator.fieldLevels`).
+ */
+export const UNPUBLISHED_REASON = "not published for this year (the catalogue has no figure for this column at this level)";
+
+/**
+ * A value column the catalogue lists for the year but publishes no figure for at the level:
+ * the data host writes "nichts vorhanden" (2222222222) in every region there (`AI002-4-5`'s
+ * `ai0219`, the mothers' age, in 2025; `AI017-1`'s change of GDP in 2000), which reads as an exact
+ * 0. Such a value, and a null, become no figure with `UNPUBLISHED_REASON`; a real figure the data
+ * host sends anyway is kept.
+ */
+function unpublishedAsNoFigure(indicator: Indicator, level: string, year: number, rows: RegionRow[]): RegionRow[] {
+  const perColumn = indicator.fieldLevels?.[String(year)];
+  if (perColumn === undefined) return rows;
+  const empty = new Set(Object.keys(perColumn).filter((key) => !(perColumn[key] as string[]).includes(level)));
+  if (empty.size === 0) return rows;
+  return rows.map((row) => {
+    let values: Record<string, number | null> | undefined;
+    let missing: Record<string, string> | undefined;
+    for (const [key, value] of Object.entries(row.values)) {
+      if (!empty.has(fieldKey(key))) continue;
+      const reason = row.missing?.[key];
+      if (value !== null && !(value === 0 && reason === SPECIAL_VALUES["2222222222"])) continue;
+      values ??= Object.assign(Object.create(null) as Record<string, number | null>, row.values);
+      missing ??= Object.assign(Object.create(null) as Record<string, string>, row.missing);
+      values[key] = null;
+      missing[key] = UNPUBLISHED_REASON;
+    }
+    return values === undefined ? row : { ...row, values, missing: missing as Record<string, string> };
+  });
 }
 
 /** The lengths of official regional keys: Land, Regierungsbezirk, Kreis, Gemeinde. */

@@ -108,6 +108,7 @@ regionalatlas query AI002-1-5 --level land --fields ai0201 --compact \
 - **A `0` with `missing: "nichts vorhanden"`** is the table symbol `-`, exactly zero:
   map it as 0 (on the scale, not as "no data") and say so in the legend. Only in a
   Veränderungsrate (`v`) column in the indicator's first year does it mean "no previous
-  year" — show that as no data.
+  year" — show that as no data. A column the catalogue lists for the year but publishes no
+  figure for arrives as `null` with `missing` "not published for this year …": no data.
 - To compare a few named regions side by side → the **regionalatlas-compare** skill.
 - Cite the source: © Statistische Ämter des Bundes und der Länder (dl-de/by-2.0).

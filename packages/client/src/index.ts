@@ -14,6 +14,7 @@ export {
   SPECIAL_VALUE_FIGURES,
   specialValueFigure,
   SPECIAL_VALUE_THRESHOLD,
+  UNPUBLISHED_REASON,
 } from "./client.js";
 export type { RegionalatlasClientOptions } from "./client.js";
 export {
@@ -51,6 +52,7 @@ export {
   fieldKey,
   assertKnownFields,
   assertLevelPublished,
+  columnPublished,
 } from "./catalog.js";
 export type { IndicatorFilter } from "./catalog.js";
 export { GEO_LEVELS, LEVEL_ALIASES, DEFAULT_LEVEL, findLevel, resolveLevel, levelForTyp } from "./levels.js";

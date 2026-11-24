@@ -206,6 +206,36 @@ test("getIndicatorMap: 'nichts vorhanden' is exactly 0, but a change rate in the
   assert.ok(result.notes?.some((n) => n.includes("exactly zero")));
 });
 
+/**
+ * The recorded catalogue with AI013-1's 2025 entry per value column, as the live catalogue has it
+ * (entry i describes attributes[i]): ai1301 with figures, ai1301v with none at any level (as
+ * AI002-4-5's ai0219 in 2025 live). The data host writes "nichts vorhanden" for it everywhere.
+ */
+function unpublishedColumn() {
+  const catalog = (JSON.parse(JSON.stringify(RECORDED_CATALOG)) as { children: { code: string; years: Record<string, unknown[]> }[] }[]).map((theme) => ({
+    ...theme,
+    children: theme.children.map((child) => (child.code === "AI013-1" ? { ...child, years: { ...child.years, "2025": [{ geom_levels: [16, 29, 396, 0] }, { geom_levels: [0, 0, 0, 0] }] } } : child)),
+  }));
+  const rows = { "ai013_1/1/2025": CARS_LAND_2025.map((r) => ({ ...r, ai1301v: 2222222222 })) };
+  return api({ catalog, rows });
+}
+
+test("a column the catalogue publishes no figure for that year is no figure, not 'nichts vorhanden' as 0", async () => {
+  const { client } = unpublishedColumn();
+  const rows = await client.query({ indicator: "AI013-1", year: 2025 });
+  assert.equal(rows[0]?.values["ai1301"], 592.7);
+  assert.equal(rows[0]?.values["ai1301v"], null);
+  assert.match(rows[0]?.missing?.["ai1301v"] ?? "", /not published/);
+  const map = await getIndicatorMap(client, { indicator: "AI013-1", year: 2025 });
+  assert.equal(map.coverage?.["ai1301v"]?.withFigure, 0);
+  assert.ok(!map.notes?.some((n) => n.includes("exactly zero")), String(map.notes));
+  assert.ok(map.notes?.some((n) => /ai1301v/.test(n) && /publishes no figure/.test(n)), String(map.notes));
+  const compared = await compareRegions(client, { indicator: "AI013-1", field: "ai1301v", year: 2025 });
+  assert.equal(compared.status, "empty");
+  assert.match(compared.reason ?? "", /publishes no figure for ai1301v in 2025/);
+  assert.equal(compared.levelStats?.mean, undefined);
+});
+
 // --- compareRegions ---
 
 test("compareRegions: an indicator with several columns and no field is ambiguous with the columns, before any data request", async () => {

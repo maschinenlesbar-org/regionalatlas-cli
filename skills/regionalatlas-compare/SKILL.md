@@ -116,7 +116,9 @@ regionalatlas query AI002-1-5 --level kreis --fields ai0201 --compact \
   `0`, with `missing` saying "nichts vorhanden", and it **is** zero — keep it in
   `min`/`max`/`avg` and rankings, and say that the 0 is the upstream's "nichts
   vorhanden". Only for a Veränderungsrate column (a `v` field) in an indicator's first
-  year does it mean "no previous year" rather than zero — leave such a 0 out there.
+  year does it mean "no previous year" rather than zero — leave such a 0 out there. A column
+  the catalogue lists for the year but publishes no figure for arrives as `null` with
+  `missing` "not published for this year …": no figure, not 0.
 - **Same `--year` across regions** so you compare like with like. Leaving it out uses the
   newest catalogue year, which may not be loaded yet: the CLI then prints `[]` with a
   `INFO` note on stderr naming the previous year to use.
