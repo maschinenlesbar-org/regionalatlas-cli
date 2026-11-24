@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/regionalatlas-mcp",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "MCP server for the Regionalatlas Deutschland of the Statistische Ämter des Bundes und der Länder: find an indicator in the catalogue, map it over every Land, Kreis or Gemeinde, and compare regions, for AI agents (stdio and Streamable HTTP)",
   "type": "module",
   "bin": {
