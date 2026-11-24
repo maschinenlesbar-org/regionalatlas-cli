@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { RegionalatlasClient } from "../src/client.js";
 import { RegionalatlasValidationError } from "../src/errors.js";
 import { compareRegions, findIndicators, getIndicatorMap, listThemes, searchKey } from "../src/operations.js";
-import { CARS_LAND_2025, ELECTION_LAND_2025, RECORDED_CATALOG, regionalatlasApi, sqlOf, type RecordedOverrides } from "./recorded.js";
+import { CARS_LAND_2025, ELECTION_LAND_2025, POPULATION_KREIS_2024, RECORDED_CATALOG, regionalatlasApi, sqlOf, type RecordedOverrides } from "./recorded.js";
 
 function api(overrides: RecordedOverrides = {}) {
   const mock = regionalatlasApi(overrides);
@@ -403,6 +403,26 @@ test("compareRegions: 'Landkreis München', 'Stadt München', 'Kreisfreie Stadt 
   const missing = await ask(["Landkreis Leipzig"]);
   assert.equal(missing.status, "empty");
   assert.match(missing.notFound?.[0]?.reason ?? "", /names a Landkreis/);
+});
+
+test("compareRegions: an exact name that is a Landkreis while a city's name contains it (Offenbach) is ambiguous; long names say which is which", async () => {
+  const offenbach = [
+    { id: 1, typ: 3, ags: "06438", jahr: 2024, gen: "Offenbach", jahr2: 2024, ags2: "06438", gen2: "      Offenbach, Landkreis", ai0201: 1000.1 },
+    { id: 2, typ: 3, ags: "06413", jahr: 2024, gen: "Offenbach am Main", jahr2: 2024, ags2: "06413", gen2: "      Offenbach am Main, kreisfreie Stadt", ai0201: 2900.5 },
+  ];
+  const { client } = api({ rows: { "ai002_1_5/3/2024": [...POPULATION_KREIS_2024, ...offenbach] } });
+  const ask = (regions: string[]) => compareRegions(client, { indicator: "AI002-1-5", field: "ai0201", level: "kreis", year: 2024, regions });
+  const result = await ask(["Offenbach"]);
+  assert.equal(result.status, "ambiguous");
+  assert.deepEqual(result.ambiguousRegions?.[0]?.candidates, [
+    { ags: "06438", name: "Offenbach", longName: "Offenbach, Landkreis" },
+    { ags: "06413", name: "Offenbach am Main", longName: "Offenbach am Main, kreisfreie Stadt" },
+  ]);
+  assert.match(result.ambiguousRegions?.[0]?.reason ?? "", /Landkreis/);
+  const munich = await ask(["München"]);
+  assert.equal(munich.status, "ok", "the exact München is the city");
+  assert.equal(munich.regions?.[0]?.longName, "München, kreisfreie Stadt");
+  assert.deepEqual(munich.regions?.[0]?.alsoNamed, [{ ags: "09184", name: "München, Landkreis" }]);
 });
 
 test("compareRegions: without regions, the highest and lowest of the level; regions without a figure out of ranks and mean", async () => {

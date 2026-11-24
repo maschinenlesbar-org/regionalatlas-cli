@@ -623,6 +623,8 @@ export interface ComparedRegion {
   asked?: string;
   ags: string;
   name: string;
+  /** The long name with the kind ("Offenbach, Landkreis"), where it differs from name. */
+  longName?: string;
   value: number | null;
   /** Why there is no figure, or that a 0 is the upstream's "nichts vorhanden". */
   missing?: string;
@@ -633,7 +635,7 @@ export interface ComparedRegion {
   /** How the region was found: ags, ags-filled (a longer key), name. */
   matchedBy?: string;
   /** Regions whose name only contains the one asked (left out: the name matched exactly). */
-  alsoNamed?: { ags: string; name: string }[];
+  alsoNamed?: { ags: string; name: string; longName?: string }[];
 }
 
 export interface CompareRegionsResult {
@@ -647,7 +649,7 @@ export interface CompareRegionsResult {
   /** The named regions found, highest first (no figure last). */
   regions?: ComparedRegion[];
   /** Named regions that matched several rows: which one is meant? */
-  ambiguousRegions?: { asked: string; reason: string; candidates: { ags: string; name: string }[] }[];
+  ambiguousRegions?: { asked: string; reason: string; candidates: { ags: string; name: string; longName?: string }[] }[];
   /** Named regions with no row at this level. */
   notFound?: { asked: string; reason: string }[];
   highest?: ComparedRegion[];
@@ -658,6 +660,20 @@ export interface CompareRegionsResult {
   candidates?: unknown[];
   years?: string[];
   levels?: string[];
+}
+
+/** A region as a candidate or an alsoNamed entry: key, name, and the long name where it differs. */
+function short(row: RegionRow): { ags: string; name: string; longName?: string } {
+  return { ags: row.ags, name: row.name, ...(row.longName === undefined ? {} : { longName: row.longName }) };
+}
+
+/** Whether a row's long name says it is a Landkreis or Kreis ("kreis"), or a city ("stadt"). */
+function isKind(row: RegionRow, kind: "kreis" | "stadt"): boolean {
+  const long = row.longName ?? row.name;
+  const comma = long.lastIndexOf(",");
+  if (comma < 0) return false;
+  const suffix = foldText(long.slice(comma + 1));
+  return kind === "stadt" ? suffix.includes("stadt") : suffix.includes("kreis") && !suffix.includes("kreisfrei");
 }
 
 /** The decimals a figure is written with (`84.3` has 1). */
@@ -754,6 +770,7 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
       ...extra,
       ags: row.ags,
       name: row.name,
+      ...(row.longName === undefined ? {} : { longName: row.longName }),
       value,
       ...(reason === undefined ? {} : { missing: reason }),
       ...(value === null ? {} : { rank: rankOf(value), ...(mean === undefined ? {} : { vsMean: round(value - mean) }) }),
@@ -805,18 +822,32 @@ export async function compareRegions(client: RegionalatlasClient, options: Compa
             ? `${match.rows.length} regions share this name.`
             : match.by === "substring"
               ? `No region is named exactly this; ${match.rows.length} contain it.`
-              : `${match.rows.length} regions have this key.`,
-        candidates: match.rows.slice(0, 20).map((row) => ({ ags: row.ags, name: row.name })),
+              : match.by === "name-form"
+                ? `${match.rows.length} regions fit this name and kind.`
+                : `${match.rows.length} regions have this key.`,
+        candidates: match.rows.slice(0, 20).map(short),
       });
       continue;
     }
     const row = match.rows[0] as RegionRow;
+    // The exact name of a Landkreis whose short name doesn't say so ("Offenbach", long name
+    // "Offenbach, Landkreis") while a city's name contains it ("Offenbach am Main"): a user who
+    // says "Offenbach" likely means the city, the data's exact name is the Landkreis. Ask.
+    const cities = match.by === "name" && isKind(row, "kreis") ? match.others.filter((other) => isKind(other, "stadt")) : [];
+    if (cities.length > 0) {
+      ambiguous.push({
+        asked,
+        reason: `The exact name is the Landkreis or Kreis ${row.longName ?? row.name}; ${cities.length > 1 ? "cities' names contain" : "a city's name contains"} it (${cities.map((c) => c.longName ?? c.name).join("; ")}). Ask which one is meant.`,
+        candidates: [row, ...cities].slice(0, 20).map(short),
+      });
+      continue;
+    }
     if (found.some((r) => r.ags === row.ags)) continue;
     found.push(
       describe(row, {
         asked,
         matchedBy: match.by,
-        ...(match.others.length > 0 ? { alsoNamed: match.others.slice(0, 10).map((r) => ({ ags: r.ags, name: r.name })) } : {}),
+        ...(match.others.length > 0 ? { alsoNamed: match.others.slice(0, 10).map(short) } : {}),
       }),
     );
   }
