@@ -74,16 +74,17 @@ For scripts and shared configs, pin a release and its digest from the
 | `listThemes` | The 21 subject areas, each with its indicators' codes and short titles. |
 
 Every tool only reads. An answer is JSON (`structuredContent` and the same as text), with the
-`source` it came from and the data licence. The skills' traps are handled in the tools: an
-indicator is named by its code (a title is answered with the indicators it matches, never taken as
-one); a level or year the indicator has no figures for is answered from the catalogue, with the
-levels and years it has; the newest year the catalogue lists may not be loaded on the data host
-yet, so a year left out falls back to the one before, and the answer says so; a level fills in
-with coarser units (Berlin and Hamburg among the Kreise); a special value is no figure (null, with
-the reason), but "nichts vorhanden" is exactly 0, except as a change rate in an indicator's first
-year; a region name that several regions share or contain (Neustadt) is reported with its
-candidates, and an exact name (München) names the regions that only contain it. A failure is a
-tool error that says what to change.
+`source` it came from and the data licence. The skills' traps are handled in the tools: an indicator
+is named by its code (a title is answered with the indicators it matches, never taken as one); a
+level or year the indicator has no figures for is answered from the catalogue, with the levels and
+years it has; the newest year the catalogue lists may not be loaded on the data host yet, so a year
+left out falls back to the one before, and the answer says so; a level fills in with coarser units
+(Berlin and Hamburg among the Kreise); a special value is no figure (null, with the reason), but
+"nichts vorhanden" is exactly 0, except as a change rate in an indicator's first year; a region name
+that several regions share or contain (Neustadt) is reported with its candidates, and an exact name
+(München) names the regions that only contain it. A text over 2000 characters is cut and ends in
+`…[cut, N characters in all]`, and the answer says `truncated`. A failure is a tool error that says
+what to change.
 
 The data come from two hosts: the indicator catalogue (`services.json` on
 regionalatlas.statistikportal.de) and the ArcGIS data host (www.gis-idmz.nrw.de), which runs a
