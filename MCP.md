@@ -84,7 +84,7 @@ left out falls back to the one before, and the answer says so; a level fills in 
 that several regions share or contain (Neustadt) is reported with its candidates, and an exact name
 (München) names the regions that only contain it. A text over 2000 characters is cut and ends in
 `…[cut, N characters in all]`, and the answer says `truncated`. A failure is a tool error that says
-what to change.
+what to change (one over 5000 characters loses its middle, never its end, where the reason is).
 
 The data come from two hosts: the indicator catalogue (`services.json` on
 regionalatlas.statistikportal.de) and the ArcGIS data host (www.gis-idmz.nrw.de), which runs a
