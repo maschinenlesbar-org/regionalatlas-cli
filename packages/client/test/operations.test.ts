@@ -281,6 +281,19 @@ test("a column the catalogue publishes no figure for that year is no figure, not
   assert.equal(compared.levelStats?.mean, undefined);
 });
 
+test("getIndicatorMap: value columns the catalogue doesn't name are left out, with a note naming them", async () => {
+  const extra: Record<string, number> = {};
+  for (let i = 0; i < 1000; i++) extra[`ai05_extra_${String(i).padStart(4, "0")}`] = i;
+  const rows = { "ai005/1/2025": ELECTION_LAND_2025.map((r) => ({ ...r, ...extra })) };
+  const { client } = api({ rows });
+  const map = await getIndicatorMap(client, { indicator: "AI005", year: 2025 });
+  assert.equal(map.status, "ok");
+  assert.deepEqual(Object.keys(map.rows?.[0]?.values ?? {}).sort(), ["ai0501", "ai0502", "ai0503", "ai0504", "ai0505", "ai0506", "ai0507"]);
+  assert.equal(Object.keys(map.coverage ?? {}).length, 7);
+  assert.equal(map.fields?.length, 7);
+  assert.ok(map.notes?.some((n) => /1000 value columns the catalogue doesn't name/.test(n) && n.includes("ai05_extra_0000") && n.length < 400), String(map.notes));
+});
+
 // --- compareRegions ---
 
 test("compareRegions: an indicator with several columns and no field is ambiguous with the columns, before any data request", async () => {

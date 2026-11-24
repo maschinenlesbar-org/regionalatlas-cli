@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { Client } from "../src/mcp/api.js";
 import { listTools } from "../src/mcp/server.js";
 import { connect } from "./harness.js";
-import { regionalatlasApi, sqlOf } from "./helpers.js";
+import { ELECTION_LAND_2025, regionalatlasApi, sqlOf } from "./helpers.js";
 
 const CATALOGUE = "https://regionalatlas.statistikportal.de/taskrunner/services.json";
 const DATA = "https://www.gis-idmz.nrw.de/arcgis/rest/services/stba/regionalatlas/MapServer/dynamicLayer/query";
@@ -78,6 +78,19 @@ test("compareRegions: several value columns and none named is ambiguous with the
   assert.deepEqual((turnout["highest"] as { name: string; value: number }[]).map((r) => [r.name, r.value]), [["Bayern", 84.3]]);
   assert.equal((turnout["field"] as { title: string }).title, "Wahlbeteiligung, Bundestagswahl");
   await connection.close();
+});
+
+test("getIndicatorMap: an answer with 1000 value columns the catalogue doesn't name fits the size cap, the columns left out with a note", async () => {
+  const extra: Record<string, number> = {};
+  for (let i = 0; i < 1000; i++) extra[`ai05_extra_column_${String(i).padStart(4, "0")}`] = i;
+  const connection = await connect({ transport: regionalatlasApi({ rows: { "ai005/1/2025": ELECTION_LAND_2025.map((r) => ({ ...r, ...extra })) } }) });
+  const result = await connection.call("getIndicatorMap", { indicator: "AI005", year: 2025, limit: 1 });
+  await connection.close();
+  assert.equal(result.isError, undefined, result.content[0]?.text);
+  const answer = result.structuredContent ?? {};
+  assert.equal(answer["status"], "ok");
+  assert.equal((answer["fields"] as unknown[]).length, 7);
+  assert.ok((answer["notes"] as string[]).some((n) => n.includes("the catalogue doesn't name")));
 });
 
 test("listThemes: the themes with their indicators", async () => {

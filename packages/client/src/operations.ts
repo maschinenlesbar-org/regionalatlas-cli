@@ -31,6 +31,7 @@ import { matchRegion } from "./client.js";
 import { columnPublished, fieldKey, findField, foldText } from "./catalog.js";
 import { GEO_LEVELS, resolveLevel } from "./levels.js";
 import { assertValid, textProblem, tokenProblem } from "./validate.js";
+import { cutText } from "./errors.js";
 import type { Indicator, IndicatorField, RegionRow } from "./types.js";
 
 /** What every operation answers: ok, ambiguous (ask which), or empty (with the reason). */
@@ -492,11 +493,23 @@ export async function getIndicatorMap(client: RegionalatlasClient, options: Indi
     };
   }
   const wanted = options.fields === undefined ? undefined : new Set(options.fields.map(fieldKey));
+  // A value column the catalogue doesn't name has no title or unit: nothing says what it
+  // measures, and a model must not guess it from the code. When the catalogue names the
+  // indicator's columns, the others are left out (a note names them): a drifted answer with a
+  // thousand such columns would otherwise fill the whole result.
+  const named = indicator.fields.length === 0 ? undefined : new Set(indicator.fields.map((field) => field.code));
+  const unnamed = new Set<string>();
   const rows: MapRow[] = [...fetched.rows]
     .sort((a, b) => (a.ags < b.ags ? -1 : a.ags > b.ags ? 1 : 0))
     .map((row) => {
       const values: Record<string, number | null> = {};
-      for (const [key, value] of Object.entries(row.values)) if (wanted === undefined || wanted.has(fieldKey(key))) values[key] = value;
+      for (const [key, value] of Object.entries(row.values)) {
+        if (named !== undefined && !named.has(fieldKey(key))) {
+          unnamed.add(key);
+          continue;
+        }
+        if (wanted === undefined || wanted.has(fieldKey(key))) values[key] = value;
+      }
       const missing = Object.entries(row.missing ?? {}).filter(([key]) => key in values);
       return { ags: row.ags, name: row.name, values, ...(missing.length > 0 ? { missing: Object.fromEntries(missing) } : {}) };
     });
@@ -515,6 +528,10 @@ export async function getIndicatorMap(client: RegionalatlasClient, options: Indi
   if (!t.yearGiven && fetched.year !== t.years[0]) notes.push(`These are the figures of ${fetched.year}: say which year the map shows.`);
   const fill = fillNote(fetched.rows, t.level);
   if (fill !== undefined) notes.push(fill);
+  if (unnamed.size > 0) {
+    const shown = [...unnamed].slice(0, 5).map((key) => cutText(key, 40));
+    notes.push(`The data host sent ${unnamed.size} value column${unnamed.size > 1 ? "s" : ""} the catalogue doesn't name (${shown.join(", ")}${unnamed.size > 5 ? ", …" : ""}): left out, since nothing says what they measure.`);
+  }
   const unpublished = keys.filter((key) => columnPublished(indicator, key, t.level, fetched.year) === false);
   if (unpublished.length > 0) {
     notes.push(`The catalogue lists ${unpublished.join(", ")} for ${fetched.year} but publishes no figure for ${unpublished.length > 1 ? "them" : "it"} at level ${t.level}: no figure (null), not 0.`);
