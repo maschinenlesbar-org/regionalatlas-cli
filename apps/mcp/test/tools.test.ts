@@ -136,15 +136,17 @@ test("the pages of a Gemeinde-sized map read the level's answer once: the server
   assert.equal(dataRequests(mock).length, 1);
 });
 
-test("the deadline's and the size cap's advice fit every tool: each option named with the tools that take it, the catalogue named", async () => {
+test("the deadline's and the size cap's advice fit every tool: each option named with the tools that take it, the catalogue named at the deadline", async () => {
   const hanging = { transport: (): Promise<never> => new Promise<never>(() => {}) };
   const connection = await connect({ transport: hanging, config: { callTimeoutMs: 30 } });
   const deadline = (await connection.call("listThemes", {})).content[0]?.text ?? "";
   await connection.close();
   assert.match(deadline, /took longer than .* and was stopped/);
   const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  assert.match(deadline, /catalogue/, "the catalogue, read before every call, is named");
+  // A catalogue over the 16 MiB read limit is the kit's own error (no option helps), not the result cap's.
+  assert.doesNotMatch(SIZE_HINT, /catalogue/);
   for (const text of [deadline, SIZE_HINT]) {
-    assert.match(text, /catalogue/, "the catalogue, read before every call, is named");
     const pairs = [...text.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
     assert.ok(pairs.length >= 1, text);
     for (const [, options, tools] of pairs) {
