@@ -133,6 +133,8 @@ export const TOOLS: readonly ToolDefinition[] = [
     outputSchema: output({ indicator: obj, level: str_, year: int, fields: arr, rows: arr, coverage: obj, incomplete: bool, years: arr, levels: arr }),
     source: (_args, base) => dataSource(base),
     paged: (args) => ({ list: "rows", offset: num(args, "offset") ?? 0 }),
+    // The column dictionary the rows are read with: a part of it would leave value keys unnamed.
+    keepWhole: ["fields"],
     async run(args, context) {
       return {
         ...(await getIndicatorMap(context.client, {

@@ -94,6 +94,35 @@ test("getIndicatorMap: an answer with 1000 value columns the catalogue doesn't n
   assert.ok((answer["notes"] as string[]).some((n) => n.includes("the catalogue doesn't name")));
 });
 
+test("getIndicatorMap: the size cap keeps the column dictionary whole: the rows give way first, else it is the size error naming fields", async () => {
+  // The rows' values are keyed by column codes, read with fields: a dictionary that lost entries
+  // beside rows that kept every value key was wrong data (at caps up to about 1750 here).
+  const whole = async (maxResultChars?: number) => {
+    const connection = await connect({ transport: regionalatlasApi(), config: maxResultChars === undefined ? {} : { maxResultChars } });
+    const result = await connection.call("getIndicatorMap", { indicator: "AI005", year: 2025 });
+    await connection.close();
+    return result;
+  };
+  const full = (await whole()).structuredContent ?? {};
+  assert.equal((full["fields"] as unknown[]).length, 7);
+  let answered = 0;
+  let refused = 0;
+  for (let cap = 1500; cap <= 2400; cap += 20) {
+    const result = await whole(cap);
+    if (result.isError === true) {
+      assert.match(result.content[0]?.text ?? "", /--max-result-chars.*fields is kept whole/, `${cap}`);
+      refused++;
+      continue;
+    }
+    const answer = result.structuredContent ?? {};
+    assert.deepEqual(answer["fields"], full["fields"], `${cap}`);
+    assert.doesNotMatch(String(answer["reason"] ?? ""), /fields/, `${cap}`);
+    assert.ok((answer["rows"] as unknown[]).length < (full["rows"] as unknown[]).length, `${cap}`);
+    answered++;
+  }
+  assert.ok(answered > 0 && refused > 0, `${answered} answered, ${refused} refused`);
+});
+
 test("listThemes: the themes with their indicators", async () => {
   const connection = await connect({ transport: regionalatlasApi() });
   const answer = (await connection.call("listThemes", {})).structuredContent ?? {};
